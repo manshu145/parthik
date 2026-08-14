@@ -18,6 +18,9 @@ import {
  * are computed server-side (TASK 008 and TASK 005) and pushed in here; the shell
  * must never derive a total or decide whether an address is serviceable, or that
  * logic would exist in two places.
+ *
+ * `setLocation` therefore accepts an already-resolved value from the location API
+ * rather than computing one.
  */
 
 interface ShellState {
@@ -33,8 +36,23 @@ interface ShellState {
 
   /** Placeholder until TASK 008 supplies real values. */
   cart: CartSummary;
-  /** Placeholder until TASK 005 supplies real values. */
+
+  /**
+   * The chosen delivery location.
+   *
+   * Seeded server-side from the location cookie so the header renders the right
+   * label on first paint (no flash of "Select location"), then updated by the
+   * location sheet after the SERVER has resolved serviceability.
+   */
   location: SelectedLocation;
+  /**
+   * Replaces the displayed location.
+   *
+   * Only ever called with a server-resolved result. The shell must not construct a
+   * `SelectedLocation` from client-side guesswork — `isServiceable` is a
+   * server-owned fact.
+   */
+  setLocation: (location: SelectedLocation) => void;
 }
 
 const ShellContext = createContext<ShellState | null>(null);
@@ -50,6 +68,7 @@ export function ShellProvider({
 }) {
   const [isCartOpen, setCartOpen] = useState(false);
   const [isLocationOpen, setLocationOpen] = useState(false);
+  const [location, setLocation] = useState<SelectedLocation>(initialLocation);
 
   const openCart = useCallback(() => setCartOpen(true), []);
   const closeCart = useCallback(() => setCartOpen(false), []);
@@ -67,7 +86,8 @@ export function ShellProvider({
       closeLocation,
       setLocationOpen,
       cart: initialCart,
-      location: initialLocation,
+      location,
+      setLocation,
     }),
     [
       isCartOpen,
@@ -77,7 +97,7 @@ export function ShellProvider({
       openLocation,
       closeLocation,
       initialCart,
-      initialLocation,
+      location,
     ]
   );
 

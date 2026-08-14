@@ -52,6 +52,15 @@ const serverSchema = z.object({
   // ---- Google Maps Platform server key (D-23) ----
   GOOGLE_MAPS_SERVER_KEY: nonEmpty.optional(),
 
+  /**
+   * Maps provider selection (.kiro/steering/provider-credentials.md).
+   *
+   * `auto` uses Google when a key is present and the deterministic mock when it is
+   * not — so a fresh clone works with no credentials at all. `auto` never
+   * resolves to the mock in production.
+   */
+  MAPS_PROVIDER: z.enum(['auto', 'google', 'mock']).default('auto'),
+
   // ---- Analytics (D-28) ----
   GA4_API_SECRET: nonEmpty.optional(),
 

@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import type { ReactNode } from 'react';
 import { ShopShell } from '@/components/layout/shop-shell';
+import { getCurrentLocation } from '@/lib/shell/current-location';
 
 /**
  * Authenticated customer layout (docs/ROUTES.md §2, §5).
@@ -16,6 +17,9 @@ export const metadata: Metadata = {
   robots: { index: false, follow: false },
 };
 
-export default function CustomerLayout({ children }: { children: ReactNode }) {
-  return <ShopShell>{children}</ShopShell>;
+export default async function CustomerLayout({ children }: { children: ReactNode }) {
+  // Read on the server so the header shows the chosen location on first paint.
+  const initialLocation = await getCurrentLocation();
+
+  return <ShopShell initialLocation={initialLocation}>{children}</ShopShell>;
 }

@@ -11,7 +11,10 @@
     "search": "Search",
     "language": "Language",
     "changeLanguage": "Change language",
-    "comingSoon": "Coming soon"
+    "comingSoon": "Coming soon",
+    "clear": "Clear",
+    "check": "Check",
+    "continue": "Continue"
   },
   "nav": {
     "primary": "Primary navigation",
@@ -59,8 +62,27 @@
     "sheetTitle": "Choose delivery location",
     "sheetDescription": "We use this to show what is available near you.",
     "detectLocation": "Use my current location",
-    "notConfiguredTitle": "Location selection is not available yet",
-    "notConfiguredDescription": "Detecting and searching for an address arrives with the location feature."
+    "detecting": "Detecting your location…",
+    "detectDenied": "Location access was blocked. Enter your PIN code instead, or allow location in your browser settings.",
+    "detectFailed": "We could not detect your location. Please enter your PIN code.",
+    "detectNoAddress": "We could not find an address for your location. Please enter your PIN code.",
+    "noPincodeForAddress": "That address has no PIN code. Please enter your PIN code.",
+    "searchLabel": "Search for an area or landmark",
+    "searchPlaceholder": "e.g. Palasia, Vijay Nagar",
+    "searchHint": "Type at least 3 characters.",
+    "searching": "Searching…",
+    "pincodeLabel": "Or enter your PIN code",
+    "pincodePlaceholder": "452001",
+    "invalidPincode": "Enter a valid 6-digit PIN code.",
+    "errorTitle": "Could not set your location",
+    "serviceableTitle": "We deliver to {label}",
+    "unserviceableTitle": "We do not deliver to {pincode} yet",
+    "unserviceableDescription": "We are expanding to new areas. You can still browse, but ordering is not available for this PIN code.",
+    "deliveryFee": "Delivery fee",
+    "freeDeliveryAbove": "Free delivery above",
+    "minOrder": "Minimum order",
+    "estimatedDelivery": "Estimated delivery",
+    "minutes": "{count} min"
   },
   "search": {
     "label": "Search products",
@@ -86,16 +108,46 @@
     "placeholderNotice": "Shell only — no live data on this screen yet."
   },
   "pages": {
-    "home": { "title": "Home", "heading": "Everyday essentials, delivered fast" },
-    "categories": { "title": "Categories", "heading": "Shop by category" },
-    "category": { "title": "Category", "heading": "Category" },
-    "product": { "title": "Product", "heading": "Product" },
-    "offers": { "title": "Offers", "heading": "Offers & coupons" },
-    "cart": { "title": "Cart", "heading": "Your cart" },
-    "favorites": { "title": "Favorites", "heading": "Your favorites" },
-    "account": { "title": "Account", "heading": "Your account" },
-    "search": { "title": "Search", "heading": "Search" },
-    "offline": { "title": "Offline", "heading": "You are offline" }
+    "home": {
+      "title": "Home",
+      "heading": "Everyday essentials, delivered fast"
+    },
+    "categories": {
+      "title": "Categories",
+      "heading": "Shop by category"
+    },
+    "category": {
+      "title": "Category",
+      "heading": "Category"
+    },
+    "product": {
+      "title": "Product",
+      "heading": "Product"
+    },
+    "offers": {
+      "title": "Offers",
+      "heading": "Offers & coupons"
+    },
+    "cart": {
+      "title": "Cart",
+      "heading": "Your cart"
+    },
+    "favorites": {
+      "title": "Favorites",
+      "heading": "Your favorites"
+    },
+    "account": {
+      "title": "Account",
+      "heading": "Your account"
+    },
+    "search": {
+      "title": "Search",
+      "heading": "Search"
+    },
+    "offline": {
+      "title": "Offline",
+      "heading": "You are offline"
+    }
   },
   "states": {
     "loading": {

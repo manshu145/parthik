@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react';
 import { ShopShell } from '@/components/layout/shop-shell';
+import { getCurrentLocation } from '@/lib/shell/current-location';
 
 /**
  * Public commerce layout (docs/ROUTES.md §2).
@@ -8,6 +9,9 @@ import { ShopShell } from '@/components/layout/shop-shell';
  * surface gets its own layout and cache posture: this one is publicly cacheable
  * and indexable, unlike `(customer)`.
  */
-export default function ShopLayout({ children }: { children: ReactNode }) {
-  return <ShopShell>{children}</ShopShell>;
+export default async function ShopLayout({ children }: { children: ReactNode }) {
+  // Read on the server so the header shows the chosen location on first paint.
+  const initialLocation = await getCurrentLocation();
+
+  return <ShopShell initialLocation={initialLocation}>{children}</ShopShell>;
 }

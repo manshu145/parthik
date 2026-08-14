@@ -87,8 +87,13 @@ describe('UI message catalogues', () => {
 
   it('actually contains Devanagari rather than copied English', () => {
     const devanagari = /[\u0900-\u097F]/;
+    // Latin letters are what "copied English" looks like. A value with none —
+    // "452001", "G-XXXX", "{count}" — has nothing to translate, so requiring
+    // Devanagari in it would force fake translations of numerals.
+    const hasLatinLetters = /[A-Za-z]/;
+
     const notTranslated = Object.entries(flatHi)
-      .filter(([, value]) => !devanagari.test(value))
+      .filter(([, value]) => hasLatinLetters.test(value) && !devanagari.test(value))
       .map(([key]) => key);
 
     expect(notTranslated, `Hindi values without Devanagari: ${notTranslated.join(', ')}`).toEqual(

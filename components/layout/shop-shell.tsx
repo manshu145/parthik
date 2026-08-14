@@ -3,6 +3,7 @@
 import type { ReactNode } from 'react';
 import { useTranslations } from 'next-intl';
 import { ShellProvider } from '@/components/providers/shell-provider';
+import type { SelectedLocation } from '@/lib/shell/types';
 import { Toaster } from '@/components/providers/toaster';
 import { ServiceWorkerRegistration } from '@/components/providers/service-worker-registration';
 import { SiteHeader } from './site-header';
@@ -30,11 +31,18 @@ import { SkipLink } from './skip-link';
  * element of a page is never hidden behind it — a small detail that is very
  * obvious when it is missing.
  */
-export function ShopShell({ children }: { children: ReactNode }) {
+export function ShopShell({
+  children,
+  initialLocation,
+}: {
+  children: ReactNode;
+  /** Resolved from the location cookie by the server layout. */
+  initialLocation?: SelectedLocation;
+}) {
   const t = useTranslations('nav');
 
   return (
-    <ShellProvider>
+    <ShellProvider initialLocation={initialLocation}>
       <SkipLink label={t('skipToContent')} />
       <OfflineBanner />
 
