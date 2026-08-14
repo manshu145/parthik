@@ -1,10 +1,14 @@
 # Parthik — Database Design
 
-**Status:** Draft for approval
-**Version:** 0.1
-**Depends on:** [`ARCHITECTURE.md`](./ARCHITECTURE.md) — ORM choice is **[D-02]**, host is **[D-01]**, both unresolved.
+**Status:** **APPROVED** design · **Version:** 1.0 · **Approved:** 2026-08-14
+**Depends on:** [`ARCHITECTURE.md` §16](./ARCHITECTURE.md#16-approved-decisions)
+**ORM:** Drizzle (D-02) · **Host:** managed PostgreSQL behind Hyperdrive (D-01)
 
-> This is a logical schema. Column lists are indicative of intent, not final DDL. No migrations will be generated until [D-01], [D-02], [D-11], [D-12], [D-14], [D-16] and [D-17] are approved, because each of them changes table shape.
+> This is a logical schema. Column lists are indicative of intent, not final DDL.
+>
+> **Migrations are explicitly NOT generated yet**, by instruction. This document is the design that migrations will be generated *from*, once TASK 002 is authorized.
+>
+> **One area remains deliberately inert:** tax columns exist but carry no logic, because **D-14 (GST/tax) is BLOCKED** and no tax assumption may be implemented. See §6.4.
 
 ---
 
@@ -68,7 +72,8 @@ order_status             PENDING_PAYMENT | CONFIRMED | ACCEPTED | PREPARING
                          | READY_FOR_PICKUP | ASSIGNED | PICKED_UP | OUT_FOR_DELIVERY
                          | DELIVERED | CANCELLED | PAYMENT_FAILED | REFUNDED
                          | RETURNED | FAILED_DELIVERY
-payment_method           UPI | CARD | NETBANKING | WALLET | COD        -- COD pending [D-12]
+payment_method           UPI | CARD | COD                  -- D-12 approved: UPI + Card + COD
+                         -- NETBANKING/WALLET reserved; not offered in V1
 payment_status           CREATED | PENDING | AUTHORIZED | PAID | FAILED
                          | CANCELLED | PARTIALLY_REFUNDED | REFUNDED
 refund_status            INITIATED | PROCESSING | COMPLETED | FAILED
@@ -91,6 +96,14 @@ ticket_category          PAYMENT | DELIVERY | PRODUCT | REFUND | COUPON
                          | ACCOUNT | VENDOR | OTHER
 audit_action             CREATE | UPDATE | DELETE | LOGIN | LOGOUT | STATUS_CHANGE
                          | APPROVE | REJECT | REFUND | ASSIGN | EXPORT | SETTING_CHANGE
+                         | CASH_DEPOSIT_VERIFY | PII_REVEAL
+
+-- added by approved decisions
+locale_code              en | hi                    -- D-33, extensible
+cash_entry_type          COLLECTION | DEPOSIT | ADJUSTMENT | WRITE_OFF   -- D-12
+cash_deposit_status      DECLARED | VERIFIED | REJECTED | PARTIAL        -- D-12
+cash_deposit_method      BANK_TRANSFER | OFFICE_CASH | UPI               -- D-12
+dispatch_mode            AUTO_NEAREST | BROADCAST | MANUAL               -- D-18
 ```
 
 ---
@@ -103,7 +116,8 @@ Central identity. One row per human, regardless of how many roles they hold.
 ```text
 id, phone (unique, nullable), phone_verified_at,
 email (unique, nullable), email_verified_at,
-password_hash (nullable — pending [D-09]), full_name,
+-- NOTE: no password_hash column. D-09 approved: phone OTP primary, no passwords in V1.
+full_name, preferred_locale ('en'|'hi', default 'en'),   -- D-33
 status user_status, last_login_at, locale,
 created_at, updated_at, deleted_at, anonymized_at
 ```
@@ -194,7 +208,8 @@ Transactional order notifications are not opt-out-able; only `PROMOTION` respect
 ```text
 id, owner_user_id, business_name, legal_name, slug (unique),
 status vendor_status, gstin (nullable), pan (nullable), fssai_license (nullable),
-contact_phone, contact_email, commission_rate (nullable — pending [D-15]),
+contact_phone, contact_email,
+commission_rate numeric(5,2),        -- D-15: used for CALCULATION only, never auto-settlement
 approved_at, approved_by, rejection_reason, suspended_at, suspension_reason,
 created_at, updated_at, deleted_at
 ```
@@ -227,7 +242,8 @@ One store per vendor in V1 UI, N supported by schema (**[D-32]**).
 id, vendor_id, name, slug (unique), status store_status,
 description, logo_key, banner_key,
 line1, line2, city, state, pincode, latitude, longitude,
-delivery_radius_km (nullable — pending [D-17]),
+delivery_radius_km (nullable),                       -- D-17 approved: pincode + radius
+cod_enabled boolean default true,                    -- D-12: per-store COD switch
 min_order_paise, avg_prep_time_minutes, rating_avg, rating_count,
 is_accepting_orders, closed_until, created_at, updated_at, deleted_at
 ```
@@ -263,7 +279,8 @@ Serviceability lookup is a single indexed hit on `pincode`, cached for 1 h and r
 ### `categories`
 Self-referencing tree, covering both category and subcategory from master spec §6.
 ```text
-id, parent_id (nullable), name, slug (unique), description,
+id, parent_id (nullable), slug (unique),
+-- name/description live in category_translations (D-33)
 icon_key, image_key, display_order, is_active, is_featured,
 seo_meta_id (nullable), created_at, updated_at, deleted_at
 ```
@@ -271,29 +288,34 @@ Index on `(parent_id, display_order)`, unique on `slug`. Depth is limited to 2 l
 
 ### `brands`
 ```text
-id, name, slug (unique), logo_key, is_active, created_at, updated_at, deleted_at
+id, slug (unique), logo_key, is_active, created_at, updated_at, deleted_at
+-- name lives in brand_translations (D-33)
 ```
 
 ### `products`
 ```text
 id, vendor_id, store_id, category_id, brand_id (nullable),
-name, slug (unique), short_description, description,
+slug (unique),
+-- name/short_description/description/specifications live in product_translations (D-33)
 status product_status, is_featured, is_popular,
-unit_label (e.g. '500 g', '1 L'), hsn_code (nullable — pending [D-14]),
+unit_label (e.g. '500 g', '1 L'),
+hsn_code (nullable),                 -- D-14 BLOCKED: column exists, stays NULL, no logic reads it
 tax_rate (nullable), is_tax_inclusive boolean,
 mrp_paise, price_paise, cost_paise (nullable, vendor-private),
 rating_avg, rating_count, view_count, sold_count,
-search_vector tsvector (generated — pending [D-21]),
+search_vector_en tsvector (generated, 'english' config),
+search_vector_hi tsvector (generated, 'simple' config),   -- D-33/C-2: no Hindi stemmer exists
 seo_meta_id, version, published_at,
 created_at, created_by, updated_at, updated_by, deleted_at
 ```
-Indexes: unique `slug`; `(store_id, status)`; `(category_id, status)`; GIN on `search_vector`; trigram index on `name`; partial `(status) WHERE deleted_at IS NULL AND status='ACTIVE'`.
+Indexes: unique `slug`; `(store_id, status)`; `(category_id, status)`; GIN on `search_vector_en` and `search_vector_hi`; trigram index on `product_translations.name`; partial `(status) WHERE deleted_at IS NULL AND status='ACTIVE'`.
 
 `price_paise` must always be `<= mrp_paise` (check constraint) so discount display can never be nonsense.
 
 ### `product_variants`
 ```text
-id, product_id, name, sku (unique per vendor), variant_label,
+id, product_id, sku (unique per vendor),
+-- name/variant_label live in product_variant_translations (D-33)
 mrp_paise, price_paise, unit_label, is_default, display_order,
 is_active, created_at, updated_at, deleted_at
 ```
@@ -393,14 +415,16 @@ coupon_code_snapshot, coupon_discount_paise,
 taxable_amount_paise, tax_amount_paise,
 delivery_fee_paise, packaging_fee_paise, service_fee_paise,
 total_amount_paise, currency,
-payment_method, payment_status, is_cod,          -- pending [D-12]
+payment_method, payment_status,
+is_cod boolean default false,                 -- D-12 approved
+cod_amount_paise (nullable),                  -- amount to collect at door
 placed_at, confirmed_at, accepted_at, ready_at,
 delivered_at, cancelled_at,
 cancellation_reason, cancelled_by_role,
 estimated_delivery_at, actual_delivery_minutes,
 customer_note, internal_note,
 idempotency_key (unique), source (WEB|PWA|ADMIN),
-vendor_payout_paise, platform_commission_paise,   -- pending [D-15]
+vendor_payout_paise, platform_commission_paise,   -- D-15: calculated, settled manually
 version, created_at, updated_at
 ```
 Indexes: unique `order_number`, unique `idempotency_key`, `(user_id, created_at desc)`, `(store_id, status)`, `(status, created_at)`, `(delivery_zone_id, created_at)`.
@@ -456,7 +480,7 @@ initiated_at, completed_at, failure_reason, notes, created_at, updated_at
 ### `invoices`
 ```text
 id, order_id (unique), invoice_number (unique), invoice_date,
-seller_type (PLATFORM|VENDOR),        -- pending [D-14]
+seller_type (PLATFORM|VENDOR),        -- D-14 BLOCKED: no invoice is generated in V1
 seller_name, seller_gstin, buyer_name, buyer_state,
 taxable_amount_paise, tax_breakup jsonb, total_amount_paise,
 pdf_storage_key (nullable), created_at
@@ -471,22 +495,151 @@ Historical rates are retained so old invoices remain reproducible.
 
 ---
 
+### 6.1 Inventory reservation lifecycle (D-16 approved)
+
+**Approved rule: reserve at order/payment initiation, release on payment failure or cancellation.** Reservation is what prevents two customers paying for the same last unit while one of them is still in the gateway.
+
+`inventory` holds two counters. `quantity_available` is what may still be sold; `quantity_reserved` is committed-but-not-yet-delivered. Sellable stock is `quantity_available`, and it is decremented at reservation time — not at delivery.
+
+| Trigger | Ledger entry | `quantity_available` | `quantity_reserved` |
+|---|---|---|---|
+| Order created (prepaid or COD) | `RESERVE` | − qty | + qty |
+| Payment failed | `RELEASE` | + qty | − qty |
+| `PENDING_PAYMENT` expiry (unpaid timeout) | `RELEASE` | + qty | − qty |
+| Order cancelled before `PICKED_UP` | `RELEASE` | + qty | − qty |
+| Vendor rejects order | `RELEASE` | + qty | − qty |
+| Order `DELIVERED` | `SALE` | unchanged | − qty |
+| Delivery failed, stock returned to store | `RELEASE` | + qty | − qty |
+| Returned after delivery | `RETURN` | + qty | unchanged |
+| Manual adjustment / damage | `ADJUSTMENT` / `DAMAGE` | ± qty | unchanged |
+
+**Rules that make this safe:**
+
+1. Reservation happens **inside the order-creation transaction**, under `SELECT … FOR UPDATE` on the `inventory` row. There is no window where the order exists but stock is unreserved.
+2. `quantity_available >= 0` is a **check constraint**, not an application assumption. Overselling is impossible at the database level rather than merely unlikely.
+3. Every movement writes an `inventory_transactions` row with `reference_type`/`reference_id`, so current stock is always reproducible from the ledger. A counter that disagrees with its ledger is a detectable bug.
+4. `RELEASE` is **idempotent by `(order_id, txn_type)`** — a retried cancellation or a duplicated queue message cannot release the same stock twice and inflate inventory.
+5. **Unpaid reservation timeout:** `PENDING_PAYMENT` orders are swept by cron and released after the configured window (default 15 minutes, admin-configurable). Without this, abandoned checkouts would silently strangle availability.
+6. COD orders reserve at creation like any other order, since they are `CONFIRMED` immediately and have no payment wait.
+7. `track_inventory = false` products skip reservation entirely but still write `SALE` rows for reporting.
+
+### 6.2 COD payment lifecycle (D-12 approved)
+
+COD needs its own tables because cash creates a custody chain that a gateway payment does not.
+
+```text
+payment_method = COD, payment_status = PENDING   (order created CONFIRMED)
+        ↓  driver confirms delivery + OTP + collected amount
+driver_cash_ledger  COLLECTION (+)   ·   payment_status = PAID
+        ↓  driver declares a deposit
+cash_deposits  status = DECLARED
+        ↓  admin verifies
+cash_deposits  status = VERIFIED   ·   driver_cash_ledger  DEPOSIT (−)
+```
+
+#### `driver_cash_ledger`
+Append-only. Cash in hand is derived by summation, never stored as a mutable field — the same discipline as `driver_earnings`.
+
+```text
+id, driver_id, entry_type (COLLECTION|DEPOSIT|ADJUSTMENT|WRITE_OFF),
+amount_paise (signed: + collection, − deposit),
+delivery_id (nullable), order_id (nullable), cash_deposit_id (nullable),
+reason, created_by, created_at
+-- unique (delivery_id, entry_type) WHERE entry_type = 'COLLECTION'
+```
+The unique index is the idempotency guard: a retried delivery confirmation cannot record the same cash twice.
+
+Index: `(driver_id, created_at desc)`.
+
+#### `cash_deposits`
+```text
+id, driver_id, deposit_reference (unique), declared_amount_paise,
+verified_amount_paise (nullable), variance_paise (nullable),
+method (BANK_TRANSFER|OFFICE_CASH|UPI),
+proof_storage_key (nullable, private R2),
+status (DECLARED|VERIFIED|REJECTED|PARTIAL),
+declared_at, verified_by, verified_at, rejection_reason,
+notes, created_at, updated_at
+```
+Two-step by design: a driver *declares*, an admin *verifies*. A declared deposit is not a settled deposit, and the variance between declared and verified is recorded rather than reconciled away.
+
+#### COD control settings
+Stored in `admin_settings`, enforced in the service layer. **Launch values need confirmation (D-19a-adjacent):**
+
+| Setting | Purpose |
+|---|---|
+| `cod.max_order_value_paise` | Caps per-order exposure |
+| `cod.driver_cash_limit_paise` | A driver above this is **ineligible for further COD dispatch** until they deposit — the primary loss control |
+| `cod.enabled_zones` | COD may be disabled per zone |
+| `cod.deposit_grace_hours` | How long a driver may hold cash before escalation |
+
+Derived views the admin reconciliation screen needs: cash in hand per driver, aged uncollected cash, drivers over limit, deposits pending verification, and per-delivery collection variances.
+
+### 6.3 Cancellation and refund policy engine (D-19 approved)
+
+Approved as a **configurable engine with distinct customer, vendor and admin permissions**. The rules are data, not conditionals scattered through services.
+
+#### `cancellation_policies`
+```text
+id, actor_role (CUSTOMER|VENDOR|ADMIN),
+from_status order_status,          -- status at which cancellation is attempted
+is_allowed boolean,
+window_minutes (nullable),         -- time from order placement, NULL = no limit
+refund_percent numeric(5,2),       -- of item value
+refund_delivery_fee boolean,
+requires_reason boolean,
+restock boolean,
+compensate_driver boolean,
+payment_method_scope (ALL|PREPAID|COD),
+priority, is_active, updated_by, created_at, updated_at
+-- unique (actor_role, from_status, payment_method_scope) WHERE is_active
+```
+
+The service resolves the matching row for `(actor, current status, payment method)` and either permits the cancellation with the computed refund or rejects it with `ORDER_NOT_CANCELLABLE`. Admin overrides are permitted but require a reason and are audited.
+
+> 🔴 **D-19a — the engine is approved, the values are not.** The policy table ships **empty except for a deliberately conservative seed** (customer may cancel before `ACCEPTED` with a 100% refund; admin may cancel at any pre-delivery status). Every other window, percentage, restocking rule and driver-compensation rule **requires your input**. I will not invent refund percentages.
+
+### 6.4 Tax — BLOCKED (D-14)
+
+**No tax logic is implemented.** Per explicit instruction, no tax assumption is coded.
+
+| Object | State while blocked |
+|---|---|
+| `products.hsn_code`, `products.tax_rate` | Exist, stay `NULL`. Nothing reads them |
+| `order_items.tax_rate`, `order_items.tax_amount_paise` | Exist, written as `0` |
+| `orders.taxable_amount_paise`, `orders.tax_amount_paise` | Exist, written as `0` |
+| `tax_rates` table | Created, **not seeded** |
+| `invoices` table | Created, **no rows produced**. No invoice number is issued |
+| Pricing engine | `NoTaxStrategy` returns zero |
+| Customer UI | **No tax line rendered at all** — not even "₹0 GST", since that asserts a treatment |
+
+The columns exist now so that unblocking D-14 is a backfill plus a strategy implementation, not a schema migration across `orders` and `order_items` after real financial data exists.
+
+---
+
 ## 7. State machines
 
 ### 7.1 Order transitions
 
 Implemented as an explicit table in `modules/order/order.state.ts`. Anything absent from this table raises `StateTransitionError`.
 
+**Entry point depends on payment method (D-12):**
+
+| Method | Entry status | Reason |
+|---|---|---|
+| UPI / Card | `PENDING_PAYMENT` | Awaits a verified webhook before becoming `CONFIRMED` |
+| **COD** | **`CONFIRMED` directly** | No upstream payment exists. A `payments` row is created with `method=COD`, `status=PENDING`, advancing to `PAID` only on confirmed cash collection at delivery |
+
 | From | Allowed to | Who may trigger |
 |---|---|---|
-| `PENDING_PAYMENT` | `CONFIRMED`, `PAYMENT_FAILED`, `CANCELLED` | System (webhook), customer (abandon), cron (expiry) |
+| `PENDING_PAYMENT` | `CONFIRMED`, `PAYMENT_FAILED`, `CANCELLED` | System (webhook), customer (abandon), cron (expiry → releases reserved stock) |
 | `CONFIRMED` | `ACCEPTED`, `CANCELLED` | Vendor, admin, customer (within policy **[D-19]**) |
 | `ACCEPTED` | `PREPARING`, `CANCELLED` | Vendor, admin |
 | `PREPARING` | `READY_FOR_PICKUP`, `CANCELLED` | Vendor, admin |
 | `READY_FOR_PICKUP` | `ASSIGNED`, `CANCELLED` | System/admin (dispatch **[D-18]**) |
 | `ASSIGNED` | `PICKED_UP`, `READY_FOR_PICKUP` (driver dropped), `CANCELLED` | Driver, admin |
 | `PICKED_UP` | `OUT_FOR_DELIVERY`, `FAILED_DELIVERY` | Driver, admin |
-| `OUT_FOR_DELIVERY` | `DELIVERED`, `FAILED_DELIVERY` | Driver, admin |
+| `OUT_FOR_DELIVERY` | `DELIVERED`, `FAILED_DELIVERY` | Driver, admin — **requires delivery OTP (D-20)**; for COD also requires a collected-amount confirmation, which writes `driver_cash_ledger` and marks the COD payment `PAID` |
 | `DELIVERED` | `RETURNED`, `REFUNDED` | Admin only |
 | `FAILED_DELIVERY` | `ASSIGNED` (retry), `RETURNED`, `CANCELLED` | Admin |
 | `CANCELLED` | `REFUNDED` | Admin/system (if payment captured) |
@@ -513,11 +666,18 @@ Delivery status changes propagate to order status through the `order` service �
 ### 7.3 Payment transitions
 
 ```text
-CREATED → PENDING → AUTHORIZED → PAID
-CREATED/PENDING → FAILED | CANCELLED
-PAID → PARTIALLY_REFUNDED → REFUNDED
+PREPAID:  CREATED → PENDING → AUTHORIZED → PAID
+          CREATED/PENDING → FAILED | CANCELLED
+          PAID → PARTIALLY_REFUNDED → REFUNDED
+
+COD:      PENDING → PAID          (cash collected at delivery)
+          PENDING → CANCELLED     (order cancelled before delivery)
 ```
-Only the verified webhook handler and the reconciliation job may advance a payment to `PAID`.
+For **prepaid**, only the verified webhook handler and the reconciliation job may advance a payment to `PAID`.
+
+For **COD**, only a driver's confirmed delivery (with valid OTP) or an admin correction may advance it, and doing so writes the cash ledger entry in the same transaction — cash recorded as collected and payment marked paid can never diverge.
+
+**COD refunds** have no gateway payment to reverse, so they become a manual payout recorded against the order with its own approval trail (D-15 manual settlement). This is deliberately not automated in V1.
 
 ---
 
@@ -530,11 +690,21 @@ availability driver_availability,
 full_name, phone, date_of_birth, emergency_contact,
 assigned_zone_ids (join table below), rating_avg, rating_count,
 total_deliveries, successful_deliveries,
-current_latitude, current_longitude, location_updated_at,   -- retention per [D-29]
+current_latitude, current_longitude, location_updated_at,
+-- D-29 + C-1: ephemeral ONLINE position for auto-dispatch (D-18).
+-- Single overwritten row, NO history. CLEARED when availability becomes OFFLINE.
+cash_in_hand_paise (derived, not stored — see driver_cash_ledger),
 approved_at, approved_by, rejection_reason, suspended_at,
 created_at, updated_at, deleted_at
 ```
-Current location is a single overwritten row, not a history trail, unless **[D-29]** decides otherwise.
+**Location handling is split into two classes (approved resolution, [`ARCHITECTURE.md` §16.7 C-1](./ARCHITECTURE.md#167-clarifications-required-by-these-approvals)):**
+
+| Class | Where | Retention |
+|---|---|---|
+| **Ephemeral current position** — required by auto-nearest dispatch (D-18) | `drivers.current_*` | Overwritten per ping, **deleted when the driver goes offline**. Never a queryable trail |
+| **Active-delivery trail** | `delivery_status_history` coordinates | **Purged after 7 days** (D-29) |
+
+A driver's long-term movement history is therefore never retained, which preserves the privacy intent while making dispatch possible.
 
 ### `driver_zones`
 ```text
@@ -562,10 +732,12 @@ id, order_id (unique), store_id, driver_id (nullable),
 status delivery_status, delivery_zone_id,
 pickup_address_snapshot jsonb, drop_address_snapshot jsonb,
 distance_km, delivery_fee_paise, driver_payout_paise,
-delivery_otp_hash (nullable), otp_verified_at,
+delivery_otp_hash NOT NULL, otp_verified_at,      -- D-20: OTP mandatory for every delivery
+otp_attempts, otp_regenerated_count,
 assigned_at, accepted_at, reached_store_at, picked_up_at,
 reached_customer_at, delivered_at, failed_at, failure_reason,
-cod_amount_paise (nullable), cod_collected_at,     -- pending [D-12]
+cod_amount_paise (nullable), cod_expected_paise, cod_collected_paise,
+cod_collected_at, cod_variance_paise,              -- D-12: mismatch recorded, not swallowed
 created_at, updated_at
 ```
 Delivery OTP is **hashed**, like any other OTP.
@@ -575,8 +747,33 @@ Full offer/accept/decline audit — needed to answer "why did this order sit una
 ```text
 id, delivery_id, driver_id, offered_at, responded_at,
 response (ACCEPTED|DECLINED|TIMEOUT|CANCELLED), decline_reason,
-offer_expires_at, assigned_by (nullable — admin manual), created_at
+offer_expires_at, assigned_by (nullable — admin manual),
+attempt_number, dispatch_mode (AUTO_NEAREST|BROADCAST|MANUAL),
+distance_at_offer_km, created_at
 ```
+
+**Auto-nearest dispatch (D-18 approved).** The dispatch job runs when an order reaches `READY_FOR_PICKUP`:
+
+```text
+1. candidate set = drivers where
+     availability = ONLINE
+     AND status = APPROVED
+     AND no mandatory document expired
+     AND assigned to the store's delivery zone
+     AND current position known and fresh
+     AND cash_in_hand below cod.driver_cash_limit_paise   (COD orders only)
+2. rank by distance from the store (nearest first)
+3. offer to the top candidate, attempt_number = 1
+4. no response within cod/dispatch offer_timeout_seconds → response = TIMEOUT
+5. offer to the next candidate, attempt_number += 1
+6. after max_attempts → dispatch_mode = BROADCAST to the whole eligible zone
+7. still unassigned after escalation_minutes → surface on the admin delivery
+   board for MANUAL assignment and raise a system_event
+```
+
+`attempt_number` and `distance_at_offer_km` exist so dispatch quality is measurable — without them, "why was a far driver assigned?" is unanswerable. **Timeout, max attempts and escalation values are admin-configurable; launch defaults need confirmation.**
+
+Index: `(driver_id, response, offered_at desc)`, `(delivery_id, attempt_number)`.
 
 ### `delivery_status_history`
 ```text
@@ -682,7 +879,67 @@ id, category, question, answer, display_order, is_active, created_at, updated_at
 
 ---
 
-## 10. CMS and SEO
+## 10. CMS, SEO and localized content
+
+### 10.1 Localized content model (D-33 approved: EN + HI)
+
+**Approach: side translation tables**, one per translatable entity, keyed `(entity_id, locale)`. Not `name_en`/`name_hi` columns.
+
+The reason is directly about the approved requirement that further Indian languages must not be blocked: adding Marathi with translation tables is `INSERT` statements, while with suffixed columns it is an `ALTER TABLE` on every content table plus a change to every query that selects a name. The cost difference only grows as the catalog grows.
+
+```text
+supported_locales   -- small lookup so admin can see/extend the set
+id, code ('en'|'hi'), name, native_name, is_default, is_active, display_order
+```
+
+#### Translation tables
+
+Each follows the identical shape, which keeps the repository helper generic:
+
+```text
+category_translations
+  id, category_id, locale, name, description
+  -- unique (category_id, locale)
+
+product_translations
+  id, product_id, locale, name, short_description, description,
+  specifications jsonb, unit_label
+  -- unique (product_id, locale)
+
+product_variant_translations
+  id, variant_id, locale, name, variant_label
+  -- unique (variant_id, locale)
+
+brand_translations           id, brand_id, locale, name
+cms_page_translations        id, cms_page_id, locale, title, content jsonb
+blog_post_translations       id, blog_post_id, locale, title, excerpt, content jsonb
+banner_translations          id, banner_id, locale, title, subtitle, cta_label,
+                             image_key, mobile_image_key   -- images can differ per locale
+faq_translations             id, faq_id, locale, question, answer
+coupon_translations          id, coupon_id, locale, name, description
+seo_meta_translations        id, seo_meta_id, locale, meta_title, meta_description,
+                             og_title, og_description
+cancellation_reason_translations  id, reason_id, locale, label
+```
+
+Every one carries `created_at`, `updated_at`, `updated_by`.
+
+`notification_templates` already keys on `locale` natively (§9), so it needs no companion table.
+
+#### Rules
+
+1. **Base rows keep language-neutral data only** — slug, prices, status, flags, foreign keys, timestamps. `products.name` is **removed** in favour of `product_translations`; a base table never holds one privileged language.
+2. **The `en` row is mandatory** for every translatable entity, enforced in the service layer, because `en` is the fallback. Creating content without English is rejected.
+3. **Per-field fallback to `en`** when a `hi` row or field is missing. The repository resolves this in a single query using `COALESCE` over a `LEFT JOIN` on the requested locale, so call sites never handle fallback themselves and can never forget to.
+4. **Slugs are not translated in V1.** One canonical slug per entity, shared across locales, which keeps the `redirects` table and legacy URL mapping simple. Localized slugs remain possible later without a schema change.
+5. **Search vectors are per-locale** (`search_vector_en`, `search_vector_hi`), generated from the corresponding translation row. Hindi uses the `simple` configuration plus `pg_trgm` because PostgreSQL ships no Hindi stemmer — see [`ARCHITECTURE.md` §16.7 C-2](./ARCHITECTURE.md#167-clarifications-required-by-these-approvals).
+6. **Translation completeness is queryable**, so admin can see what is untranslated rather than discovering gaps from customers.
+
+Indexes: unique `(entity_id, locale)` on each table, plus `(locale)` where a locale-wide scan is needed for completeness reporting.
+
+#### V1 content scope
+
+Capability is complete for both languages; *content* is bounded per [`ARCHITECTURE.md` §12.6](./ARCHITECTURE.md#126-localisation-en-hi). Hindi is **required** for UI strings, transactional notification templates and category names; **optional with EN fallback** for product text and CMS pages; **not translated** for blog in V1.
 
 ### `cms_pages`
 ```text
@@ -825,10 +1082,12 @@ Deterministic seeds for: permissions and role→permission mappings, a super adm
 | `otp_verifications` | Purge consumed/expired after 30 days |
 | `login_attempts` | Purge after 90 days |
 | `sessions` | Purge expired/revoked after 30 days |
-| Driver location | **[D-29]** — purge after the approved window |
+| Driver **current** position | Cleared the moment availability becomes `OFFLINE` (D-29 + C-1) |
+| Driver location **trail** (active delivery) | **Purged after 7 days** (D-29) |
+| `cash_deposits` proof files | Retained 12 months for reconciliation disputes |
 | `analytics_events` | Aggregate then purge raw after 12 months |
 | `webhook_logs` / `payment_events` | Retain ≥ 12 months (dispute window), then archive |
-| Financial rows (orders, payments, refunds, invoices, earnings) | **Never** purged; statutory retention |
+| Financial rows (orders, payments, refunds, invoices, earnings, **cash ledger**) | **Never** purged; statutory retention |
 | `audit_logs` | Retain ≥ 3 years, archive to R2 thereafter |
 
 ### Backup
@@ -836,22 +1095,44 @@ Managed PITR from the chosen host (**[D-01]**), plus an independent periodic log
 
 ---
 
-## 14. Open items affecting this schema
+## 14. Decision status affecting this schema
 
-| Decision | Tables affected |
+### Resolved — schema is settled for these
+
+| Decision | Outcome in the schema |
 |---|---|
-| **[D-01]** Postgres host | Extension availability (PostGIS, `pg_trgm`), backup strategy |
-| **[D-02]** ORM | All schema definition files, migration tooling |
-| **[D-09]** Password vs passwordless | `users.password_hash` |
-| **[D-11]** Multi-vendor cart | `carts`, `orders` (possible `order_groups` parent), `deliveries` |
-| **[D-12]** COD | `orders.is_cod`, `deliveries.cod_*`, `payment_method` enum, state machine entry |
-| **[D-14]** GST model | `products.hsn_code`/`tax_rate`, `order_items.tax_*`, `invoices.seller_type`, `tax_rates` |
-| **[D-15]** Commission/payout | `vendors.commission_rate`, `orders.vendor_payout_paise`, `payout_batches` |
-| **[D-16]** Inventory semantics | `inventory.quantity_reserved`, `inventory_transactions` types |
-| **[D-17]** Zone model | `delivery_zones.polygon`/`radius_km`, `zone_pincodes`, fee columns |
-| **[D-18]** Dispatch | `delivery_assignments` offer/timeout columns |
-| **[D-20]** Proof policy | `delivery_proofs`, `deliveries.delivery_otp_hash` |
-| **[D-21]** Search | `products.search_vector` or external index |
-| **[D-28]** Analytics | whether `analytics_events` exists at all |
-| **[D-29]** Location retention | `drivers.current_*`, `delivery_status_history` coordinates |
-| **[D-31]** Legacy migration | id mapping tables, `redirects` seed, password hash compatibility |
+| **D-01/D-02** | Drizzle definitions against managed PostgreSQL via Hyperdrive |
+| **D-09** | **No `password_hash` column.** Phone OTP only; `preferred_locale` added |
+| **D-11** | `carts.store_id` / `orders.store_id` — single vendor per order. No order-group table |
+| **D-12** | `orders.is_cod` + `cod_amount_paise`, `deliveries.cod_*` with variance, `driver_cash_ledger`, `cash_deposits`, COD entry directly at `CONFIRMED` (§6.2, §7.1) |
+| **D-15** | `vendors.commission_rate`, `orders.vendor_payout_paise`, `payout_batches` — calculation only, no auto-settlement |
+| **D-16** | `inventory.quantity_reserved` + `RESERVE`/`RELEASE`/`SALE` ledger types with documented triggers (§6.1) |
+| **D-17** | `delivery_zones` fee columns + `zone_pincodes` + `stores.delivery_radius_km`; ₹199 threshold seeded as admin-editable data, not a constant |
+| **D-18** | `delivery_assignments.attempt_number`, `dispatch_mode`, `distance_at_offer_km`; `drivers.current_*` as ephemeral position |
+| **D-19** | `cancellation_policies` table (§6.3) — engine built, **values pending D-19a** |
+| **D-20** | `deliveries.delivery_otp_hash` **NOT NULL**; `delivery_proofs` for optional photo/signature |
+| **D-21** | `search_vector_en` + `search_vector_hi`, `pg_trgm` on translated names |
+| **D-29** | Split into ephemeral position (cleared offline) and 7-day-purged trail |
+| **D-30** | `cms_pages`, `home_layouts`, `blog_posts`, `redirects` — DB-driven |
+| **D-31** | **No migration tables, no id-mapping tables built yet.** A separate plan follows schema approval |
+| **D-33** | `supported_locales` + `*_translations` tables (§10.1); base tables hold no language-specific text |
+
+### 🔴 Still blocked — schema deliberately inert
+
+| Decision | Schema state |
+|---|---|
+| **D-14 GST/tax** | Tax columns and `tax_rates`/`invoices` tables exist but carry **no logic, no seed data and produce no rows**. See §6.4. Unblocking is a backfill plus a strategy implementation, not a migration on live financial tables |
+| **D-08 auth library** | Affects no table. `sessions`/`otp_verifications` are library-agnostic as designed, so this blocks TASK 003 code rather than TASK 002 schema |
+| **D-32 multi-store** | `stores.vendor_id` already supports N per vendor. **No schema change either way** — only the vendor UI differs |
+
+### Open sub-items with schema impact
+
+| Ref | Impact |
+|---|---|
+| **D-19a** | The *values* seeded into `cancellation_policies`. Table shape is final |
+| **D-33a** | Locale URL strategy affects `redirects` seeding and canonical generation, not table shape |
+| **D-07a** | Image transformation choice may add a variants/derivatives column to `product_images`. Deferred until decided |
+
+### Not yet generated, by instruction
+
+**No migrations exist.** This document is the design they will be generated from. Nothing in `db/migrations/` will be created until TASK 002 is explicitly authorized.

@@ -1,7 +1,6 @@
 # Parthik — Security Architecture
 
-**Status:** Draft for approval
-**Version:** 0.1
+**Status:** **APPROVED** design · **Version:** 1.0 · **Approved:** 2026-08-14
 **Depends on:** [`ARCHITECTURE.md`](./ARCHITECTURE.md) · [`API_SPEC.md`](./API_SPEC.md) · [`DATABASE.md`](./DATABASE.md)
 
 > Governing rule from the master spec (§23): **roles must never be trusted from client-side state, and authorization is always server-side.** Every control below exists to make that true in practice rather than in principle.
@@ -26,6 +25,8 @@ What we are actually defending against, in rough priority order for a hyperlocal
 | T10 | **Injection / XSS / CSRF** | Parameterized queries only, no `dangerouslySetInnerHTML` on untrusted input, sanitized CMS HTML, same-site cookies + origin checks (§7) |
 | T11 | **Scraping / bot pressure** on catalog and search | Cloudflare bot management, edge rate limits, no bulk-export endpoints for public data |
 | T12 | **Insider / admin misuse** | Granular permissions, audit log on every admin action, elevated permission for sensitive settings, PII reveal auditing (§11) |
+| **T13** | **COD cash loss or theft** — driver absconds with collected cash, under-declares a deposit, or accumulates unbounded cash | Append-only cash ledger, per-driver cash limit blocking further COD dispatch, two-step declare/verify deposits, variance recording, aged-cash alerts (§8.4) |
+| **T14** | **Delivery OTP bypass** — driver marks delivered without the customer present | OTP mandatory (D-20), hashed, attempt-capped; photo/signature exception path is audited and reportable |
 
 ---
 
@@ -33,11 +34,15 @@ What we are actually defending against, in rough priority order for a hyperlocal
 
 ### 2.1 Supported methods
 
-| Method | Flow | Notes |
+**D-09 approved: phone OTP is the primary method and passwords are NOT used in V1.**
+
+| Method | Flow | Status |
 |---|---|---|
-| Phone OTP | Request → 6-digit code by SMS → verify → session | Primary method; matches existing product |
-| Email + password | Credential login | **Only if [D-09] retains passwords** |
-| Email OTP / magic link | Alternative to password | Pending **[D-09]** |
+| Phone OTP | Request → 6-digit code by SMS → verify → session | **Primary** |
+| Email OTP | Request → code by email → verify → session | Optional fallback |
+| Email + password | — | **Not implemented.** No `password_hash`, no reset flow, no password endpoints |
+
+Removing passwords eliminates an entire threat class outright: credential stuffing, password reuse, weak-password enrolment, reset-token interception and hash-cracking after a database leak all become inapplicable. The trade-off is a hard dependency on SMS deliverability, which raises the importance of the T1 controls below and of the email-OTP fallback.
 
 ### 2.2 OTP rules
 
@@ -55,13 +60,15 @@ What we are actually defending against, in rough priority order for a hyperlocal
 | Escalation | Turnstile challenge after repeated requests from an IP/device |
 | Response to abuse | Progressive delay, then temporary block, plus a `system_events` alert |
 
-### 2.3 Password rules (if [D-09] retains passwords)
+### 2.3 Passwords — not applicable
 
-Minimum 8 characters with a check against a common-password list (length and breach-checking beat composition rules). Hashing with a memory-hard algorithm — **argon2id preferred, scrypt as the Workers-compatible fallback** — with parameters recorded in config so they can be raised over time. Hash upgrades happen transparently on next successful login. Uniform failure messaging and near-constant response timing to prevent enumeration. Reset tokens are single-use, hashed at rest, 30-minute expiry, and invalidate all existing sessions on use.
+**No passwords exist in V1 (D-09).** No hashing choice, no reset flow, no lockout-on-password, no breach-list check is required.
+
+If passwords are ever reintroduced — most likely triggered by a legacy migration under **D-31** that carries existing hashes — the requirement is argon2id (scrypt as the Workers-compatible fallback), parameters in config so they can be raised, transparent rehash on login, uniform failure messaging, and single-use hashed reset tokens that revoke all sessions on use. **This is documented for that contingency only, not built.**
 
 ### 2.4 Account lockout
 
-10 failed attempts per identifier in 15 minutes → 15-minute lock with a clear message. Lockout is tracked per identifier **and** per IP so an attacker cannot lock out a legitimate user cheaply, and legitimate users are not punished for someone else's IP. Every lock writes `login_attempts` and a `system_events` row.
+Applies to OTP verification rather than password attempts. 10 failed attempts per identifier in 15 minutes → 15-minute lock with a clear message. Lockout is tracked per identifier **and** per IP so an attacker cannot lock out a legitimate user cheaply, and legitimate users are not punished for someone else's IP. Every lock writes `login_attempts` and a `system_events` row.
 
 ---
 
@@ -73,7 +80,7 @@ Minimum 8 characters with a check against a common-password list (length and bre
 | Cookie | `HttpOnly`, `Secure`, `SameSite=Lax`, `Path=/`, host-only, `__Host-` prefixed |
 | Cookie contents | Opaque session id + signed claims (`userId`, `roles`, `sessionId`, `exp`) used **only** for middleware routing |
 | Token storage | Only a **hash** of the session token is persisted, so a database leak does not yield usable sessions |
-| Lifetime | Customer 30 days rolling; vendor/driver 14 days; **admin 8 hours** with a 30-minute idle timeout (**confirm in [D-10]**) |
+| Lifetime | **Approved (D-10):** customer 30 days rolling · vendor/driver 14 days · **admin 8 hours with a 30-minute idle timeout** |
 | Rotation | New token issued on privilege change and on OTP re-verification |
 | Revocation | Individual, all-sessions, and forced on password change, role change, suspension or ban |
 | Visibility | `/account/security` lists active sessions/devices with last-seen and allows revocation |
@@ -149,17 +156,18 @@ A user may hold several roles. The **active context is derived from the route** 
 
 ## 6. Rate limiting and abuse protection
 
-Two layers: Cloudflare edge rules for volumetric protection, and application-level counters (Redis-compatible store, **[D-03]**) for per-identity precision.
+Two layers: Cloudflare edge rules for volumetric protection, and application-level counters (Redis-compatible HTTP store, D-03) for per-identity precision.
 
 | Endpoint / action | Limit | Key |
 |---|---|---|
 | OTP request | 3 / 10 min; 8 / day | phone |
 | OTP request | 10 / hour | IP |
 | OTP verify | 5 / code; 20 / hour | phone + IP |
-| Login | 10 / 15 min | identifier |
+| OTP login attempt | 10 / 15 min | identifier |
 | Login | 30 / 15 min | IP |
 | Signup | 5 / hour | IP |
-| Password reset request | 3 / hour | identifier + IP |
+| Email OTP request | 3 / 10 min | email |
+| Cash deposit declaration | 10 / day | driver |
 | Search / suggestions | 30 / min | IP or session |
 | Add to cart | 60 / min | session |
 | Coupon apply | 10 / min | user |
@@ -171,6 +179,7 @@ Two layers: Cloudflare edge rules for volumetric protection, and application-lev
 | Analytics events | 100 / min | session |
 | Admin export/report | 10 / hour | user |
 | Driver location ping | 1 / 15 s | driver |
+| Delivery OTP verify | 5 / delivery | delivery |
 
 Rules:
 
@@ -227,6 +236,23 @@ Raw body read before parsing → timing-safe HMAC comparison against the environ
 
 Every one of these is covered by an integration test that runs the operations concurrently — the only way to know a race control works is to race it.
 
+### 8.4 COD cash integrity (D-12)
+
+Cash is the one value in the system that leaves the database entirely, so the controls are about **custody and detection** rather than cryptography.
+
+| Control | Mechanism |
+|---|---|
+| No mutable balance | Cash in hand is **derived** by summing `driver_cash_ledger`. There is no field an attacker or a bug can simply overwrite |
+| Collection cannot be double-recorded | Unique index on `(delivery_id, entry_type) WHERE entry_type='COLLECTION'` — a retried delivery confirmation is inert |
+| Collection is atomic with delivery | OTP verification, delivery status, payment `PAID` and the ledger entry all commit together. Cash marked collected without a delivery, or a delivery without a cash record, are both impossible |
+| Exposure is bounded | Per-order COD cap and a per-driver cash-in-hand limit that **removes the driver from COD dispatch** until they deposit |
+| Deposits are two-step | A driver *declares*; an admin *verifies*. Only verification writes the reducing ledger entry, so a driver cannot clear their own liability |
+| Variance is recorded, not reconciled away | Declared vs verified, and expected vs collected, are both stored and reportable |
+| Adjustments are privileged | `cash:adjust` is a distinct permission, always audited with a mandatory reason. Write-offs are visible, not quiet |
+| Aged cash is surfaced | Cron alerts on cash held beyond `cod.deposit_grace_hours` |
+
+**Separation of duties:** the permissions `cash:view`, `cash:reconcile` and `cash:adjust` are deliberately distinct so that verifying a deposit and writing off a shortfall need not be the same person. Granting all three to one role is a business choice, and it should be a conscious one.
+
 ---
 
 ## 9. Data protection
@@ -254,7 +280,7 @@ TLS 1.2+ everywhere, HSTS with preload. At rest: managed-database encryption plu
 | Actor | Sees |
 |---|---|
 | Vendor | Customer first name, masked phone (revealed only for an active order), delivery area/landmark. **Not** full address history, email, or other orders (master spec §14) |
-| Driver | Recipient name, masked phone with click-to-reveal for the active delivery only, full delivery address **only while the delivery is active** |
+| Driver | Recipient name, masked phone with click-to-reveal for the active delivery only, full delivery address **only while the delivery is active**, and the COD amount to collect |
 | Admin support | Full data as required, every PII reveal audited |
 | Analytics | Pseudonymous id only — no phone, email, address, or payment detail (master spec §36) |
 
@@ -292,11 +318,18 @@ Not used in V1. Tenancy is enforced in the repository layer plus service-level o
 ## 10. Privacy and compliance
 
 - **Data minimisation:** collect only what an order needs. Date of birth and gender are optional and must have a stated purpose before being added to any form.
-- **Consent:** analytics/marketing consent banner scope depends on **[D-28]**; transactional messaging does not require consent, marketing does.
+- **Consent:** analytics/marketing consent banner scope is required by PostHog (D-28) and must be defined before launch; transactional messaging does not require consent, marketing does.
 - **Right to deletion:** implemented as anonymise-in-place — PII scrubbed, financial and order records retained for statutory purposes, with an audit entry.
-- **Driver location** is the most privacy-sensitive stream in the system: captured only during an active delivery, stored coarsely, purged on a schedule (**[D-29]**), and visible only to the customer of that delivery and authorized ops staff.
+- **Driver location** is the most privacy-sensitive stream in the system. Approved handling (D-29 + clarification C-1) splits it in two:
+
+  | Class | Purpose | Retention |
+  |---|---|---|
+  | Ephemeral current position | Auto-nearest dispatch (D-18) while `ONLINE` | Overwritten per ping, **deleted on going offline**. Never a queryable trail |
+  | Active-delivery trail | Tracking and dispute resolution | **Purged after 7 days** |
+
+  No long-term movement history of any driver is retained. Drivers must be told at onboarding that their live position is used for assignment while they are online — using it silently would be the actual privacy failure here. The trail is visible only to the customer of that delivery and authorized ops staff.
 - **Retention** per [`DATABASE.md` §13](./DATABASE.md); enforced by cron, not by intention.
-- **Data residency:** prefer an India (ap-south) region for the primary database (**[D-01]**). Indian regulatory expectations around payment-data localisation should be confirmed with your payment provider and counsel — flagged, not assumed.
+- **Data residency:** prefer an India (ap-south) region for the primary database (D-01, region pick open as D-01a). Indian regulatory expectations around payment-data localisation should be confirmed with your payment provider and counsel — flagged, not assumed.
 - **Vendor/driver KYC documents** are retained only as long as the relationship plus a statutory window, then purged.
 
 ---
@@ -306,7 +339,7 @@ Not used in V1. Tenancy is enforced in the repository layer plus service-level o
 ### Audit log
 Append-only `audit_logs` (no update/delete endpoints exist). Records: actor, role, hashed IP, user agent, action, entity, before/after diff with secrets filtered, reason, `request_id`, timestamp.
 
-Mandatory audit events: login/logout/failed login, every admin mutation, order/payment/delivery state changes, refunds and payouts, vendor/driver approval and suspension, role/permission changes, settings and feature-flag changes, PII reveals, data exports, document reviews, manual inventory adjustments, impersonation if it is ever built.
+Mandatory audit events: login/logout/failed login, every admin mutation, order/payment/delivery state changes, refunds and payouts, vendor/driver approval and suspension, role/permission changes, settings and feature-flag changes, PII reveals, data exports, document reviews, manual inventory adjustments, **cash deposit verification, cash adjustments and write-offs, COD collection variances, delivery-proof exception use (photo/signature instead of OTP)**, cancellation-policy edits, and impersonation if it is ever built.
 
 ### Monitoring and alerting
 | Signal | Threshold |
@@ -318,6 +351,9 @@ Mandatory audit events: login/logout/failed login, every admin mutation, order/p
 | Orders stuck in `PENDING_PAYMENT` | Age > threshold (reconciliation gap) |
 | 5xx rate, DLQ depth, DB latency/pool saturation | Standard thresholds |
 | Permission-denied spike from one actor | Possible probing |
+| Driver cash held beyond grace period | Cash-loss exposure |
+| COD collection variance rate | Rising trend suggests process or integrity problem |
+| Delivery-proof exception rate per driver | OTP bypass pattern |
 
 ### Incident response
 Documented severity levels, on-call contact, and a runbook covering: revoke all sessions, rotate a leaked secret, disable a compromised admin, enable maintenance mode, replay a failed webhook, roll back a deploy. Post-incident review is written up and any fix that prevents recurrence is tracked as work, not as a note.
@@ -344,20 +380,46 @@ Blocking gate before the DNS cutover (master spec §41 Phase 9, §46):
 - [ ] Audit log verified populated for a full admin action sample
 - [ ] Log redaction verified — no OTP, token or full-PII in any log sink
 - [ ] Dependency audit clean of known high/critical vulnerabilities
+- [ ] COD: cash ledger idempotency verified under retry; driver cash limit blocks dispatch
+- [ ] COD: deposit declare/verify separation verified; a driver cannot self-verify
+- [ ] Delivery OTP mandatory path verified; exception path audited
+- [ ] Driver ephemeral position confirmed deleted on going offline
+- [ ] Location trail purge job verified at 7 days
+- [ ] Hindi locale: no untranslated key leaks to UI; fallback renders English, never a raw key
+- [ ] Confirmed **no tax line and no invoice** is rendered anywhere (D-14 blocked)
 - [ ] Backup restore rehearsed successfully in staging
 - [ ] Incident runbook reviewed with whoever will be on call
 
 ---
 
-## 13. Open security decisions
+## 13. Decision status affecting security
 
-| # | Question | Impact |
-|---|---|---|
-| **[D-08]** | Auth library vs in-house | How much security-critical code we own and must test ourselves |
-| **[D-09]** | Passwords retained? | Whether password hashing, reset flow and credential-stuffing defence are in scope at all |
-| **[D-10]** | Session lifetimes per role | Confirm the proposed 30d/14d/8h split, especially the admin idle timeout |
-| **[D-24]** | SMS provider | DLT template registration is a compliance prerequisite in India, with lead time |
-| **[D-28]** | Analytics provider | Determines the consent banner requirement and its wording |
-| **[D-29]** | Driver location retention | Privacy exposure vs dispute-resolution capability. **You must set the window** |
-| **[D-31]** | Legacy data migration | Migrating legacy password hashes constrains the hashing choice; migrated PII inherits these obligations |
-| — | Payment-data localisation obligations | Needs confirmation with the payment provider and counsel — **not something I should assume** |
+### Resolved
+
+| Decision | Security outcome |
+|---|---|
+| **D-09** | **No passwords.** Eliminates credential stuffing, reuse, weak enrolment, reset-token interception and hash cracking. Increases dependence on SMS deliverability |
+| **D-10** | Session lifetimes fixed: customer 30 d, vendor/driver 14 d, admin 8 h + 30 min idle |
+| **D-12** | COD introduces T13 (cash loss) with the §8.4 control set and three separated cash permissions |
+| **D-13** | Razorpay webhook HMAC verification and replay guard per §8.2 |
+| **D-20** | Delivery OTP mandatory — closes the T14 bypass; exception use is audited |
+| **D-23** | Google Maps called **server-side only**; key never reaches the browser |
+| **D-25** | Resend with SPF/DKIM/DMARC |
+| **D-27/D-28** | Sentry and PostHog — both must respect the log-redaction allowlist; no PII to either |
+| **D-29** | Two-class location model above; no long-term driver movement history |
+| **D-31** | **No legacy PII enters the system yet**, which removes migration-inherited data risk from V1 |
+| **D-33** | Hindi templates must be DLT-registered separately; translated content is sanitized on save identically to English |
+
+### 🔴 Blocked
+
+| Decision | Security consequence |
+|---|---|
+| **D-08 auth library** | Blocks TASK 003. With D-09 removing OAuth and passwords, in-house sessions are now recommended — but whichever is chosen, the §2 and §3 controls are the acceptance criteria, and OTP/session logic must be covered by the concurrency and abuse tests before launch |
+| **D-14 GST/tax** | No invoices are generated, so no invoice-tampering or tax-misstatement surface exists yet. When unblocked, invoice generation and access control need their own review |
+
+### Still requires external confirmation
+
+| Item | Why |
+|---|---|
+| Payment-data localisation obligations under Indian regulation | Must be confirmed with Razorpay and counsel. **Not something I should assume**, and it may constrain the D-01a region choice |
+| DLT registration (D-24a) | Compliance prerequisite for transactional SMS, now needed in **both English and Hindi**. Gates all authentication |

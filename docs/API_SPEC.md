@@ -1,7 +1,6 @@
 # Parthik — API Specification
 
-**Status:** Draft for approval
-**Version:** 0.1
+**Status:** **APPROVED** design · **Version:** 1.0 · **Approved:** 2026-08-14
 **Depends on:** [`ARCHITECTURE.md`](./ARCHITECTURE.md) · [`SECURITY.md`](./SECURITY.md) · [`DATABASE.md`](./DATABASE.md)
 
 > This is the internal API contract for the Parthik web application. It is not a public partner API. Everything here is versioned under `/api/v1` so a future mobile app or extracted API service can consume it unchanged.
@@ -34,6 +33,8 @@ Both call **identical service functions**. A service never knows its transport. 
 | Caching | Authenticated responses `Cache-Control: private, no-store` |
 | Compression | Handled at the edge |
 | Request tracing | Every response carries `X-Request-Id` |
+| **Locale** | Request: `Accept-Language` or an explicit `?locale=en\|hi`; the resolved locale is echoed in `Content-Language`. Localized fields are returned **already resolved** for the requested locale with EN fallback applied — clients never receive a translation map and never implement fallback (D-33) |
+| **Tax** | Response bodies include `taxAmountPaise: 0` for schema stability but **no tax line is intended for display** while D-14 is blocked |
 
 ### 1.3 Response envelope
 
@@ -97,16 +98,18 @@ Enforced at the edge and in-application. Full table in [`SECURITY.md` §7](./SEC
 |---|---|---|---|
 | `POST` | `/api/v1/auth/otp/request` | PUBLIC | Request phone OTP. Body `{ phone, purpose, turnstileToken? }`. **Always returns a generic success** — never reveals whether the number is registered |
 | `POST` | `/api/v1/auth/otp/verify` | PUBLIC | `{ phone, code, purpose }` → session cookie + `{ user, roles, isNewUser }` |
-| `POST` | `/api/v1/auth/login` | PUBLIC | Email login (**[D-09]**). Uniform failure message and constant-ish timing to prevent account enumeration |
-| `POST` | `/api/v1/auth/signup` | PUBLIC | `{ fullName, phone, email?, password? }` |
+| `POST` | `/api/v1/auth/email-otp/request` | PUBLIC | Email OTP fallback. **D-09 approved: no password login in V1** |
+| `POST` | `/api/v1/auth/email-otp/verify` | PUBLIC | |
+| `POST` | `/api/v1/auth/signup` | PUBLIC | `{ fullName, phone, email?, preferredLocale? }` — **no password field** |
 | `POST` | `/api/v1/auth/logout` | AUTH | Revokes the current session |
 | `POST` | `/api/v1/auth/logout-all` | AUTH | Revokes every session for the user |
 | `GET` | `/api/v1/auth/session` | AUTH | Current user, roles, permissions, active context |
 | `GET` | `/api/v1/auth/sessions` | AUTH | Active devices/sessions list |
 | `DELETE` | `/api/v1/auth/sessions/[id]` | AUTH (owner) | Revoke one session |
 | `POST` | `/api/v1/auth/email/verify` | AUTH | |
-| `POST` | `/api/v1/auth/password/reset-request` | PUBLIC | Generic response regardless of existence |
-| `POST` | `/api/v1/auth/password/reset` | PUBLIC | Single-use, short-lived, hashed token |
+| `PATCH` | `/api/v1/auth/locale` | AUTH | Persist `preferredLocale` (D-33) |
+
+> **Removed by D-09:** `/auth/login` (password), `/auth/password/reset-request`, `/auth/password/reset`. No password endpoint exists in V1.
 
 ---
 
@@ -120,7 +123,7 @@ Enforced at the edge and in-application. Full table in [`SECURITY.md` §7](./SEC
 | `GET` | `/api/v1/location/zones` | PUBLIC | Active serviceable zones/cities |
 | `POST` | `/api/v1/location/select` | GUEST-OK | Persists the chosen zone in a cookie for cache variation |
 
-Provider proxying is deliberate: it protects the key, lets us cache aggressively, and keeps map spend controllable (**[D-23]**).
+Provider proxying is deliberate: it protects the key, lets us cache aggressively, and keeps map spend controllable (D-23: Google Maps).
 
 ---
 
@@ -135,7 +138,7 @@ Provider proxying is deliberate: it protects the key, lets us cache aggressively
 | `GET` | `/api/v1/products/[id]/availability` | PUBLIC | Live stock + price. Short TTL — this is the endpoint the product page trusts, not the ISR payload |
 | `GET` | `/api/v1/products/[id]/related` | PUBLIC | |
 | `GET` | `/api/v1/products/[id]/reviews` | PUBLIC | Approved only, paginated |
-| `GET` | `/api/v1/search?q=` | PUBLIC | Products + categories + suggestions (**[D-21]**) |
+| `GET` | `/api/v1/search?q=` | PUBLIC | Products + categories + suggestions (D-21: PostgreSQL FTS, per-locale) |
 | `GET` | `/api/v1/search/suggestions?q=` | PUBLIC | Typeahead, cached |
 | `GET` | `/api/v1/home-layout?zone=` | PUBLIC | CMS-driven section list for the homepage |
 | `GET` | `/api/v1/offers` | PUBLIC | Active coupons + promotions for the zone |
@@ -179,15 +182,63 @@ Cart mutations are Server Actions from our UI; the endpoints below exist for the
 | `POST` | `/api/v1/orders` | CUSTOMER | **Idempotency-Key required.** Creates the order in a transaction: recomputes pricing server-side, reserves stock, records coupon usage, writes status history, creates the payment intent. Returns `{ order, payment: { providerRef, clientPayload } }` |
 | `GET` | `/api/v1/orders` | CUSTOMER | Own orders, paginated |
 | `GET` | `/api/v1/orders/[id]` | CUSTOMER (owner) | Detail + timeline + payment + delivery summary |
-| `GET` | `/api/v1/orders/[id]/track` | CUSTOMER (owner) | Lightweight polling payload: status, ETA, driver first name + masked phone, coarse driver position if permitted (**[D-22]**, **[D-29]**) |
-| `POST` | `/api/v1/orders/[id]/cancel` | CUSTOMER (owner) | Allowed only per the policy table (**[D-19]**); returns the refund outcome |
+| `GET` | `/api/v1/orders/[id]/track` | CUSTOMER (owner) | Lightweight polling payload: status, ETA, driver first name + masked phone, coarse driver position if permitted (D-22 adaptive polling; driver position only while the delivery is active, D-29) |
+| `POST` | `/api/v1/orders/[id]/cancel` | CUSTOMER (owner) | Allowed only per the policy table (D-19 policy engine); returns the refund outcome |
 | `POST` | `/api/v1/orders/[id]/reorder` | CUSTOMER (owner) | Builds a new cart, reporting items no longer available |
 | `GET` | `/api/v1/orders/[id]/invoice` | CUSTOMER (owner) | Signed, short-lived private-bucket URL |
 | `POST` | `/api/v1/orders/[id]/review` | CUSTOMER (owner) | Delivered orders only |
 | `POST` | `/api/v1/payments/intent` | CUSTOMER | Re-create a payment intent for a failed/pending order (recovery) |
 | `GET` | `/api/v1/payments/[id]/status` | CUSTOMER (owner) | Server-verified status. The client **must** poll this rather than trusting the provider SDK callback |
 
-### 6.1 Webhooks
+### 6.1 COD flow (D-12 approved)
+
+COD diverges from prepaid at both ends of the order: creation skips the payment wait, and completion involves physical cash.
+
+**Creation.** `POST /api/v1/orders` accepts `paymentMethod: "COD"`. The server validates COD eligibility before creating anything:
+
+```text
+zone allows COD                      → else COD_NOT_AVAILABLE_IN_ZONE
+store allows COD                     → else COD_NOT_AVAILABLE_FOR_STORE
+order total ≤ cod.max_order_value    → else COD_LIMIT_EXCEEDED
+```
+
+On success the order is created **directly as `CONFIRMED`** with a `payments` row of `method=COD, status=PENDING`, stock is reserved (D-16), and no `clientPayload` is returned because there is no gateway handoff:
+
+```json
+{ "success": true,
+  "data": { "order": { "status": "CONFIRMED", "isCod": true,
+                       "codAmountPaise": 45900 },
+            "payment": { "method": "COD", "status": "PENDING" } } }
+```
+
+**Collection.** `POST /api/v1/driver/deliveries/[id]/deliver` requires the mandatory OTP (D-20) and, for COD, the collected amount. Idempotency-Key required.
+
+```json
+{ "otp": "418322", "codCollectedPaise": 45900, "collectionMethod": "CASH" }
+```
+
+In one transaction: verify OTP → mark delivery `DELIVERED` → mark order `DELIVERED` → convert inventory `RESERVE` to `SALE` → mark the COD payment `PAID` → write `driver_cash_ledger` `COLLECTION`. A **variance** between expected and collected is recorded (`codVariancePaise`), never silently accepted, and returns `COD_AMOUNT_MISMATCH` as a warning in the response while still completing the delivery — refusing the delivery over a ₹10 shortfall would strand the customer and the driver.
+
+### 6.2 Cash reconciliation endpoints (D-12)
+
+| Method | Path | Access | Purpose |
+|---|---|---|---|
+| `GET` | `/api/v1/driver/cash` | DRIVER | Cash in hand (derived from the ledger), limit, remaining headroom, whether COD dispatch is currently blocked |
+| `GET` | `/api/v1/driver/cash/ledger?cursor=` | DRIVER | Own collections, deposits and adjustments |
+| `POST` | `/api/v1/driver/cash/deposits` | DRIVER | **Declare** a deposit: `{ declaredAmountPaise, method, reference?, proofKey? }`. Idempotency-Key required. Status `DECLARED` — declaring is not settling |
+| `GET` | `/api/v1/driver/cash/deposits` | DRIVER | Own deposits and their verification status |
+| `GET` | `/api/v1/admin/cash/drivers` | `cash:view` | Cash in hand per driver, aged cash, **drivers over limit** |
+| `GET` | `/api/v1/admin/cash/deposits?status=` | `cash:view` | Verification queue |
+| `POST` | `/api/v1/admin/cash/deposits/[id]/verify` | `cash:reconcile` | `{ verifiedAmountPaise, notes? }` → writes the `DEPOSIT` ledger entry, records variance, audits |
+| `POST` | `/api/v1/admin/cash/deposits/[id]/reject` | `cash:reconcile` | Reason required |
+| `POST` | `/api/v1/admin/cash/adjustments` | `cash:adjust` | `{ driverId, amountPaise, reason }` — shortfall, write-off or correction. Always audited |
+| `GET` | `/api/v1/admin/cash/variances` | `cash:view` | Per-delivery collection mismatches |
+
+**Dispatch interaction:** a driver whose cash in hand exceeds `cod.driver_cash_limit_paise` is excluded from the COD candidate set (D-18) and receives a clear reason on `/driver/cash`, not a silent absence of offers.
+
+**Refunds on COD orders** have no gateway payment to reverse. `POST /api/v1/admin/orders/[id]/refund` on a COD order therefore creates a **manual payout record** requiring approval, rather than calling Razorpay. The response makes this explicit with `refundMode: "MANUAL_PAYOUT"` so no operator assumes money has moved.
+
+### 6.3 Webhooks
 
 | Method | Path | Auth |
 |---|---|---|
@@ -259,10 +310,10 @@ Every endpoint is implicitly scoped to the authenticated vendor. **A `vendorId` 
 | `POST` | `/api/v1/driver/deliveries/[id]/reached-store` | |
 | `POST` | `/api/v1/driver/deliveries/[id]/pickup` | Confirm pickup → order `PICKED_UP` |
 | `POST` | `/api/v1/driver/deliveries/[id]/reached-customer` | |
-| `POST` | `/api/v1/driver/deliveries/[id]/deliver` | **Idempotency-Key required.** `{ otp? , proofKey?, recipientName? }` per **[D-20]**; COD collection per **[D-12]** |
+| `POST` | `/api/v1/driver/deliveries/[id]/deliver` | **Idempotency-Key required.** `{ otp, codCollectedPaise?, collectionMethod?, proofKey?, recipientName? }`. **OTP is mandatory (D-20)**; photo/signature only as an exception. COD collection per §6.1 |
 | `POST` | `/api/v1/driver/deliveries/[id]/fail` | `{ reason }` |
 | `POST` | `/api/v1/driver/deliveries/[id]/proof` | Upload authorization → private bucket |
-| `POST` | `/api/v1/driver/location` | Coarse location ping while on an active delivery only; retention per **[D-29]**. Ignored when offline |
+| `POST` | `/api/v1/driver/location` | Position ping. **While ONLINE** it overwrites the ephemeral dispatch position (required by D-18 auto-nearest); **while on an active delivery** it also appends to the 7-day trail. Cleared entirely on going offline (D-29 + C-1) |
 | `GET` | `/api/v1/driver/history?cursor=` | |
 | `GET` | `/api/v1/driver/earnings?from=&to=` | Ledger + summary |
 | `GET`/`POST` | `/api/v1/driver/documents` | |
@@ -284,7 +335,7 @@ Every admin endpoint: permission check → action → **audit log write** in the
 | `GET` | `/api/v1/admin/orders/[id]` | `order:view` |
 | `POST` | `/api/v1/admin/orders/[id]/status` | `order:update_status` |
 | `POST` | `/api/v1/admin/orders/[id]/cancel` | `order:cancel` |
-| `POST` | `/api/v1/admin/orders/[id]/refund` | `refund:manage` — Idempotency-Key required |
+| `POST` | `/api/v1/admin/orders/[id]/refund` | `refund:manage` — Idempotency-Key required. Returns `refundMode: GATEWAY\|MANUAL_PAYOUT` (COD has no gateway payment to reverse) |
 | `POST` | `/api/v1/admin/orders/[id]/assign-driver` | `delivery:assign` |
 | `POST` | `/api/v1/admin/orders/[id]/notes` | `order:note` |
 | `GET` | `/api/v1/admin/orders/[id]/audit` | `audit:view` |
@@ -342,7 +393,7 @@ Every admin endpoint: permission check → action → **audit log write** in the
 | `POST` | `/api/v1/notifications/[id]/read` | AUTH (owner) | |
 | `POST` | `/api/v1/notifications/read-all` | AUTH | |
 | `GET`/`PATCH` | `/api/v1/notification-preferences` | AUTH | |
-| `POST` | `/api/v1/push/subscribe` | AUTH | Web Push subscription (**[D-26]**) |
+| `POST` | `/api/v1/push/subscribe` | AUTH | Web Push subscription (D-26: Web Push/VAPID) |
 | `DELETE` | `/api/v1/push/subscribe` | AUTH | |
 | `GET`/`POST` | `/api/v1/tickets` | AUTH | Own tickets |
 | `GET`/`POST` | `/api/v1/tickets/[id]/messages` | AUTH (owner) | Internal notes filtered out at the repository layer |
@@ -366,12 +417,14 @@ Stable codes the client is allowed to branch on.
 | Authorization | `UNAUTHENTICATED`, `FORBIDDEN`, `PERMISSION_REQUIRED`, `VENDOR_NOT_APPROVED`, `DRIVER_NOT_APPROVED`, `DRIVER_DOCUMENTS_EXPIRED` |
 | Location | `PINCODE_NOT_SERVICEABLE`, `ADDRESS_OUTSIDE_ZONE`, `GEOCODE_FAILED` |
 | Catalog | `PRODUCT_NOT_FOUND`, `PRODUCT_UNAVAILABLE`, `VARIANT_INACTIVE`, `STORE_CLOSED` |
-| Cart | `CART_EMPTY`, `INSUFFICIENT_STOCK`, `QUANTITY_LIMIT_EXCEEDED`, `MIXED_VENDOR_CART` (**[D-11]**), `PRICE_CHANGED` |
+| Cart | `CART_EMPTY`, `INSUFFICIENT_STOCK`, `QUANTITY_LIMIT_EXCEEDED`, `MIXED_VENDOR_CART` (D-11: single vendor per order), `PRICE_CHANGED`, `STOCK_RESERVATION_FAILED` |
 | Coupon | `COUPON_NOT_FOUND`, `COUPON_EXPIRED`, `COUPON_INACTIVE`, `COUPON_MIN_CART_NOT_MET`, `COUPON_USAGE_LIMIT_REACHED`, `COUPON_USER_LIMIT_REACHED`, `COUPON_NOT_APPLICABLE`, `COUPON_FIRST_ORDER_ONLY`, `COUPON_ZONE_RESTRICTED` |
 | Checkout/Order | `MIN_ORDER_NOT_MET`, `ADDRESS_REQUIRED`, `ORDER_NOT_FOUND`, `INVALID_STATUS_TRANSITION`, `ORDER_NOT_CANCELLABLE`, `IDEMPOTENCY_KEY_REUSED`, `REQUEST_IN_PROGRESS` |
 | Payment | `PAYMENT_FAILED`, `PAYMENT_ALREADY_CAPTURED`, `WEBHOOK_SIGNATURE_INVALID`, `REFUND_EXCEEDS_PAYMENT`, `PROVIDER_UNAVAILABLE` |
 | Delivery | `ASSIGNMENT_TAKEN`, `ASSIGNMENT_EXPIRED`, `DELIVERY_OTP_INVALID`, `PROOF_REQUIRED`, `DRIVER_OFFLINE` |
 | Upload | `FILE_TOO_LARGE`, `MIME_TYPE_NOT_ALLOWED`, `UPLOAD_PURPOSE_INVALID` |
+| **COD** | `COD_NOT_AVAILABLE_IN_ZONE`, `COD_NOT_AVAILABLE_FOR_STORE`, `COD_LIMIT_EXCEEDED`, `COD_AMOUNT_MISMATCH`, `DRIVER_CASH_LIMIT_EXCEEDED`, `DEPOSIT_ALREADY_VERIFIED`, `DEPOSIT_AMOUNT_INVALID` |
+| **Locale** | `LOCALE_NOT_SUPPORTED`, `TRANSLATION_MISSING_BASE_LOCALE` |
 | Generic | `VALIDATION_FAILED`, `RATE_LIMITED`, `NOT_FOUND`, `CONFLICT`, `INTERNAL_ERROR`, `MAINTENANCE_MODE` |
 
 ---
@@ -381,19 +434,40 @@ Stable codes the client is allowed to branch on.
 - Zod schemas are the single source of truth for every request/response. Types are inferred, never hand-duplicated.
 - OpenAPI is **generated** from the Zod schemas rather than maintained by hand, so it cannot drift.
 - Integration tests assert the envelope shape, status code and `code` value for both the happy path and each documented failure of every endpoint that touches money, stock or permissions.
-- Provider adapters have contract tests against recorded fixtures so a provider swap (**[D-13]**, **[D-24]**, **[D-25]**) is verifiable without hitting a live sandbox.
+- Provider adapters have contract tests against recorded fixtures so a provider swap (Razorpay, MSG91/2Factor, Resend) is verifiable without hitting a live sandbox.
 
 ---
 
-## 13. Open API-level decisions
+## 13. Decision status affecting this API
 
-| # | Question | Impact |
-|---|---|---|
-| **[D-11]** | Multi-vendor cart | Whether `/cart` returns one group or many; whether `POST /orders` creates 1 or N orders |
-| **[D-12]** | COD | `POST /orders` response flow, driver COD collection fields |
-| **[D-13]** | Payment provider | `clientPayload` shape, webhook event names, refund semantics |
-| **[D-16]** | Inventory | Whether `POST /orders` reserves stock or merely validates |
-| **[D-18]** | Dispatch | Whether `/driver/deliveries/available` is an offer queue or an open pool |
-| **[D-20]** | Proof | Required fields on `/deliveries/[id]/deliver` |
-| **[D-22]** | Tracking | Whether `/orders/[id]/track` stays polling or becomes SSE/WebSocket |
-| **[D-29]** | Location retention | Whether `POST /driver/location` persists a trail at all |
+### Resolved
+
+| Decision | API outcome |
+|---|---|
+| **D-09** | Password endpoints removed; phone OTP + optional email OTP only |
+| **D-11** | `POST /orders` creates exactly **one** order; `/cart` returns one vendor group; `MIXED_VENDOR_CART` on violation |
+| **D-12** | COD creation path, collection on delivery, cash reconciliation endpoints (§6.1–6.2) |
+| **D-13** | Razorpay adapter shapes `clientPayload` and webhook event names |
+| **D-16** | `POST /orders` **reserves** stock inside its transaction; `STOCK_RESERVATION_FAILED` on contention |
+| **D-17** | `/cart/quote` and `/location/serviceability` return zone-based fee and the ₹199 threshold from admin config |
+| **D-18** | `/driver/deliveries/available` is an **offer queue** (auto-nearest), not an open pool; `/driver/location` feeds dispatch |
+| **D-19** | `/orders/[id]/cancel` resolves against `cancellation_policies`; values pending D-19a |
+| **D-20** | `otp` is **required** on `/deliveries/[id]/deliver` |
+| **D-22** | `/orders/[id]/track` stays polling, with an adaptive interval hint in the response |
+| **D-29** | `/driver/location` behaviour split by availability state |
+| **D-33** | `Accept-Language`/`?locale=`, `Content-Language`, server-resolved localized fields with EN fallback |
+
+### 🔴 Blocked
+
+| Decision | API consequence |
+|---|---|
+| **D-14 GST/tax** | `taxAmountPaise` is present but always `0`; **no invoice endpoint is implemented**. `GET /orders/[id]/invoice` returns an **order summary**, explicitly not a tax invoice, and is documented as such. Unblocking adds real tax fields to `/cart/quote` and a genuine invoice endpoint |
+| **D-08 auth library** | No API shape impact — the endpoints in §2 are final regardless. Blocks implementation only |
+
+### Open sub-items
+
+| Ref | API consequence |
+|---|---|
+| **D-19a** | Cancellation policy *values* change what `/orders/[id]/cancel` permits and refunds |
+| **D-24a** | SMS provider choice fixes the `/webhooks/sms/[provider]` payload contract |
+| **D-33a** | Locale URL strategy affects link generation, not endpoint shapes |

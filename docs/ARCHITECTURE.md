@@ -1,11 +1,12 @@
 # Parthik — Technical Architecture
 
-**Status:** Draft for approval
-**Version:** 0.1
+**Status:** **APPROVED** (28 of 33 decisions) — 3 blocked, 6 open sub-items
+**Version:** 1.0
+**Approved:** 2026-08-14
 **Authority:** [`PARTHIK_MASTER_SPEC.md`](./PARTHIK_MASTER_SPEC.md) is the product authority. This document is the technical interpretation of it.
 **Companion documents:** [`DATABASE.md`](./DATABASE.md) · [`ROUTES.md`](./ROUTES.md) · [`API_SPEC.md`](./API_SPEC.md) · [`SECURITY.md`](./SECURITY.md) · [`DEVELOPMENT_PLAN.md`](./DEVELOPMENT_PLAN.md)
 
-> **No application code has been written.** This document set is deliverable for TASK 001 (architecture initialization) only. Implementation starts after the decisions in [§16 Decision Register](#16-decision-register) are approved.
+> **No application code has been written yet.** Architecture decisions are now approved — see [§16 Approved Decisions](#16-approved-decisions). Implementation may begin on tasks whose dependencies are all approved; tasks blocked by **D-08** (auth library), **D-14** (GST/tax) or **D-32** (multi-store) do not proceed. Database migrations are explicitly **not** generated yet.
 
 ---
 
@@ -24,7 +25,17 @@
 
 ### Explicit non-goals for V1
 
-Deferred per master spec §42, and the schema must not block them: multi-city expansion, multiple stores per vendor UI, delivery slots, subscriptions, loyalty, referrals, wallet, gift cards, membership, recommendation engine, AI support, WhatsApp ordering, native apps, advanced routing, automated vendor settlement, franchise management.
+Deferred per master spec §42, and the schema must not block them: multi-city expansion, multiple stores per vendor UI, delivery slots, subscriptions, loyalty, referrals, wallet, gift cards, membership, recommendation engine, AI support, WhatsApp ordering, native apps, advanced routing, franchise management.
+
+Additionally excluded from V1 by explicit approval:
+
+| Excluded | Decision |
+|---|---|
+| **Automated vendor settlement** — amounts are calculated and displayed; money moves manually | D-15 |
+| **Tax calculation, GST handling and tax invoices** — not implemented, not assumed | D-14 (blocked) |
+| **Legacy data migration** — no legacy data is migrated; a separate plan follows schema approval | D-31 |
+| **Languages beyond English and Hindi** — architecture allows them, V1 does not ship them | D-33 |
+| **Multi-vendor carts and split orders** — one vendor per order | D-11 |
 
 **Rule:** anything not described in the master spec or this document set is *not* to be invented during implementation. Where the spec is silent on a business rule, the implementation stops and asks (master spec §28.18, §43).
 
@@ -137,7 +148,7 @@ Preview and staging must never share a database, cache namespace, R2 bucket or p
 
 ## 5. Repository structure
 
-Single repository (not a multi-package monorepo) — see [D-06](#16-decision-register).
+Single repository (not a multi-package monorepo) — **D-06 approved**.
 
 ```text
 parthik/
@@ -314,8 +325,8 @@ PostgreSQL is the system of record. Object storage is never used as a database (
 | Connectivity | Cloudflare **Hyperdrive** binding, pooled; driver is `postgres`/`pg` over the Hyperdrive socket |
 | Access pattern | Repository layer only |
 | Migrations | Generated SQL files, committed, applied by CI. Never `db push` against staging/production (master spec §28.8) |
-| Managed host | **[D-01](#16-decision-register)** |
-| ORM | **[D-02](#16-decision-register)** — leaning Drizzle for Workers fit |
+| Managed host | Managed PostgreSQL, ap-south preferred, PITR enabled (**D-01 approved**; provider pick open — D-01a) |
+| ORM | **Drizzle ORM** (D-02 approved) |
 | Row-Level Security | Not used in V1; tenancy is enforced in the repository layer. Rationale and revisit criteria in [`SECURITY.md` §9](./SECURITY.md) |
 
 Full table design, enums, indexes and conventions: [`DATABASE.md`](./DATABASE.md).
@@ -337,7 +348,7 @@ Three distinct layers, deliberately separated because they fail differently.
 |---|---|---|---|
 | **Edge/CDN** | Cloudflare CDN | Static assets, images, immutable build output, public HTML where safe | Immutable hashed URLs; purge on deploy |
 | **Next.js data/route cache** | OpenNext: R2 incremental cache + Durable Object tag cache | ISR pages, `use cache` results: CMS pages, category trees, product detail, home layout, offers | Tag-based `revalidateTag` on admin/vendor publish |
-| **Application cache** | Redis-compatible HTTP store (**[D-03](#16-decision-register)**) | Sessions, rate-limit counters, OTP attempt counters, idempotency keys, distributed locks, serviceability lookups, hot config/feature flags, cart totals memo | TTL + explicit delete on write |
+| **Application cache** | Redis-compatible **HTTP** store (D-03 approved; provider pick open — D-03a) | Sessions, rate-limit counters, OTP attempt counters, idempotency keys, distributed locks, serviceability lookups, hot config/feature flags, cart totals memo | TTL + explicit delete on write |
 
 ### 8.1 Rules
 
@@ -355,7 +366,7 @@ Three distinct layers, deliberately separated because they fail differently.
 | Home layout, banners, offers | 5 min + tag purge | Campaign-sensitive |
 | Category tree | 30 min + tag purge | |
 | Product detail (non-stock fields) | 10 min + tag purge | Stock rendered separately |
-| Stock / availability | 15–30 s or uncached | **[D-16](#16-decision-register)** affects this |
+| Stock / availability | 15–30 s, and **uncached at checkout** | D-16 reserves stock, so availability must be authoritative at order time |
 | Serviceability by pincode | 1 h | Re-verified at checkout regardless (master spec §11) |
 | Session | Session lifetime | See [`SECURITY.md` §3](./SECURITY.md) |
 | Feature flags / admin settings | 60 s | Fast propagation for maintenance mode |
@@ -377,7 +388,7 @@ Rules:
 - Keys are structured and non-guessable: `products/{productId}/{ulid}.{ext}`, `vendors/{vendorId}/kyc/{docType}/{ulid}.{ext}`, `deliveries/{deliveryId}/proof/{ulid}.{ext}`.
 - The database stores the key and metadata, never a long-lived public URL for private objects.
 - Deletion is logical first (row soft-deleted), physical later via a scheduled cleanup job, so an accidental delete is recoverable.
-- Image transformation/delivery: **[D-07](#16-decision-register)**.
+- Storage is **Cloudflare R2** (D-07 approved). Image **transformation/optimization** is still open (D-07a).
 
 ---
 
@@ -391,7 +402,7 @@ Rules:
 
 Job contracts live in `lib/queue/jobs.ts` as versioned, Zod-validated payloads. Every consumer is **idempotent** (queues are at-least-once). Failures retry with backoff, then land in a dead-letter queue surfaced on the admin **System Health** screen. Job runs are logged with correlation ids.
 
-Queue choice: **[D-05](#16-decision-register)**.
+Queue choice: **Cloudflare Queues + Cron Triggers** (D-05 approved).
 
 ---
 
@@ -405,7 +416,8 @@ Summarized here, specified in [`SECURITY.md`](./SECURITY.md).
 - Sessions are **server-side records** in Postgres, cached for fast reads, referenced by an opaque signed HTTP-only cookie. Because middleware cannot reach the DB, the cookie also carries a small signed claim set (`userId`, `roles`, `sessionId`, `exp`) used **only** for coarse routing decisions; every service call revalidates against the session store.
 - RBAC is **permission-based**, not role-string-based: roles are bundles of granular permissions (`order:refund`, `product:publish`, `vendor:approve`). Checks are `can(actor, permission, resource)` in the service layer.
 - One user may hold multiple roles (a vendor owner who is also a customer). The active dashboard context is derived from the route and validated, never from client state.
-- Auth library: **[D-08](#16-decision-register)**; password vs passwordless email: **[D-09](#16-decision-register)**; session strategy confirmation: **[D-10](#16-decision-register)**.
+- **D-09 approved: phone OTP is primary and passwords are not used in V1.** Email is a verified contact channel with optional email-OTP fallback. **D-10 approved:** customer 30 d, vendor/driver 14 d, admin 8 h with a 30-minute idle timeout.
+- Auth implementation library is 🔴 **BLOCKED (D-08)**; in-house sessions are now recommended because the passwordless/OAuth-free design leaves a library little to do.
 
 ### 11.2 Payments
 
@@ -435,7 +447,57 @@ create order (PENDING_PAYMENT, idempotency key)
 
 Also required: a **reconciliation job** that polls provider status for payments stuck in `PENDING` past a threshold (webhooks do get lost), a `PaymentEvent` log of every raw provider interaction, and failed-payment recovery (retry link on the order).
 
-Provider selection: **[D-13](#16-decision-register)**. COD support: **[D-12](#16-decision-register)**.
+Provider: **Razorpay** (D-13 approved). Methods: **UPI, Card and COD** (D-12 approved) — the COD flow is specified in §11.2.1.
+
+### 11.2.1 COD (Cash on Delivery)
+
+COD is not "a payment method option" — it is a second, parallel money path with its own state entry, its own failure modes and a physical cash custody chain. Treating it as a checkbox on checkout is how COD reconciliation goes wrong.
+
+**Order entry path.** Prepaid orders start at `PENDING_PAYMENT` and reach `CONFIRMED` only via a verified webhook. COD orders have no upstream payment to wait for, so they are created **directly as `CONFIRMED`** in the same transaction, with a `payments` row of `method = COD`, `status = PENDING`. That payment row becomes `PAID` only when a driver confirms cash collection at delivery.
+
+```text
+PREPAID:  create order (PENDING_PAYMENT) → intent → webhook verified → CONFIRMED
+COD:      create order (CONFIRMED, payment COD/PENDING) → … → delivered
+                                                              → cash collected
+                                                              → payment PAID
+```
+
+**Cash custody chain.** Cash physically held by a driver is a liability the platform must track, so every movement is an append-only ledger entry rather than a mutable balance:
+
+```text
+driver collects cash at delivery   → driver_cash_ledger  COLLECTION  (+)
+driver deposits to office/bank     → cash_deposits (pending verification)
+admin verifies the deposit         → driver_cash_ledger  DEPOSIT     (−)
+shortfall / correction             → driver_cash_ledger  ADJUSTMENT  (±)
+
+cash in hand = SUM(driver_cash_ledger.amount_paise)
+```
+
+**Controls** (all admin-configurable; **launch values need confirmation**):
+
+| Control | Purpose |
+|---|---|
+| Max COD order value | Caps exposure per order |
+| Driver cash-in-hand limit | A driver over the limit is **not eligible for further COD dispatch** until they deposit — this is the main protection against accumulating loss |
+| COD availability per zone | Some zones may be prepaid-only |
+| Deposit verification | Two-step: driver declares, admin verifies. A declared deposit is not a settled deposit |
+
+**Interaction with delivery proof (D-20).** Delivery OTP is mandatory regardless of payment method. For COD the driver additionally confirms the collected amount; a mismatch between expected and collected is recorded rather than silently accepted, and surfaces on the admin reconciliation screen.
+
+**Interaction with refunds.** A COD order has no captured gateway payment, so a post-delivery refund cannot be an API-initiated gateway reversal. It becomes a **manual payout** recorded against the order with its own approval trail. This is documented rather than automated in V1.
+
+**Interaction with D-14 (blocked).** Drivers hand over an **order summary, explicitly not labelled a tax invoice** — see §16.7 C-3.
+
+### 11.2.2 Tax handling while D-14 is blocked
+
+Tax is **not implemented**, and deliberately not faked:
+
+- The pricing engine exposes a `TaxStrategy` interface with one implementation, `NoTaxStrategy`, returning zero.
+- Tax columns exist in the schema but stay zero/nullable. No rate is inferred from category or price.
+- **No tax line renders in any customer-facing total.** Displaying "₹0 GST" would itself assert a tax treatment.
+- **No invoices are generated.** Order summaries are produced instead, never labelled as tax invoices.
+
+When D-14 is answered, a real `TaxStrategy` is added and invoice generation is built. Nothing else in checkout needs to change, which is the point of isolating it behind an interface.
 
 ### 11.3 Notifications
 
@@ -455,7 +517,8 @@ notify(event, recipient, context)
 - Templates are **admin-editable with variables**, versioned; editing a template never requires a deploy.
 - Transactional notifications (OTP, order lifecycle, payment, refund) ignore marketing opt-outs; campaign notifications respect them.
 - OTP delivery is rate-limited and abuse-protected independently of the generic notification path.
-- Providers: SMS **[D-24](#16-decision-register)**, Email **[D-25](#16-decision-register)**, Push **[D-26](#16-decision-register)**.
+- Providers: SMS **MSG91 or 2Factor** (D-24 approved, final pick open — D-24a, *urgent, gates DLT registration*), Email **Resend** (D-25), Push **Web Push/VAPID** (D-26).
+- Templates are stored per `(event_key, channel, locale)` and must exist in **English and Hindi** for transactional events (D-33).
 
 ### 11.4 Location and serviceability
 
@@ -466,23 +529,23 @@ Location is a first-class subsystem (master spec §11):
 - **Serviceability is re-verified at checkout and again at order creation**, because zones, store hours and stock change between browsing and paying.
 - Driver location is stored coarsely, with a retention window and purge job, and is only exposed to the parties who operationally need it.
 
-Zone model: **[D-17](#16-decision-register)**. Maps/geocoding provider: **[D-23](#16-decision-register)**. Location retention: **[D-29](#16-decision-register)**.
+Zone model: **zone-based fee, ₹199 free-delivery threshold, admin-configurable** (D-17 approved). Maps: **Google Maps Platform, server-side proxied** (D-23 approved). Location retention: **active delivery only, purged after 7 days** (D-29 approved) — with the ephemeral online-position exception required by auto-dispatch, see §16.7 C-1.
 
 ### 11.5 Orders and delivery
 
 The order state machine from master spec §13 is implemented as an explicit transition table (allowed transitions, who may trigger each, required side effects). Illegal transitions raise `StateTransitionError`. Every transition writes an `OrderStatusHistory` row with actor, reason and timestamp. Delivery has its own parallel machine linked to the order.
 
-Full transition tables: [`DATABASE.md` §7](./DATABASE.md). Dispatch strategy: **[D-18](#16-decision-register)**. Delivery proof: **[D-20](#16-decision-register)**.
+Full transition tables: [`DATABASE.md` §7](./DATABASE.md). Dispatch: **auto-nearest eligible driver with offer timeout and fallback reassignment, terminating in manual admin assignment** (D-18 approved). Proof: **delivery OTP mandatory**, photo/signature as optional exception mechanisms (D-20 approved).
 
 ### 11.6 Marketing, CMS and SEO
 
-- **CMS is database-driven and admin-managed** (master spec §19). Banners, home sections and their ordering/visibility are data, not code — the homepage renders from a stored layout document. See **[D-30](#16-decision-register)**.
+- **CMS is database-driven and admin-managed** (master spec §19). Banners, home sections and their ordering/visibility are data, not code — the homepage renders from a stored layout document (D-30 approved).
 - Coupons and promotions are evaluated by the shared `pricing`/`promotion` engine with a declarative rule set (min cart, max discount, first-order, user/category/product/vendor scope, usage and per-user limits, expiry, zone restriction).
 - SEO: dynamic `generateMetadata` per route, canonicals, `sitemap.ts`, `robots.ts`, Open Graph/Twitter cards, JSON-LD (Product, Breadcrumb, Organization/LocalBusiness), clean slugs with a `Redirect` table for slug changes, and **`noindex` on every authenticated surface** (master spec §20, §39). Details in [`ROUTES.md`](./ROUTES.md).
 
 ### 11.7 Analytics
 
-A thin `track(event, properties)` interface with a strict allowlist of the events in master spec §36, defined once in `lib/analytics/events.ts`. Server-side emission for trustworthy commercial events (`order_created`, `payment_success`), client-side for interaction events. No PII beyond a pseudonymous id; no card/OTP/address contents ever. Provider: **[D-28](#16-decision-register)**.
+A thin `track(event, properties)` interface with a strict allowlist of the events in master spec §36, defined once in `lib/analytics/events.ts`. Server-side emission for trustworthy commercial events (`order_created`, `payment_success`), client-side for interaction events. No PII beyond a pseudonymous id; no card/OTP/address contents ever. Provider: **PostHog** (D-28 approved).
 
 ### 11.8 Logging and observability
 
@@ -492,7 +555,7 @@ A thin `track(event, properties)` interface with a strict allowlist of the event
 - **Audit log** is separate from application logs and lives in Postgres: every admin action, every permission-sensitive mutation, every order/payment state change, with actor, before/after diff, IP and user agent. Audit rows are append-only.
 - Webhook log retains raw payload + signature verification result for dispute resolution.
 - `GET /api/health` (liveness) and `GET /api/health/deep` (DB, cache, storage, queue depth, provider reachability) feed the admin **System Health** screen.
-- Error tracking/APM: **[D-27](#16-decision-register)**.
+- Error tracking/APM: **Sentry** (D-27 approved), with source maps uploaded from CI.
 
 ---
 
@@ -536,6 +599,58 @@ Public pages: server-rendered, images optimized and lazy-loaded below the fold, 
 
 Semantic HTML, labelled inputs, visible focus, keyboard-operable dialogs/menus, `aria-live` for async status, alt text, colour never the sole state indicator, and adequate touch targets (master spec §26). Automated a11y checks run in CI on key pages; they supplement, not replace, manual keyboard testing.
 
+### 12.6 Localisation (EN + HI)
+
+**D-33 approved: English + Hindi from the beginning**, architected so further Indian languages need no structural change. Building this in from day one is far cheaper than retrofitting — every content table, route and template would otherwise need reworking.
+
+The important distinction is **capability** (must be complete now) versus **content** (deliberately bounded for V1).
+
+#### Locale model
+
+| Item | Decision |
+|---|---|
+| Supported locales | `en` (default, fallback) · `hi` |
+| Locale codes | BCP-47: `en-IN`, `hi-IN`; short form `en`/`hi` in URLs and storage |
+| URL strategy | **Default-unprefixed**: `/products/x` is English, `/hi/products/x` is Hindi (D-33a — preserves legacy URL shapes and their SEO equity) |
+| Resolution order | Explicit URL prefix → user preference (`users.locale`) → `locale` cookie → `Accept-Language` → `en` |
+| Fallback | Per-field fallback to `en` when a translation is missing. **Never render an empty string or a raw key** |
+| Formatting | `Intl` APIs with the resolved locale — currency always INR, timezone always IST |
+| Library | `next-intl` (App Router support, RSC-compatible, type-safe message keys) |
+
+#### Where translations live
+
+Two distinct mechanisms, chosen by who authors the text:
+
+| Content | Mechanism | Authored by |
+|---|---|---|
+| **UI strings** — labels, buttons, validation messages, empty/error states, email/SMS body chrome | Message catalogs in the repo (`messages/en.json`, `messages/hi.json`), type-checked | Developers |
+| **Data content** — category and product names/descriptions, CMS pages, blog, banners, FAQs, notification templates | `*_translations` tables keyed `(entity_id, locale)` — see [`DATABASE.md` §10.1](./DATABASE.md) | Admins and vendors |
+
+Translation tables, not `name_en`/`name_hi` columns: adding Marathi becomes inserting rows, not an `ALTER TABLE` plus a code change across every query.
+
+#### V1 content scope — deliberately bounded
+
+| Content | English | Hindi |
+|---|---|---|
+| UI strings | Required | **Required** |
+| Transactional notification templates (OTP, order lifecycle, payment, delivery) | Required | **Required** |
+| Legal/CMS pages | Required | Optional, falls back to EN |
+| Category names | Required | **Required** (small, high-visibility set) |
+| Product names/descriptions | Required | Optional, falls back to EN |
+| Blog | Required | Not translated in V1 |
+| Admin/vendor/driver dashboard chrome | Required | Optional — see below |
+
+This is what "manageable scope" means concretely: the **customer-facing** surface is fully bilingual, while long-tail vendor-authored catalog text and editorial content fall back to English until translated. A vendor is never blocked from listing a product because they cannot write Hindi.
+
+> **Confirm:** should the **driver** dashboard be fully Hindi at launch? Drivers are the role most likely to prefer Hindi, which argues yes; it is also a meaningful extra translation surface. I have scoped it as optional-with-fallback rather than decide for you.
+
+#### Consequences elsewhere
+
+- **SEO:** `hreflang` pairs on every public page, per-locale sitemap entries, correct `<html lang>`, locale-specific canonicals ([`ROUTES.md` §11](./ROUTES.md)).
+- **Search:** Hindi has no Postgres stemmer — `simple` config + `pg_trgm`, see §16.7 C-2.
+- **Notifications:** template lookup includes locale; SMS DLT templates must be registered **per language**, which adds to the D-24a registration workload. Hindi SMS is Unicode and costs more per message and has a shorter segment length — a real operational cost worth knowing.
+- **Testing:** locale resolution and fallback are unit-tested; E2E covers one critical journey in Hindi.
+
 ---
 
 ## 13. Testing architecture
@@ -572,69 +687,147 @@ Secret rotation procedure and least-privilege scoping: [`SECURITY.md` §11](./SE
 
 ---
 
-## 16. Decision register
+## 16. Approved decisions
 
-Every item below is a real fork where the master spec is silent, offers alternatives, or states a business rule that only you can set. **None has been silently chosen.** Where I have a technical recommendation I have said so and why, but nothing is implemented until you approve.
+**Approval date:** 2026-08-14 · **Approved by:** Product owner · **Total:** 33 decisions — **28 approved, 2 blocked, 3 approved with an open sub-item**
 
-`Needed by` indicates the latest point work can proceed without it.
+This section replaces the former open decision register. It is the authoritative record: implementation follows this table, and any change to it requires a new approval and a documentation update in the same PR.
 
-### A. Platform and infrastructure
+### 16.1 Platform and infrastructure — APPROVED
 
-| # | Decision | Options | Recommendation | Needed by |
-|---|---|---|---|---|
-| **D-01** | Managed PostgreSQL host | Neon · Supabase Postgres · AWS RDS/Aurora · PlanetScale Postgres · self-hosted | **Neon or Supabase**, both proven behind Hyperdrive. Prefer one with an ap-south (Mumbai) region for latency, plus PITR backups. Self-hosting adds ops burden with no V1 benefit. | TASK 002 (schema) |
-| **D-02** | ORM | Drizzle · Prisma | **Drizzle.** Lighter on Workers, no engine/adapter indirection, SQL-transparent migrations, better cold-start profile. Prisma is more familiar and has a stronger studio/ecosystem but historically needs adapter configuration on Workers. Master spec allows either — this must be fixed before any schema code. | TASK 002 |
-| **D-03** | Application cache / KV | Upstash Redis (HTTP) · Cloudflare KV + Durable Objects · managed Redis via Hyperdrive-style proxy | **Upstash Redis.** Workers cannot open arbitrary TCP; Upstash's REST API works from Workers and its rate-limit SDK covers a mandated requirement. Cloudflare KV is eventually consistent and unsuitable for rate limits, idempotency and locks. | TASK 003 (auth/sessions) |
-| **D-04** | Confirm deployment target | Cloudflare Workers + OpenNext · Vercel · Node container (Fly/Render) behind Cloudflare | **Confirm Workers + OpenNext** as the spec states, with eyes open: Node Middleware is unsupported, some Node APIs are limited, and ISR/DO costs need monitoring. If you want the lowest-friction Next.js hosting and only Cloudflare DNS/WAF/R2, that is a different architecture — decide now, not in Phase 9. | Immediately (TASK 001) |
-| **D-05** | Background jobs / queue | Cloudflare Queues + Cron Triggers · Upstash QStash · external worker service | **Cloudflare Queues + Cron Triggers**, colocated with the runtime, with a queue abstraction so this is swappable. | TASK 010 (orders) |
-| **D-06** | Repository layout | Single repo (spec's suggested tree) · pnpm monorepo | **Single repo.** One deployable, no package-boundary overhead. Revisit only when a separate API service or native app appears. | Immediately |
-| **D-07** | Image transformation/delivery | Cloudflare Images · R2 + custom Next image loader + CDN resize · `next/image` default | **Cloudflare Images** (or Image Resizing) with a custom loader — the default Next optimizer is a poor fit on Workers. Has a per-image cost implication you should see before approving. | TASK 006 (catalog) |
-| **D-32** | Multiple stores per vendor in V1 | One store per vendor (simpler UI) · schema supports N, UI exposes 1 | **Schema supports N, V1 UI exposes one store per vendor.** Keeps master spec §42 open without building it. Confirm no vendor needs two locations at launch. | TASK 002 |
+| # | Decision | **Approved outcome** |
+|---|---|---|
+| **D-01** | PostgreSQL | **Managed PostgreSQL accessed through Cloudflare Hyperdrive.** Prefer an ap-south (Mumbai) region and PITR backups. ⚠️ *Specific provider not yet named — see [§16.6](#166-open-sub-items)* |
+| **D-02** | ORM | **Drizzle ORM.** All schema definitions and generated migrations use Drizzle |
+| **D-03** | Cache | **HTTP-based Redis-compatible store** (Workers cannot open arbitrary TCP). Used for sessions, rate limits, OTP counters, idempotency, locks, hot config. ⚠️ *Specific provider not yet named — see [§16.6](#166-open-sub-items)* |
+| **D-04** | Deployment target | **Cloudflare Workers + OpenNext** (`@opennextjs/cloudflare`), Next.js Node.js runtime. Confirms the platform constraints in [§4.2](#42-platform-constraints-that-shape-the-design) as binding |
+| **D-05** | Background jobs | **Cloudflare Queues** for async work + **Cron Triggers** for scheduled work, behind a swappable queue abstraction |
+| **D-06** | Repository layout | **Single GitHub repository** |
+| **D-07** | Object storage | **Cloudflare R2**, two buckets (public assets / private documents) per [§9](#9-object-storage-cloudflare-r2). ⚠️ *Image **transformation/optimization** remains open — see [§16.6](#166-open-sub-items)* |
 
-### B. Identity and access
+### 16.2 Identity and access
 
-| # | Decision | Options | Recommendation | Needed by |
-|---|---|---|---|---|
-| **D-08** | Auth implementation | Better Auth · Auth.js v5 · fully in-house sessions | **Better Auth** or **in-house**. We need phone-OTP as a first-class method, multi-role users, DB sessions and granular RBAC; Auth.js is optimized for OAuth providers and fits this shape least well. In-house gives total control at the cost of writing security-critical code ourselves. | TASK 003 |
-| **D-09** | Email login credential | Email + password · email OTP/magic link only · both | Spec says "email login" and hedges on retaining passwords. **Recommend email + password with a strong hashing choice (argon2id/scrypt available on Workers)** only if existing users have passwords to migrate; otherwise passwordless removes a whole class of risk. Ties to **D-31**. | TASK 003 |
-| **D-10** | Session strategy | Opaque DB session + cache (with a small signed claim cookie for middleware gating) · pure stateless JWT | **DB session + signed claim cookie**, as described in §11.1 — gives real server-side revocation (needed for "logout everywhere", ban, role change) while working within the middleware constraint. Confirm session lifetime and idle timeout per role (admins should be shorter). | TASK 003 |
+| # | Decision | **Approved outcome** |
+|---|---|---|
+| **D-09** | Primary authentication | **Phone OTP is the primary authentication method. Passwords are NOT required for V1.** No `password_hash` usage, no password reset flow, no credential-stuffing surface. Email becomes a verified contact channel and an optional email-OTP fallback, not a password credential |
+| **D-10** | Sessions | **Role-specific session lifetimes.** Approved values: customer 30 days rolling · vendor/driver 14 days · **admin 8 hours with a 30-minute idle timeout**. Server-side revocable sessions per [`SECURITY.md` §3](./SECURITY.md) |
+| **D-08** | Auth implementation library | 🔴 **BLOCKED** — see [§16.5](#165-blocked-decisions) |
 
-### C. Commerce business rules — highest risk, please read carefully
+### 16.3 Commerce business rules — APPROVED
 
-These are product/finance rules, not technical preferences. Getting them wrong is expensive to unwind after launch.
+| # | Decision | **Approved outcome** |
+|---|---|---|
+| **D-11** | Cart/order scope | **Single-vendor cart per order.** Mixing vendors in one cart is blocked with `MIXED_VENDOR_CART`. Schema keeps a future order-group parent possible but V1 does not build it |
+| **D-12** | Payment methods | **UPI + Card + COD.** COD requires a distinct order-state entry path, driver cash collection, and cash reconciliation — all specified in [§11.2](#112-payments), [`DATABASE.md` §6/§8](./DATABASE.md) and [`API_SPEC.md` §6](./API_SPEC.md) |
+| **D-13** | Payment provider | **Razorpay** as the V1 adapter, behind the provider-agnostic interface |
+| **D-15** | Vendor settlement | **Manual settlement.** The system calculates and displays payable amounts, produces statements and payout batches, but performs **no automated money movement**. Commission rate is stored per vendor and admin-configurable |
+| **D-16** | Inventory | **Reserve at order/payment initiation; release on payment failure or cancellation** per the documented rules in [`DATABASE.md` §6.1](./DATABASE.md). Reservation converts to a sale on delivery |
+| **D-17** | Delivery fee | **Zone-based fee with a ₹199 free-delivery threshold** as the initial business rule, **fully admin-configurable** per zone (base fee, threshold, minimum order, per-km, cap). Serviceability by pincode + radius, PostGIS-ready |
+| **D-18** | Driver dispatch | **Auto-assign to the nearest eligible driver, with an offer timeout and fallback reassignment**, terminating in manual admin assignment. ⚠️ *Interacts with D-29 — see [§16.4](#167-clarifications-required-by-these-approvals)* |
+| **D-19** | Cancellation/refund | **Configurable policy engine** with distinct customer, vendor and admin permissions. ⚠️ *The default policy values are not yet set — see [§16.6](#166-open-sub-items)* |
+| **D-20** | Delivery proof | **Delivery OTP is mandatory.** Photo and signature are optional exception mechanisms (OTP unavailable, disputed handover), never the primary path |
+| **D-14** | GST / tax model | 🔴 **BLOCKED** — see [§16.5](#165-blocked-decisions) |
 
-| # | Decision | Options | Recommendation | Needed by |
-|---|---|---|---|---|
-| **D-11** | Multi-vendor cart | Single-vendor cart (block mixing) · multi-vendor cart that splits into one order per vendor · multi-vendor single order | **Single vendor per order in V1**, with the schema shaped so a parent order group can be added later. Splitting affects delivery fees, driver assignment, coupons, refunds, payouts and the entire order UI. This is the single most structural open question. | TASK 008 (cart) |
-| **D-12** | Payment timing / COD | Prepaid only · COD only · both | Master spec's state machine starts at `PENDING_PAYMENT`, but hyperlocal India usually needs COD. **If COD is required, the state machine needs a documented entry path and drivers need cash-collection + reconciliation** — which is extra scope. Please confirm explicitly. | TASK 009 (checkout) |
-| **D-13** | Payment provider for V1 | Razorpay · Cashfree · PhonePe/PayU · Stripe | **Razorpay or Cashfree** for Indian UPI/cards/netbanking coverage and refund APIs. Architecture is provider-agnostic; we still need one concrete adapter, with a merchant account and webhook secret. | TASK 011 |
-| **D-14** | Tax / GST model | No tax in V1 · GST-exclusive per product with HSN · GST-inclusive display · marketplace vs vendor as seller of record | **Needs your accountant's answer, not mine.** Determines price display, invoice format, whether Parthik or the vendor issues the tax invoice, and TCS obligations. Schema will carry HSN, tax rate and per-line tax breakup regardless. | TASK 009 |
-| **D-15** | Commission and payout model | Flat % per order · category-wise % · subscription · per-order fee. Plus: settlement cycle, who bears delivery fee and coupon discount | Required to compute vendor payouts and driver earnings at all. **V1 recommendation: compute and display payable amounts, settle manually outside the system**, with automated settlement deferred (master spec §42). | TASK 012 (vendor) |
-| **D-16** | Inventory semantics | Reserve on order creation · decrement on vendor acceptance · decrement on delivery. Plus: allow overselling? track stock at all for some categories? | **Reserve at order creation with a short hold, release on failure/cancel.** Prevents the classic double-sell during payment. Confirm whether every product is genuinely stock-tracked. | TASK 008 |
-| **D-17** | Serviceability and delivery-fee model | Pincode allowlist per zone · radius from store · polygon zones (PostGIS) · distance-based fee slabs | **V1: pincode + radius, PostGIS-ready columns.** Polygons are more accurate but need map tooling in admin. Also confirm the fee rules: current site shows free delivery above ₹199 plus a default charge — is fee flat, distance-banded, or vendor-specific? | TASK 005 (location) |
-| **D-18** | Driver dispatch strategy | Manual admin assignment · auto-assign nearest available · broadcast to eligible drivers, first-accept wins | **Manual + broadcast-accept in V1**, auto-routing later. Determines whether we need continuous driver location, an assignment timeout/re-offer loop, and a fairness policy. | TASK 013 (driver) |
-| **D-19** | Cancellation and refund policy | Who may cancel at which status, refund %, time windows, restocking, driver compensation | Spec says "cancel where policy permits" without defining the policy. **Needs explicit rules per status**; implementation will encode them as a table, not scattered conditionals. | TASK 010 |
-| **D-20** | Delivery proof requirement | OTP always · OTP for prepaid only · photo/signature for high-value · customer tap-confirm | **OTP as default with photo fallback.** Affects the driver UI, the customer order screen, and dispute handling. | TASK 013 |
+### 16.4 Supporting services — APPROVED
 
-### D. Supporting services
+| # | Decision | **Approved outcome** |
+|---|---|---|
+| **D-21** | Search | **PostgreSQL search initially** (full-text + `pg_trgm`), behind a swappable interface. ⚠️ *Hindi has no Postgres stemmer — see [§16.4](#167-clarifications-required-by-these-approvals)* |
+| **D-22** | Order tracking | **Adaptive polling** — interval widens when order state is stable, tightens when a delivery is active |
+| **D-23** | Maps/geocoding | **Google Maps Platform**, called **server-side only** through our proxy so the key is never in the browser; responses cached, requests rate-limited |
+| **D-24** | SMS/OTP | **MSG91 or 2Factor.** ⚠️ *One must be chosen before DLT registration can start — see [§16.6](#166-open-sub-items)* |
+| **D-25** | Email | **Resend**, with SPF/DKIM/DMARC domain verification |
+| **D-26** | Push | **Web Push (VAPID)** for the PWA, behind a feature flag |
+| **D-27** | Error tracking | **Sentry**, with source maps uploaded from CI |
+| **D-28** | Product analytics | **PostHog** |
+| **D-29** | Driver location | **Retained only during an active delivery, purged after 7 days.** ⚠️ *Dispatch requires a narrow exception — see [§16.4](#167-clarifications-required-by-these-approvals)* |
+| **D-30** | CMS | **Database-driven CMS** managed inside the admin dashboard |
+| **D-31** | Legacy data migration | **Deferred.** No legacy data is migrated now. Foundation and schema are built first; after schema approval, a **separate legacy migration plan** covering users, addresses, historical orders, catalog and coupons is written and approved before any migration work |
+| **D-33** | Localisation | **English + Hindi from the beginning** (changed from the original English-only assumption). Architecture must not block additional Indian languages. V1 translation *content* scope is deliberately bounded — see [§12.6](#126-localisation-en-hi) |
+| **D-32** | Multiple stores per vendor | 🔴 **BLOCKED** (low risk) — see [§16.5](#165-blocked-decisions) |
 
-| # | Decision | Options | Recommendation | Needed by |
-|---|---|---|---|---|
-| **D-21** | Product search | Postgres full-text + `pg_trgm` · Typesense/Meilisearch · Algolia | **Postgres first.** At hyperlocal catalog sizes it is sufficient, avoids a second datastore, and the search interface stays swappable behind the `catalog` module. | TASK 007 |
-| **D-22** | Live order tracking transport | Client polling · SSE · Durable Object WebSockets · third-party realtime | **Polling (adaptive interval) in V1.** Simple, cheap, robust on mobile networks. Upgrade if you want true live driver-on-map tracking — which also raises D-29. | TASK 010 |
-| **D-23** | Maps / geocoding / autocomplete | Google Maps Platform · Ola Maps/MapmyIndia · OSM + Nominatim/Photon · Mapbox | **Google** for Indian address-autocomplete quality, or **Ola/MapmyIndia** for cost. This is a recurring per-request cost and needs a billing decision plus key restrictions. | TASK 005 |
-| **D-24** | SMS / OTP provider | MSG91 · 2Factor · Twilio · AWS SNS · Kaleyra | **An India-focused provider** (MSG91/2Factor) for transactional SMS. **Note: DLT registration of sender ID and templates is mandatory in India and takes lead time — start this early.** | TASK 003 |
-| **D-25** | Email provider | Resend · AWS SES · Postmark · Brevo | **Resend** for speed of setup, **SES** for volume economics. Needs domain verification with SPF/DKIM/DMARC. | TASK 003 |
-| **D-26** | Push notifications | Web Push (VAPID) · Firebase Cloud Messaging | **Web Push for the PWA in V1**, behind a flag; FCM only if native apps are planned. Note iOS Safari requires the PWA to be installed. | TASK 016 |
-| **D-27** | Error tracking / APM | Sentry · Cloudflare Logpush + Baselime/observability · self-hosted GlitchTip | **Sentry** for actionable stack traces with source maps; Cloudflare-native logging alone is weaker for debugging. | TASK 001 (foundation) |
-| **D-28** | Product analytics | PostHog · GA4 · Cloudflare Web Analytics · warehouse-only | **PostHog** (funnels + events matching master spec §36) or GA4 if marketing already relies on it. Also decide the consent/privacy stance. | TASK 017 |
-| **D-29** | Driver location retention | Not stored · stored only during active delivery, purged after N days · full history | **Store only during active delivery, purge after a short window** (privacy-minimal per master spec §15). **You must set N** — it interacts with dispute resolution needs. | TASK 013 |
-| **D-30** | CMS approach | DB-driven admin CMS (build it) · headless CMS (Sanity/Payload/Strapi) | **DB-driven admin CMS.** Spec requires admin-editable pages, banners and home layout inside the admin dashboard; a headless CMS adds a second system and auth surface. | TASK 015 |
-| **D-31** | Legacy data migration scope | Nothing (fresh start) · users only · users + addresses + orders + catalog + coupons | **Needs your call**, and it drives D-09 (password hashes), URL/redirect mapping for SEO, and how much of Phase 0 audit work is real. Master spec §31 requires backup-and-verify before any of it. | Before Phase 2 |
-| **D-33** | Localisation | English only · English + Hindi · English + Hindi + regional | The master spec never mentions language, so I have **assumed English-only, INR, IST** for V1. Flagging rather than deciding silently: multi-language changes the route shape (`/[locale]/…`), every CMS/product/template record, and the notification template key. **Cheap now, expensive later.** | Immediately (affects route structure in TASK 004) |
+### 16.5 Blocked decisions
 
----
+Work that depends on these does not proceed. No assumption is implemented in their place.
 
+#### 🔴 D-14 — GST / tax model · BLOCKED pending accountant confirmation
+
+**Explicitly instructed: do not implement tax assumptions.**
+
+How the build proceeds without it:
+
+| Aspect | V1 behaviour while blocked |
+|---|---|
+| Schema | Tax columns **exist but stay nullable/zero**: `products.hsn_code`, `products.tax_rate`, `order_items.tax_rate`, `order_items.tax_amount_paise`, `orders.taxable_amount_paise`, `orders.tax_amount_paise`, `tax_rates` table |
+| Pricing engine | A `TaxStrategy` interface with a single `NoTaxStrategy` implementation returning **zero**. No rate is guessed, no inclusive/exclusive assumption is coded |
+| Customer UI | **No tax line is displayed.** A zero tax row is not shown as "₹0 GST", because that is itself a claim about tax treatment |
+| Invoices | **Not generated.** `invoices` table and `seller_type` exist; no tax invoice is produced or emailed. Customers get an order summary, explicitly not labelled a tax invoice |
+| Blocks | Invoice generation, GST reporting, TCS handling, and the final form of the checkout total breakup |
+
+**To unblock, we need:** inclusive or exclusive pricing · per-product GST rates and HSN codes · whether Parthik or the vendor is the seller of record on the invoice · TCS/TDS obligations · invoice numbering and format requirements.
+
+#### 🔴 D-08 — Auth implementation library · BLOCKED (not addressed in approval)
+
+D-09 settled the *method* (phone OTP primary, no passwords) but not *what builds it*. Options remain **Better Auth** vs **fully in-house sessions**; Auth.js is effectively eliminated because the approved design has no OAuth and no passwords.
+
+Given D-09, the surface we need is now considerably smaller — OTP issue/verify, session create/revoke, multi-role — which **strengthens the in-house case**, since a library's main value (OAuth providers, password flows, adapters) is largely unused. **My recommendation is now in-house sessions**, built on the schema already specified, with the OTP and session logic covered by the [`SECURITY.md`](./SECURITY.md) controls and integration tests.
+
+**Blocks:** TASK 003 (Authentication + RBAC).
+
+#### 🔴 D-32 — Multiple stores per vendor · BLOCKED (low risk, default proposed)
+
+Not addressed in the approval. **Proposed default: schema supports N stores per vendor, V1 UI exposes exactly one.** This costs nothing now and keeps master spec §42 open. Confirm that no launch vendor operates two locations.
+
+**Blocks:** nothing if the default is accepted. Only the vendor UI shape changes if rejected.
+
+### 16.6 Open sub-items
+
+Smaller items inside otherwise-approved decisions. Each has a recommendation; none blocks the immediate next task except D-24.
+
+| Ref | Open question | Recommendation | Blocks |
+|---|---|---|---|
+| **D-01a** | Which managed Postgres provider | **Neon** or **Supabase**, ap-south region, PITR enabled | TASK 002 |
+| **D-03a** | Which HTTP cache provider | **Upstash Redis** — REST API works from Workers, and its rate-limit SDK covers a mandated control | TASK 003 |
+| **D-07a** | Image transformation/optimization. R2 is settled as *storage*; how images are **resized and served** is not | **Cloudflare Images** with a custom `next/image` loader — the default Next optimizer is a poor fit on Workers. Has a per-image cost worth seeing first | TASK 006 |
+| **D-19a** | Default cancellation/refund **values** — who may cancel at which status, refund percentage per window, restocking, driver compensation. The *engine* is approved; the *numbers* are undefined | Engine ships with an admin-editable policy table; **launch values need your input**. I will not invent refund percentages | TASK 010 |
+| **D-24a** | MSG91 **or** 2Factor — one must be picked | **MSG91** for broader template/campaign tooling; 2Factor is leaner if OTP is the only use. **DLT registration cannot start until this is chosen, and it gates all authentication** | TASK 003 — *urgent* |
+| **D-33a** | Locale URL strategy: prefix every locale (`/en/…`, `/hi/…`) vs default-unprefixed (`/…` = English, `/hi/…` = Hindi) | **Default-unprefixed.** Preserves existing/legacy URL shapes and their SEO equity, which matters for the D-31 migration and the `redirects` table | TASK 004 |
+| — | Payment-data localisation obligations under Indian regulation | Confirm with Razorpay and counsel. Not something I should assume | Before production |
+
+### 16.7 Clarifications required by these approvals
+
+Three approved decisions interact in ways that need an explicit resolution. I am recording my resolution rather than choosing silently — please confirm.
+
+#### ⚠️ C-1 · D-18 (auto-nearest dispatch) vs D-29 (location only during active delivery)
+
+**The conflict:** auto-assigning the *nearest* driver requires knowing where online drivers are **before** any delivery is assigned to them. Read literally, D-29 forbids exactly that data.
+
+**Proposed resolution — two distinct data classes:**
+
+| Data | Scope | Retention |
+|---|---|---|
+| **Current position** (single overwritten row, no history) | Drivers with availability `ONLINE`, required for dispatch | Overwritten on each ping; **deleted the moment the driver goes offline**. No trail, never queryable historically |
+| **Location trail** (`delivery_status_history` coordinates, ping history) | Only while a delivery is `ASSIGNED`…`DELIVERED` | **Purged after 7 days** per D-29 |
+
+This preserves the privacy intent — no long-term movement history of any driver — while making auto-dispatch possible. Drivers must be told their live position is used for assignment while online. **If you intend D-29 to forbid even the ephemeral online position, auto-nearest dispatch is not implementable and D-18 must fall back to broadcast-to-zone.**
+
+#### ⚠️ C-2 · D-21 (Postgres search) vs D-33 (Hindi content)
+
+PostgreSQL ships no Hindi stemmer or text-search configuration. Approved resolution: Hindi search uses the `simple` configuration plus `pg_trgm` trigram matching, which handles substring and fuzzy matching but **not** morphological stemming. English search uses the `english` configuration and is unaffected. Practically, Hindi product search will be adequate for short catalog names and weaker for descriptive phrases. If Hindi search quality proves insufficient, the swappable search interface allows moving to Typesense/Meilisearch (both have better multilingual support) without touching call sites.
+
+#### ⚠️ C-3 · D-12 (COD) vs D-14 (tax blocked)
+
+COD is approved and buildable, but COD orders often need a payment receipt at the doorstep. Since invoices are blocked by D-14, drivers deliver with an **order summary only, explicitly not a tax invoice**. Confirm this is acceptable operationally, or D-14 becomes urgent rather than merely blocking.
+
+### 16.8 Approval traceability
+
+| Group | Approved | Blocked | Open sub-item |
+|---|---|---|---|
+| Platform (D-01…D-07) | 7 | 0 | D-01a, D-03a, D-07a |
+| Identity (D-08…D-10) | 2 | **D-08** | — |
+| Commerce (D-11…D-20) | 9 | **D-14** | D-19a |
+| Supporting (D-21…D-33) | 12 | **D-32** | D-24a, D-33a |
+| **Total** | **28** | **3** | **6** |
 ## 17. Traceability to the master spec
 
 | Master spec section | Where addressed |

@@ -1,7 +1,6 @@
 # Parthik — Route Map, Rendering & Access Control
 
-**Status:** Draft for approval
-**Version:** 0.1
+**Status:** **APPROVED** design · **Version:** 1.0 · **Approved:** 2026-08-14
 **Depends on:** [`ARCHITECTURE.md`](./ARCHITECTURE.md) · [`SECURITY.md`](./SECURITY.md)
 
 ---
@@ -43,6 +42,34 @@ app/
 ```
 
 Route groups exist so each surface gets its **own layout, its own error boundary, its own metadata defaults and its own cache posture** — the shop layout is aggressively cacheable, the customer layout never is.
+
+---
+
+## 2.1 Locale routing (D-33 approved: EN + HI)
+
+**URL strategy: default-unprefixed** (D-33a recommendation).
+
+```text
+/products/atta-5kg          → English (default, unprefixed)
+/hi/products/atta-5kg       → Hindi
+/hi/category/groceries      → Hindi
+```
+
+English URLs keep their existing shape, which preserves legacy URL equity for the D-31 migration and keeps the `redirects` table simple. Adding Marathi later means adding `/mr/` — no restructuring.
+
+Implementation: an optional `[locale]` segment handled by `next-intl` middleware with `localePrefix: 'as-needed'`.
+
+| Concern | Behaviour |
+|---|---|
+| Resolution order | URL prefix → `users.preferred_locale` → `locale` cookie → `Accept-Language` → `en` |
+| Unsupported locale in URL | 404, not a silent fallback — `/fr/products/x` must not quietly serve English at a bogus URL |
+| Switching | A locale switcher preserves the current path and query, so switching language never dumps the user on the homepage |
+| Persistence | Selection writes the cookie and, for authenticated users, `users.preferred_locale` |
+| `<html lang>` | Always set to the resolved locale |
+| Private surfaces | Vendor/driver/admin honour the locale but are **not** indexed, so they need no `hreflang` |
+| Formatting | `Intl` with `en-IN`/`hi-IN`. Currency always INR, timezone always IST |
+
+**Scope reminder:** all *routes* work in both languages. Translation **content** is bounded for V1 per [`ARCHITECTURE.md` §12.6](./ARCHITECTURE.md#126-localisation-en-hi) — customer-facing UI and category names are fully Hindi; product text and CMS pages fall back to English until translated.
 
 ---
 
@@ -90,13 +117,13 @@ Notes on the location dependency: the homepage and category pages vary by delive
 |---|---|---|---|
 | `/cart` | SSR-PRIVATE | GUEST-OK | Guest cart via signed cookie, merged into the user cart on login |
 | `/checkout` | SSR-PRIVATE | CUSTOMER | Serviceability + stock + price re-verified on entry and again on submit |
-| `/checkout/payment` | SSR-PRIVATE | CUSTOMER | Provider handoff; never trusts a client-reported result |
+| `/checkout/payment` | SSR-PRIVATE | CUSTOMER | Razorpay handoff for UPI/Card (D-13); never trusts a client-reported result. **COD skips this route entirely** and goes straight to success, since the order is created `CONFIRMED` (D-12) |
 | `/checkout/success/[orderId]` | SSR-PRIVATE | CUSTOMER (owner) | Reached only after a server-confirmed order |
 | `/checkout/failed/[orderId]` | SSR-PRIVATE | CUSTOMER (owner) | Retry-payment path |
 | `/favorites` | SSR-PRIVATE | CUSTOMER | |
 | `/orders` | SSR-PRIVATE | CUSTOMER | Paginated |
 | `/orders/[id]` | SSR-PRIVATE | CUSTOMER (owner) | Timeline, invoice, reorder, cancel-if-permitted |
-| `/orders/[id]/track` | CSR polling | CUSTOMER (owner) | Adaptive polling per **[D-22]** |
+| `/orders/[id]/track` | CSR polling | CUSTOMER (owner) | Adaptive polling (D-22): interval widens when state is stable, tightens during active delivery |
 | `/account` | SSR-PRIVATE | CUSTOMER | Hub |
 | `/account/profile` | SSR-PRIVATE | CUSTOMER | |
 | `/account/addresses` | SSR-PRIVATE | CUSTOMER | CRUD + zone resolution |
@@ -141,7 +168,7 @@ All require `VENDOR` + approved vendor status, and every query is scoped to the 
 | `/vendor/inventory` | CSR | Stock levels, low-stock view, bulk stock/price update |
 | `/vendor/store` | SSR-PRIVATE | Profile, hours, availability toggle, min order, prep time |
 | `/vendor/analytics` | CSR | Sales, top products, category mix, order trends |
-| `/vendor/payouts` | CSR | Earnings, payout batches, statements (read-only in V1 — **[D-15]**) |
+| `/vendor/payouts` | CSR | Earnings, payout batches, statements. **Read-only — D-15: calculated, settled manually** |
 | `/vendor/coupons` | CSR | Vendor-scoped coupons, if admin permits |
 | `/vendor/documents` | SSR-PRIVATE | KYC upload + status; private-bucket signed reads |
 | `/vendor/notifications` | CSR | |
@@ -160,11 +187,13 @@ Require `DRIVER` + approved status. Single-column, large tap targets, one primar
 | Path | Render | Notes |
 |---|---|---|
 | `/driver` | CSR | Online/offline toggle, current status, today's deliveries + earnings, active delivery card, notifications |
-| `/driver/available` | CSR polling | Offered deliveries; accept/reject where policy allows (**[D-18]**) |
+| `/driver/available` | CSR polling | **Offer queue** from auto-nearest dispatch (D-18), with a visible countdown to offer expiry |
 | `/driver/active` | CSR polling | The delivery flow: navigate to store → arrived → confirm pickup → navigate to customer → arrived → confirm delivery |
-| `/driver/active/[deliveryId]/proof` | CSR | OTP entry, photo/signature capture (**[D-20]**) |
+| `/driver/active/[deliveryId]/proof` | CSR | **Mandatory OTP entry** (D-20); photo/signature only via an explicit exception path. For COD also captures the collected amount |
 | `/driver/history` | CSR | Completed/failed deliveries |
 | `/driver/earnings` | CSR | Daily/weekly summary from the earnings ledger |
+| `/driver/cash` | CSR | **COD cash in hand**, limit and headroom, deposit history. Shows plainly when COD dispatch is blocked by the cash limit (D-12) |
+| `/driver/cash/deposits/new` | SSR-PRIVATE | Declare a cash deposit with optional proof upload |
 | `/driver/profile` | SSR-PRIVATE | |
 | `/driver/documents` | SSR-PRIVATE | KYC upload, expiry warnings |
 | `/driver/support` | CSR | |
@@ -196,10 +225,13 @@ Require an admin role **and** a specific permission per page. A user who reaches
 | `/admin/brands` | `brand:manage` | |
 | `/admin/inventory` | `inventory:view` | Cross-vendor low-stock and adjustments |
 | `/admin/delivery` | `delivery:view` | Live board of unassigned/active deliveries |
-| `/admin/delivery/zones` | `zone:manage` | Zones, pincodes, fees, thresholds, ETAs (**[D-17]**) |
+| `/admin/delivery/zones` | `zone:manage` | Zones, pincodes, **base fee, ₹199 free-delivery threshold, min order, per-km, cap** — all editable (D-17) |
 | `/admin/payments` | `payment:view` | Payments, failures, reconciliation queue |
 | `/admin/payments/refunds` | `refund:manage` | Refund initiation + status |
-| `/admin/payouts` | `payout:manage` | Vendor/driver payout batches |
+| `/admin/payouts` | `payout:manage` | Vendor/driver payout batches. **Calculated, settled manually (D-15)** |
+| `/admin/cash` | `cash:view` | **COD reconciliation:** cash in hand per driver, aged cash, drivers over limit (D-12) |
+| `/admin/cash/deposits` | `cash:reconcile` | Deposit verification queue — declare/verify two-step |
+| `/admin/cash/variances` | `cash:view` | Per-delivery collection mismatches |
 | `/admin/coupons` | `coupon:manage` | Full rule editor per master spec §18 |
 | `/admin/promotions` | `promotion:manage` | |
 | `/admin/banners` | `banner:manage` | Placement, audience, zone, schedule, priority |
@@ -215,7 +247,9 @@ Require an admin role **and** a specific permission per page. A user who reaches
 | `/admin/notifications/templates` | `template:manage` | Admin-editable templates with variables |
 | `/admin/analytics` | `analytics:view` | |
 | `/admin/reports` | `report:view` | Queued generation, download from private R2 |
-| `/admin/settings` | `setting:view` | Business, currency, tax, delivery fee, free-delivery threshold, min order, service areas, cancellation/refund rules, maintenance mode (master spec §34) |
+| `/admin/settings` | `setting:view` | Business, currency, delivery fee, free-delivery threshold, min order, service areas, maintenance mode. **COD controls** (max order value, driver cash limit, zones). **Tax settings hidden while D-14 is blocked** |
+| `/admin/settings/cancellation-policy` | `setting:manage` | Cancellation/refund policy table per role × status (D-19) |
+| `/admin/translations` | `cms:manage` | **Translation completeness dashboard** — what is missing in Hindi (D-33) |
 | `/admin/settings/payments` | `setting:manage_sensitive` | Elevated permission required |
 | `/admin/roles` | `role:manage` | Roles ↔ permissions matrix |
 | `/admin/users` | `admin_user:manage` | Admin user management |
@@ -281,17 +315,49 @@ Middleware does **not**: load a session from the DB, check granular permissions,
 | Search | `noindex, follow` | none | No |
 | Any authenticated route | `noindex, nofollow` | none | No |
 
-Additional rules: one canonical per page (paginated lists self-canonicalize with `rel=prev/next`); slug changes always write a `redirects` row so links and rankings survive; `Product` availability in JSON-LD must reflect **real** stock, never a stale cached value, because misrepresenting availability is both an SEO and a trust problem.
+### Bilingual SEO (D-33)
+
+| Requirement | Implementation |
+|---|---|
+| `hreflang` | Every indexable page emits `en-IN`, `hi-IN` and `x-default` (→ English) alternates, reciprocally linked |
+| Canonicals | **Per locale.** The Hindi page canonicalizes to itself, never to the English version — otherwise Hindi pages would be deindexed |
+| Sitemap | Each URL listed once per available locale with `xhtml:link` alternates |
+| Fallback content | A Hindi page rendering mostly English fallback text is still indexable, but **`hreflang` is only emitted for locales where translated content actually exists**, to avoid signalling a Hindi page that isn't one |
+| Structured data | `inLanguage` set; `Product` name/description use the resolved locale |
+
+Additional rules: one canonical per page per locale (paginated lists self-canonicalize with `rel=prev/next`); slug changes always write a `redirects` row so links and rankings survive; `Product` availability in JSON-LD must reflect **real** stock, never a stale cached value, because misrepresenting availability is both an SEO and a trust problem.
 
 ---
 
-## 12. Open route-level decisions
+## 12. Decision status affecting routes
 
-| # | Question | Impact |
-|---|---|---|
-| **[D-11]** | Multi-vendor cart | If carts can span vendors, `/cart` and `/checkout` need per-vendor grouping, and `/orders/[id]` may need a parent order-group view |
-| **[D-12]** | COD | Adds a payment-method step outcome and changes `/checkout/success` vs `/checkout/payment` flow |
-| **[D-22]** | Tracking transport | `/orders/[id]/track` and `/driver/active` polling vs SSE/WebSocket |
-| **[D-32]** | Store pages | Whether `/stores/[slug]` exists in V1 (it is a real SEO asset, but it is extra scope) |
-| — | `/account/orders` vs `/orders` duplication | Currently resolved as redirect-to-canonical; confirm you don't want two distinct views |
-| **[D-33]** | Localisation | The spec does not mention multi-language. Assuming **English only, INR, IST** in V1 with no `[locale]` segment. If Hindi/regional languages are wanted, the route shape must change now, not later |
+### Resolved
+
+| Decision | Route outcome |
+|---|---|
+| **D-11** | `/cart` and `/checkout` are single-vendor; no order-group view needed |
+| **D-12** | COD **skips `/checkout/payment`** entirely; `/driver/cash`, `/admin/cash/*` added |
+| **D-17** | `/admin/delivery/zones` owns fee, threshold, min order and cap |
+| **D-18** | `/driver/available` is an offer queue with expiry countdown |
+| **D-19** | `/admin/settings/cancellation-policy` added |
+| **D-20** | Proof route requires OTP; photo/signature is an exception path |
+| **D-22** | `/orders/[id]/track` and `/driver/active` stay polling |
+| **D-33** | Optional `[locale]` segment, `/hi/` prefix, `hreflang`, `/admin/translations` |
+
+### 🔴 Blocked
+
+| Decision | Route consequence |
+|---|---|
+| **D-14 GST/tax** | Tax settings hidden in `/admin/settings`; **no invoice route**. `/orders/[id]` shows an order summary, explicitly not labelled a tax invoice |
+| **D-32 multi-store** | Whether **`/stores/[slug]`** ships in V1 is still undecided. It is a genuine SEO asset but extra scope, and it only makes sense once the one-vs-many store question is settled |
+
+### Open sub-items
+
+| Ref | Route consequence |
+|---|---|
+| **D-33a** | Confirm default-unprefixed URLs (`/products/x` = EN, `/hi/products/x` = HI) rather than prefixing both |
+| **D-19a** | Policy *values* change what the cancel action offers on `/orders/[id]` |
+
+### Previously flagged, still open for your confirmation
+
+`/orders` vs `/account/orders` and `/favorites` vs `/account/favorites` remain consolidated to one canonical route each with redirects. Confirm you don't want two genuinely distinct views.

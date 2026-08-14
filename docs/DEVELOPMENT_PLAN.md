@@ -1,10 +1,11 @@
 # Parthik — Development Plan
 
-**Status:** Draft for approval
-**Version:** 0.1
-**Depends on:** [`ARCHITECTURE.md`](./ARCHITECTURE.md) and its decision register
+**Status:** **APPROVED** · **Version:** 1.0 · **Approved:** 2026-08-14
+**Depends on:** [`ARCHITECTURE.md` §16 Approved Decisions](./ARCHITECTURE.md#16-approved-decisions)
 
-> Master spec §27 Step 1: **do not code until requirements, navigation, flows, database entities and design system are documented.** This document set completes that gate. Implementation begins only after the decisions in [`ARCHITECTURE.md` §16](./ARCHITECTURE.md) are approved.
+> Master spec §27 Step 1 gate is **complete**: 28 of 33 decisions approved.
+>
+> **Current standing instruction:** no database migrations, no application features, no production/DNS changes, no legacy data migration. TASK 001's remaining scaffold work is the next authorized step.
 
 ---
 
@@ -12,13 +13,16 @@
 
 | Item | Status |
 |---|---|
-| GitHub repository `manshu145/parthik` | Exists, **empty** — no commits before this documentation branch |
-| Master specification | Provided; being committed to `docs/PARTHIK_MASTER_SPEC.md` as required by master spec §46.7 |
-| Architecture documentation | This set — awaiting approval |
+| GitHub repository `manshu145/parthik` | Active. `main` (production, default) · `develop` (integration) · `docs/architecture` (documentation) |
+| Master specification | Committed at `docs/PARTHIK_MASTER_SPEC.md` |
+| Architecture documentation | **Approved** — 28 of 33 decisions settled |
 | Application code | **None written.** Correct at this stage |
-| Legacy Parthik backup | **Not verified by me.** Master spec §31 requires source, database, media, config and DNS backups with a rehearsed restore *before* any replacement work. Please confirm this is done |
-| Cloudflare zone / accounts | Unknown — needed for Phase 1 |
-| Provider accounts (payment, SMS, email, maps) | Unknown — several have lead times (see §7) |
+| Database migrations | **None generated.** Explicitly withheld |
+| Legacy data | **Not migrated, by decision (D-31).** A separate migration plan follows schema approval |
+| Legacy Parthik backup | **Still not verified by me.** Master spec §31 requires source, database, media, config and DNS backups with a rehearsed restore before any replacement work. Please confirm |
+| Cloudflare zone / accounts | Not yet provisioned — needed for TASK 001 completion |
+| Provider accounts | Razorpay, Resend, Google Maps, Sentry, PostHog chosen; **SMS vendor pick still open (D-24a) and DLT registration has not started** |
+| Production domain / DNS | **Untouched, as instructed.** No cutover activity |
 
 ---
 
@@ -58,60 +62,77 @@ Mapped directly to master spec §44 and §41. Each task is a PR (or a small seri
 |---|---|
 | Architecture documentation set | **Done (this branch)** |
 | Master spec committed to `docs/` | **Done (this branch)** |
-| Next.js 16 + TypeScript strict scaffold | Blocked on **[D-04]** |
-| Tailwind + design tokens + shadcn/ui init | Blocked on token approval |
-| ESLint (incl. import-boundary rules) + Prettier + Husky + lint-staged | Ready |
-| `.env.example` + validated config module | Blocked on provider decisions |
-| Directory structure + module boundaries | Ready |
-| Database layer skeleton | Blocked on **[D-01]**, **[D-02]** |
-| Auth + RBAC architecture placeholders | Blocked on **[D-08]** |
-| Error taxonomy + structured logger | Ready |
-| Test setup (Vitest + Playwright) | Ready |
-| README + CI pipeline | Ready |
+| Next.js 16 + TypeScript strict scaffold | ✅ **Unblocked** (D-04 approved) |
+| OpenNext + Wrangler config for Workers | ✅ **Unblocked** (D-04) |
+| Tailwind + design tokens + shadcn/ui init | ⚠️ Needs brand input (colours, logo, typography) — or approval to propose a token set |
+| **next-intl setup, `en`/`hi` message catalogs, locale middleware** | ✅ **Unblocked** (D-33) — new scope from the approval |
+| ESLint (incl. import-boundary rules) + Prettier + Husky + lint-staged | ✅ Ready |
+| `.env.example` + validated config module | ✅ **Unblocked** (all providers chosen except D-24a) |
+| Directory structure + module boundaries | ✅ Ready |
+| Drizzle setup + Hyperdrive binding + connection helper (**no schema, no migrations**) | ✅ **Unblocked** (D-01/D-02); needs provider pick D-01a for a live URL |
+| Auth + RBAC **architecture placeholders only** | ⚠️ Interfaces yes; implementation blocked on **D-08** |
+| Error taxonomy + structured logger | ✅ Ready |
+| Sentry wiring | ✅ **Unblocked** (D-27) |
+| Test setup (Vitest + Playwright) | ✅ Ready |
+| README + CI pipeline | ✅ Ready |
 | Typecheck, lint, production build green | Gate for closing TASK 001 |
 
 **Exit criteria:** empty-but-real application boots, builds for the Workers target, CI is green, and no commerce feature exists yet.
 
 ### Phase 1 — Foundation
-- **TASK 002 — Database schema.** All entities from [`DATABASE.md`](./DATABASE.md), migrations, seeds (permissions, roles, zones, categories, templates, settings), repository pattern established with one reference module. *Blocked on D-01, D-02, D-11, D-14, D-16, D-17.*
+- **TASK 002 — Database schema.** All entities from [`DATABASE.md`](./DATABASE.md), **including** translation tables (D-33), cash ledger and deposits (D-12), `cancellation_policies` (D-19), inventory reservation ledger (D-16). Seeds: permissions, roles, zones + ₹199 threshold, categories with EN+HI names, notification templates EN+HI, settings, COD controls. Repository pattern with one reference module.
+  ✅ **Dependencies approved** (D-01, D-02, D-11, D-16, D-17, D-33). ⚠️ Needs **D-01a** for a live database. 🔴 **Tax tables created inert — D-14 blocked.**
+  🚫 **Migration generation withheld pending explicit authorization.**
 
 ### Phase 2 — Identity
-- **TASK 003 — Authentication + RBAC.** Phone OTP, email login, sessions, revocation, rate limiting, permission engine, `can()`/`requirePermission()`, route gating, login/signup/verify UI, security page. *Blocked on D-03, D-08, D-09, D-10, D-24, D-25.*
+- **TASK 003 — Authentication + RBAC.** Phone OTP, **email OTP fallback (no passwords — D-09)**, sessions with role-specific lifetimes (D-10), revocation, rate limiting, permission engine, `can()`/`requirePermission()`, route gating, login/signup/verify UI, security page, locale preference.
+  🔴 **BLOCKED on D-08** (auth library) and **D-24a** (SMS vendor → DLT registration). D-03a needed for the cache. **This is the critical path.**
 
 ### Phase 3 — Customer core
-- **TASK 004 — Customer shell + navigation.** Layouts, bottom nav, desktop header, footer, location selector shell, cart drawer shell, toasts, skeleton/empty/error/offline components, PWA manifest and app shell.
-- **TASK 005 — Location and serviceability.** Zones, pincodes, detection, address search, address CRUD, serviceability checks, delivery-fee resolution. *Blocked on D-17, D-23.*
-- **TASK 006 — Catalog.** Categories, products, variants, images, product cards, category pages, product detail, admin/vendor catalog CRUD foundations, ISR + tag revalidation. *Blocked on D-07.*
-- **TASK 007 — Search.** Indexing, search API, suggestions, filters, sort, empty states. *Blocked on D-21.*
-- **TASK 008 — Cart.** Guest + user carts, merge on login, quantity rules, stock validation, the shared pricing engine with unit tests. *Blocked on D-11, D-16.*
+- **TASK 004 — Customer shell + navigation.** Layouts, bottom nav, desktop header, footer, location selector shell, cart drawer shell, toasts, skeleton/empty/error/offline components, PWA manifest and app shell, **locale switcher and `/hi/` routing**. ✅ Approved. ⚠️ Confirm **D-33a** URL strategy.
+- **TASK 005 — Location and serviceability.** Zones, pincodes, detection, address search, address CRUD, serviceability checks, **zone-based fee with the admin-configurable ₹199 threshold**. ✅ Approved (D-17, D-23).
+- **TASK 006 — Catalog.** Categories, products, variants, images, **translation-aware reads with EN fallback**, product cards, category pages, product detail, admin/vendor catalog CRUD foundations, ISR + tag revalidation. ✅ Approved. ⚠️ **D-07a** image transformation.
+- **TASK 007 — Search.** Per-locale search vectors, `pg_trgm`, suggestions, filters, sort, empty states. ✅ Approved (D-21), with the Hindi stemming limitation documented (C-2).
+- **TASK 008 — Cart.** Guest + user carts, merge on login, **single-vendor enforcement (D-11)**, quantity rules, stock validation, the shared pricing engine with unit tests. ✅ Approved. 🔴 Pricing engine ships `NoTaxStrategy` — **D-14 blocked, no tax assumption**.
 
 ### Phase 4 — Commerce
-- **TASK 009 — Checkout.** Address → ETA → coupon → payment method → summary → confirm, with re-verification of serviceability, stock and price. *Blocked on D-12, D-14, D-17.*
-- **TASK 010 — Orders.** Order creation with idempotency, state machine, status history, customer order list/detail/tracking, cancellation policy, reorder, invoices. *Blocked on D-19, D-22.*
-- **TASK 011 — Payments.** Provider adapter, intent creation, webhook verification, reconciliation job, refunds, failure recovery, payment logs. *Blocked on D-13, D-12.*
-- **TASK 012 — Coupons and promotions.** Full rule engine per master spec §18 with exhaustive unit tests.
+- **TASK 009 — Checkout.** Address → ETA → coupon → **payment method (UPI / Card / COD)** → summary → confirm, with re-verification of serviceability, stock and price, plus **COD eligibility checks** (zone, store, max order value). ✅ Approved (D-12, D-17). 🔴 **No tax line rendered — D-14 blocked.**
+- **TASK 010 — Orders.** Order creation with idempotency, **stock reservation (D-16)**, dual state-machine entry (prepaid → `PENDING_PAYMENT`, **COD → `CONFIRMED`**), status history, order list/detail/adaptive-polling tracking, **`cancellation_policies` engine**, reorder. ✅ Engine approved. ⚠️ **D-19a policy values needed.** 🚫 **No invoices — D-14.**
+- **TASK 011 — Payments.** **Razorpay** adapter, intent creation, webhook verification, reconciliation job, refunds (**with `MANUAL_PAYOUT` mode for COD**), failure recovery, payment logs. ✅ Approved (D-13).
+- **TASK 011b — COD cash reconciliation.** *(New scope from D-12.)* Cash ledger, driver cash-in-hand view, declare/verify deposit flow, cash limit enforcement in dispatch, variance reporting, admin reconciliation screens, aged-cash alerts. ✅ Approved.
+- **TASK 012 — Coupons and promotions.** Full rule engine per master spec §18 with exhaustive unit tests, **translation-aware coupon copy**. ✅ Approved.
 
 ### Phase 5 — Vendor
-- **TASK 013 — Vendor dashboard.** Application/KYC, onboarding gate, store profile and hours, product management incl. bulk import/export, inventory, order workflow, analytics, payouts view, documents, support. *Blocked on D-15, D-32.*
+- **TASK 013 — Vendor dashboard.** Application/KYC, onboarding gate, store profile and hours (**incl. per-store COD toggle**), product management incl. bulk import/export and **Hindi translation fields**, inventory, order workflow, analytics, **payouts view showing calculated-but-manually-settled amounts (D-15)**, documents, support. ✅ Approved. 🔴 **D-32** decides whether the store UI is single or multi.
 
 ### Phase 6 — Driver
-- **TASK 014 — Driver dashboard.** Application/KYC, availability, assignment offers, delivery flow, proof capture, earnings ledger, history. *Blocked on D-18, D-20, D-29.*
+- **TASK 014 — Driver dashboard.** Application/KYC, availability, **auto-nearest offer queue with timeout/expiry countdown (D-18)**, delivery flow, **mandatory OTP proof with photo/signature exception (D-20)**, **COD collection + cash screens**, earnings ledger, history. ✅ Approved. ⚠️ Dispatch timeout/attempt defaults need confirmation. ⚠️ Confirm whether the driver dashboard is fully Hindi at launch.
 
 ### Phase 7 — Admin
 - **TASK 015 — Admin dashboard.** KPIs and charts, order control incl. assign/cancel/refund, customer/vendor/driver management with approval queues, catalog moderation, delivery board, zones, payments/refunds/payouts, reviews, support queue, reports, settings, roles and permissions UI, audit log viewer, system health, feature flags.
-- **TASK 016 — Marketing and CMS.** Banners, campaigns, CMS pages, home layout builder, blog, redirect manager. *Blocked on D-30.*
-- **TASK 017 — Notifications.** Notification service, channel adapters, admin-editable templates, preferences, in-app centre, campaign fan-out via queues, web push. *Blocked on D-24, D-25, D-26.*
+- **TASK 016 — Marketing and CMS.** Banners, campaigns, CMS pages, home layout builder, blog, redirect manager, **translation management UI + completeness dashboard**. ✅ Approved (D-30, D-33).
+- **TASK 017 — Notifications.** Notification service, channel adapters, admin-editable templates **in EN + HI**, preferences, in-app centre, campaign fan-out via queues, web push. ✅ Approved (D-25 Resend, D-26 Web Push). 🔴 **D-24a** and **DLT registration in both languages**.
 
 ### Phase 8 — Growth and hardening
-- **TASK 018 — SEO.** Metadata, canonicals, sitemap, robots, JSON-LD, OG images, redirects, 404, internal linking, Lighthouse budgets.
-- **TASK 019 — Analytics and observability.** Event tracking, error tracking, request tracing, dashboards, alerts, health checks. *Blocked on D-27, D-28.*
+- **TASK 018 — SEO.** Metadata, **per-locale canonicals and `hreflang`**, bilingual sitemap, robots, JSON-LD, OG images, redirects, 404, internal linking, Lighthouse budgets. ✅ Approved.
+- **TASK 019 — Analytics and observability.** PostHog event tracking, Sentry, request tracing, dashboards, alerts (**incl. cash and dispatch alerts**), health checks. ✅ Approved (D-27, D-28). ⚠️ Consent stance for PostHog needs defining.
 - **TASK 020 — Testing completion.** Full unit/integration/E2E suites for the four critical journeys, concurrency tests, a11y and performance checks in CI.
 
 ### Phase 9 — Production
-- **TASK 021 — Security hardening.** Complete the [`SECURITY.md` §12](./SECURITY.md) checklist; external review if desired.
-- **TASK 022 — Performance and load testing.** Verify budgets, DB indexes under realistic data volume, cache hit rates, Hyperdrive pool behaviour.
-- **TASK 023 — Data migration.** Only after schema mapping and validation. *Blocked on D-31.*
-- **TASK 024 — Cloudflare production and cutover.** Zone, WAF, R2, queues, cron, secrets, monitoring, staged DNS cutover with rollback rehearsed.
+- **TASK 021 — Security hardening.** Complete the [`SECURITY.md` §12](./SECURITY.md) checklist incl. the COD cash and OTP items; external review if desired.
+- **TASK 022 — Performance and load testing.** Verify budgets, DB indexes under realistic data volume, cache hit rates, Hyperdrive pool behaviour, **translation-join query cost**.
+- **TASK 023 — Legacy data migration.** 🚫 **Deferred by D-31.** Not part of the current build. A **separate migration plan** is written and approved *after* the schema is approved, covering users, addresses, historical orders, catalog and coupons. No legacy data is touched before then.
+- **TASK 024 — Cloudflare production and cutover.** Zone, WAF, R2, queues, cron, secrets, monitoring, staged DNS cutover with rollback rehearsed. 🚫 **No production or DNS configuration is being touched now, as instructed.**
+
+### Blocked tasks — do not start
+
+| Task | Blocked by |
+|---|---|
+| **TASK 003** Authentication + RBAC | **D-08** auth library · **D-24a** SMS vendor + DLT |
+| Invoice generation, tax display, GST reporting *(within TASK 009/010)* | **D-14** |
+| Vendor store UI shape *(within TASK 013)* | **D-32** |
+| **TASK 023** Legacy migration | **D-31** — deliberately deferred |
+| Migration generation *(within TASK 002)* | Standing instruction |
 
 > **Sequencing note.** Master spec §44 lists TASK 015 as Marketing/CMS and TASK 017 as SEO. I have kept the same content and ordering intent but numbered continuously (015 admin, 016 CMS, 017 notifications, 018 SEO) because admin must exist before CMS is manageable. Say the word if you'd rather I preserve the original numbering exactly.
 
@@ -204,19 +225,23 @@ These are the items that will delay the project if started late, and none of the
 
 | Item | Why it takes time | Needed by |
 |---|---|---|
-| **DLT registration for SMS** (India) | Sender ID and every transactional template must be pre-registered and approved; typically days to weeks | TASK 003 — **start now** |
-| Payment gateway merchant account | KYC, business documents, activation of live mode | TASK 011 |
-| Email domain verification | SPF/DKIM/DMARC DNS records plus warm-up | TASK 003 |
-| Maps API billing account + key restrictions | Billing setup, quota and referrer restrictions | TASK 005 |
-| Cloudflare account/zone, R2, Queues | Paid plan for Queues/Durable Objects | TASK 001 |
-| Managed Postgres provisioning | Region choice, backup config | TASK 002 |
-| Legacy backup + restore rehearsal | Master spec §31 prerequisite | Before any migration |
-| GST/tax determination | Needs your accountant | TASK 009 |
-| Commission and payout terms | Commercial decision | TASK 013 |
+| **SMS vendor pick (D-24a) + DLT registration** | Sender ID and every transactional template pre-registered and approved — now needed in **English AND Hindi**, roughly doubling the template set. Days to weeks | **TASK 003 — blocking, start immediately** |
+| **Razorpay merchant account** | KYC, business documents, live-mode activation, webhook secret | TASK 011 |
+| Resend domain verification | SPF/DKIM/DMARC records plus warm-up | TASK 003 |
+| Google Maps billing + key restrictions | Billing setup, quota, referrer/IP restrictions | TASK 005 |
+| Cloudflare account/zone, R2, Queues | Paid plan needed for Queues and Durable Objects | TASK 001 |
+| Managed Postgres provisioning (D-01a) | Provider pick, ap-south region, PITR config | TASK 002 |
+| **GST/tax determination (D-14)** | **Blocking.** Needs your accountant. Gates invoices and any tax display | TASK 009/010 |
+| **Hindi translation content** | Human translation of UI strings, category names and transactional templates. Not a code task — needs a translator | TASK 004/017 |
+| Commission rates (D-15) | Commercial decision; needed for calculated payouts | TASK 013 |
+| Cancellation/refund values (D-19a) | Business policy decision | TASK 010 |
+| Legacy backup + restore rehearsal | Master spec §31 prerequisite, still unconfirmed | Before any future migration |
 
 ---
 
 ## 8. Data migration and cutover SOP
+
+🚫 **Not active. D-31 defers all legacy migration.** This SOP is the plan to be followed *later*, after the schema is approved and a dedicated migration plan is written and signed off. Recorded here so it is not reinvented.
 
 Per master spec §31 and §46, in order, with no step skipped:
 
@@ -226,7 +251,7 @@ Per master spec §31 and §46, in order, with no step skipped:
 4. Environment/config backup.
 5. DNS record export.
 6. Existing URL inventory → seeds the `redirects` table so SEO survives.
-7. User/order data assessment and field-by-field schema mapping (**[D-31]**).
+7. User/order data assessment and field-by-field schema mapping.
 8. Coupon/vendor/driver data export.
 9. Dry-run migration into staging; reconcile record counts and financial totals against the legacy system.
 10. Fix mapping gaps; repeat the dry run until reconciliation is exact.
@@ -243,7 +268,13 @@ Per master spec §31 and §46, in order, with no step skipped:
 
 | Risk | Impact | Mitigation |
 |---|---|---|
-| Unresolved commerce decisions (D-11, D-12, D-14, D-16) | Rework across cart, checkout, orders, payouts | Resolve before TASK 008. These are the expensive ones |
+| ~~Unresolved commerce decisions~~ | — | **Resolved.** D-11, D-12, D-16, D-17, D-18, D-19, D-20 approved |
+| **D-14 tax still blocked** while commerce is built | Rework of totals display, invoices and possibly `order_items` if it lands after real orders exist | Tax isolated behind `TaxStrategy`; columns pre-created so unblocking is a backfill, not a migration on live financial data. **Resolve before launch, ideally before TASK 009** |
+| **D-08 blocks the critical path** | TASK 003 cannot start; everything after it waits | Decide auth library now. Recommendation: in-house, since D-09 removed passwords and OAuth |
+| **COD cash leakage** (new risk from D-12) | Direct financial loss, hard to detect late | Append-only ledger, per-driver cash limit gating dispatch, two-step deposit verification, variance and aged-cash alerts (§8.4 of SECURITY.md) |
+| **Bilingual scope creep** (new risk from D-33) | Translation debt across every content surface; untranslated strings shipped | Capability built once, content scope explicitly bounded; completeness dashboard makes gaps visible; EN fallback guarantees nothing renders empty |
+| **Hindi SMS cost and DLT workload** | Unicode SMS costs more with shorter segments; template set roughly doubles | Budget for it; register templates early; keep transactional copy short |
+| **Auto-dispatch quality** (D-18) | Poor assignments, driver dissatisfaction, slow deliveries | `attempt_number` and `distance_at_offer_km` recorded so dispatch is measurable; manual fallback always available |
 | OpenNext/Workers constraint discovered late (e.g. a needed Node API, middleware limitation, ISR cost) | Late platform change | Build a thin end-to-end vertical slice on Workers in TASK 001/002 and validate before volume work |
 | Hyperdrive/Postgres connection saturation under load | Production outage at peak | Load test in TASK 022; tune pool; keep queries indexed and short |
 | DLT/SMS approval delay | Blocks all authentication | Start registration immediately; keep an email-OTP fallback path |
@@ -256,23 +287,50 @@ Per master spec §31 and §46, in order, with no step skipped:
 
 ---
 
-## 10. What I need from you to start
+## 10. Outstanding inputs
 
-**Blocking TASK 001 completion (the code scaffold):**
-- **[D-04]** confirm Cloudflare Workers + OpenNext as the deployment target
-- **[D-01]** managed Postgres host, **[D-02]** ORM, **[D-03]** cache provider
-- **[D-06]** single repo (default: yes), **[D-27]** error tracking
-- Design direction input: brand colours, logo, typography preference — or approval to propose a token set for review
+### 🔴 Blocking — work stops without these
 
-**Blocking Phase 2 (identity):**
-- **[D-08]**, **[D-09]**, **[D-10]** auth approach and session lifetimes
-- **[D-24]**, **[D-25]** SMS and email providers — **DLT registration should start today**
+| Need | Blocks | Why it matters |
+|---|---|---|
+| **D-08** auth library: in-house or Better Auth | **TASK 003 and everything after it** | This is the critical path. My recommendation is now **in-house**, because D-09 removed passwords and there is no OAuth, leaving a library with little to contribute |
+| **D-24a** MSG91 or 2Factor, then start DLT registration | TASK 003 | Longest external lead time in the project, now doubled by needing Hindi templates |
+| **D-14** GST/tax from your accountant | Invoices, tax display, GST reporting | Everything else is built around it; the longer it stays open the more expensive it gets |
 
-**Blocking Phase 3–4 (the expensive ones — please prioritise these):**
-- **[D-11]** multi-vendor cart, **[D-12]** COD, **[D-14]** GST model, **[D-16]** inventory semantics, **[D-17]** zone and delivery-fee model, **[D-19]** cancellation/refund policy
+### ⚠️ Needed soon
 
-**Also confirm:**
-- Legacy Parthik backup is complete and a restore has been tested (master spec §31)
-- **[D-31]** how much legacy data migrates
-- Whether the task numbering deviation in §3 is acceptable
-- Whether English-only V1 is correct (**[D-33]** localisation)
+| Need | Blocks |
+|---|---|
+| **D-01a** managed Postgres provider (Neon or Supabase, ap-south) | TASK 002 live database |
+| **D-03a** cache provider (recommend Upstash) | TASK 003 |
+| **D-32** one store per vendor, or many | TASK 013 vendor UI. Default proposed: schema many, UI one |
+| **D-19a** cancellation/refund **values** per role × status | TASK 010 |
+| **D-33a** confirm default-unprefixed locale URLs | TASK 004 |
+| **D-07a** image transformation approach | TASK 006 |
+| Brand direction: colours, logo, typography — or approval for me to propose tokens | TASK 001 completion |
+| Dispatch defaults: offer timeout, max attempts, escalation window | TASK 014 |
+| COD control values: max order value, driver cash limit, deposit grace period | TASK 011b |
+| Hindi translator/resource for UI strings, categories and templates | TASK 004/017 |
+| Whether the **driver dashboard** must be fully Hindi at launch | TASK 014 |
+| PostHog consent stance | TASK 019 |
+
+### Confirmations requested
+
+1. **Clarification C-1** — auto-nearest dispatch needs the ephemeral online-driver position. Confirm the two-class location model in [`ARCHITECTURE.md` §16.7](./ARCHITECTURE.md#167-clarifications-required-by-these-approvals), or D-18 falls back to broadcast-to-zone.
+2. **Clarification C-3** — while D-14 is blocked, COD deliveries hand over an order summary that is **not** a tax invoice. Confirm this is operationally acceptable.
+3. **Legacy backup** — master spec §31 source/database/media/config/DNS backup with a rehearsed restore. Still unconfirmed.
+4. `/orders` vs `/account/orders` consolidation (one canonical route + redirect).
+5. Task numbering deviation from master spec §44.
+6. Payment-data localisation obligations — confirm with Razorpay and counsel.
+
+---
+
+## 11. Next recommended task
+
+**Complete TASK 001 — the application scaffold**, which is now unblocked apart from brand tokens:
+
+Next.js 16 + TypeScript strict · OpenNext/Wrangler config for Workers · Tailwind + token structure · shadcn/ui init · next-intl with `en`/`hi` catalogs · ESLint import-boundary rules · Prettier/Husky/lint-staged · validated config module + `.env.example` · directory structure and module boundaries · Drizzle client + Hyperdrive binding (**no schema, no migrations**) · error taxonomy · structured logger · Sentry · Vitest + Playwright · CI pipeline · typecheck/lint/build green.
+
+**Explicitly excluded from that task:** database migrations, any schema definition, any commerce feature, any auth implementation (D-08), production/DNS configuration, and legacy data.
+
+Running TASK 001 in parallel with your D-08 and D-24a decisions keeps the critical path moving, since the scaffold does not depend on either.
