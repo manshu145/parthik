@@ -48,3 +48,6 @@ yarn-error.log*
 .idea/
 .vscode/*
 !.vscode/extensions.json
+
+# playwright browsers cache (installed per-environment)
+/playwright/.local-browsers/

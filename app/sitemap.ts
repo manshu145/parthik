@@ -18,7 +18,18 @@ type StaticRoute = {
   priority: number;
 };
 
-const STATIC_ROUTES: StaticRoute[] = [{ path: '/', changeFrequency: 'daily', priority: 1 }];
+/**
+ * Only PUBLIC, indexable routes that actually exist.
+ *
+ * `/search` is excluded because it is `noindex` (thin, duplicative content), and
+ * every `(customer)` route is excluded because private surfaces must never be
+ * exposed to search engines.
+ */
+const STATIC_ROUTES: StaticRoute[] = [
+  { path: '/', changeFrequency: 'daily', priority: 1 },
+  { path: '/categories', changeFrequency: 'weekly', priority: 0.9 },
+  { path: '/offers', changeFrequency: 'daily', priority: 0.8 },
+];
 
 /**
  * Builds a locale-correct URL; the default locale stays unprefixed (D-33a).
