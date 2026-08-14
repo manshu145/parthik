@@ -71,6 +71,12 @@ export const DEV_VENDOR = {
 export const DEV_STORE = {
   name: 'Demo Kirana — Central',
   slug: 'demo-kirana-central',
+  /**
+   * Explicit rather than relying on the column default (`CLOSED`), so the demo
+   * catalogue is actually browsable and the in-memory fixtures cannot disagree
+   * with what `pnpm seed` writes.
+   */
+  status: 'OPEN' as const,
   line1: '12 Demo Market Road',
   city: 'Indore',
   state: 'Madhya Pradesh',
