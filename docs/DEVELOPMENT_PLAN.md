@@ -3,7 +3,7 @@
 **Status:** **APPROVED** · **Version:** 1.1 · **Revised:** 2026-08-14 (Google-first services)
 **Depends on:** [`ARCHITECTURE.md` §16 Approved Decisions](./ARCHITECTURE.md#16-approved-decisions)
 
-> Master spec §27 Step 1 gate is **complete**: 30 of 36 decisions approved. **D-08 (auth) is resolved by Firebase Authentication, which clears the former critical-path blocker.**
+> Master spec §27 Step 1 gate is **complete**: **32 of 36 decisions approved**, 4 blocked. **D-08 (auth) is resolved by Firebase Authentication, which clears the former critical-path blocker.**
 >
 > **Current standing instruction:** no database migrations, no application features, no production/DNS changes, no legacy data migration. TASK 001's remaining scaffold work is the next authorized step.
 
@@ -15,7 +15,7 @@
 |---|---|
 | GitHub repository `manshu145/parthik` | Active. `main` (production, default) · `develop` (integration) · `docs/architecture` (documentation) |
 | Master specification | Committed at `docs/PARTHIK_MASTER_SPEC.md` |
-| Architecture documentation | **Approved** — 28 of 33 decisions settled |
+| Architecture documentation | **Approved** v1.1 — **32 of 36 decisions settled**, 4 blocked |
 | Application code | **None written.** Correct at this stage |
 | Database migrations | **None generated.** Explicitly withheld |
 | Legacy data | **Not migrated, by decision (D-31).** A separate migration plan follows schema approval |
@@ -184,13 +184,14 @@ A PR that touches money, permissions or state transitions requires an explicit r
 3. lint                 eslint (incl. import-boundary rules)
 4. format check         prettier --check
 5. unit tests           vitest run
-6. integration tests    vitest run + ephemeral Postgres
+6. integration tests    vitest run + ephemeral Postgres + Firebase Auth Emulator
 7. build                production build for the Workers target
 8. migration safety     detect destructive DDL without an approval label
-9. secret scan          block on any hit
+9. secret scan          block on any hit, incl. GCP/Firebase service-account keys
 10. dependency audit     block on high/critical
 11. preview deploy       Cloudflare Workers preview URL
-12. E2E                  Playwright against the preview
+12. E2E                  Playwright against the preview, authenticating via the
+                        Firebase Auth Emulator (no real SMS, no billable calls)
 13. a11y + Lighthouse    budget thresholds on key pages
 ```
 

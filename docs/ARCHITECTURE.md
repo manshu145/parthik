@@ -1,6 +1,6 @@
 # Parthik — Technical Architecture
 
-**Status:** **APPROVED** — Google-first service strategy · 30 of 36 decisions settled
+**Status:** **APPROVED** — Google-first service strategy · **32 of 36 decisions settled, 4 blocked**
 **Version:** 1.1
 **Approved:** 2026-08-14 · **Revised:** 2026-08-14 (Google-first)
 **Authority:** [`PARTHIK_MASTER_SPEC.md`](./PARTHIK_MASTER_SPEC.md) is the product authority. This document is the technical interpretation of it.
@@ -355,12 +355,13 @@ Three distinct layers, deliberately separated because they fail differently.
 |---|---|---|---|
 | **Edge/CDN** | Cloudflare CDN | Static assets, images, immutable build output, public HTML where safe | Immutable hashed URLs; purge on deploy |
 | **Next.js data/route cache** | OpenNext: R2 incremental cache + Durable Object tag cache | ISR pages, `use cache` results: CMS pages, category trees, product detail, home layout, offers | Tag-based `revalidateTag` on admin/vendor publish |
-| **Application cache** | Redis-compatible **HTTP** store (D-03 approved; provider pick open — D-03a) | Sessions, rate-limit counters, OTP attempt counters, idempotency keys, distributed locks, serviceability lookups, hot config/feature flags, cart totals memo | TTL + explicit delete on write |
+| **Application cache** | Redis-compatible **HTTP** store (D-03 approved; provider pick open — D-03a) | Sessions, rate-limit counters, **delivery**-OTP attempt counters (login OTP is Firebase's), idempotency keys, distributed locks, serviceability lookups, hot config/feature flags, cart totals memo | TTL + explicit delete on write |
 
 ### 8.1 Rules
 
 - **Never cache anything user-specific in a shared/edge cache.** Cart, account, orders and dashboards are always `Cache-Control: private, no-store`.
 - **Cache keys are centrally registered** in `lib/cache/keys.ts` with an app-wide version prefix (`v1:`), so a schema change can invalidate everything by bumping the prefix.
+- **Every cache key for user-visible content must include BOTH `locale` and `zone`.** Composition is `v1:<entity>:<id>:<locale>:<zone>`. Omitting locale would serve Hindi users English pages from the ISR/data cache and vice versa — the single most likely bilingual bug, and invisible in local testing where only one locale is exercised. The same applies to Next.js cache tags: publishing a translation revalidates `<entity>:<id>:<locale>`.
 - **The cache is never authoritative for money or stock.** Price and availability are re-read from Postgres at add-to-cart, at checkout quote and again at order creation.
 - **Every cached read has a documented staleness budget.** A category tree may be minutes stale; product availability may not.
 - **Degraded mode:** a cache outage must slow the app, not break it. Cache reads fall through to Postgres. The exceptions are rate limiting and idempotency, which **fail closed** — if the store is unavailable, sensitive endpoints (OTP, payment, order creation) reject rather than run unprotected.
@@ -637,7 +638,7 @@ Privacy is unchanged: pseudonymous ids only, no PII, no card/OTP/address content
 - **Never logged:** OTP codes, session tokens, passwords, full card data, provider secrets, full customer addresses at info level.
 - **Audit log** is separate from application logs and lives in Postgres: every admin action, every permission-sensitive mutation, every order/payment state change, with actor, before/after diff, IP and user agent. Audit rows are append-only.
 - Webhook log retains raw payload + signature verification result for dispute resolution.
-- `GET /api/health` (liveness) and `GET /api/health/deep` (DB, cache, storage, queue depth, provider reachability) feed the admin **System Health** screen.
+- `GET /api/v1/health` (liveness) and `GET /api/v1/health/deep` (DB, cache, storage, queue depth, provider reachability) feed the admin **System Health** screen. Paths match [`API_SPEC.md` §10](./API_SPEC.md).
 - **Google Cloud Logging + Cloud Monitoring + Error Reporting** (D-27). Workers do not write to Cloud Logging natively, so logs are shipped by a **tail consumer Worker** posting structured entries to the Cloud Logging API (with Cloudflare Logpush to GCS/BigQuery as the bulk/archive path). Errors formatted to Error Reporting's expected structure get grouped automatically, and Cloud Monitoring owns the alert policies in §11.8.
 - 🔴 **Known gap (D-27a): browser-side error tracking.** Cloud Monitoring covers the server well but gives no source-mapped JavaScript stack traces from customers' devices, and **Crashlytics is mobile-only — it does not cover web**. Interim approach: a `/api/v1/client-errors` endpoint forwarding to Cloud Logging **without symbolication**. This is the one capability genuinely missing from the Google toolchain, flagged per your "unless demonstrated unavailable" instruction.
 
@@ -743,11 +744,29 @@ This is what "manageable scope" means concretely: the **customer-facing** surfac
 
 | Level | Tool | Covers |
 |---|---|---|
-| Unit | Vitest | Pricing, delivery fee, coupon/promotion rules, tax, permission checks, order/delivery transition tables, inventory math, money utilities |
-| Integration | Vitest + real Postgres (Docker/Testcontainers), transaction-rollback per test | Signup/login/OTP, cart, checkout quote, order creation + idempotency, payment webhook (incl. replay and bad signature), vendor order flow, driver delivery flow, refund, RBAC enforcement per endpoint |
-| E2E | Playwright against a preview deployment | The four critical journeys from master spec §29 (customer browse→order, vendor accept→ready, driver online→delivered, admin order→assign→monitor) |
-| Contract | Vitest | Provider adapters against recorded fixtures, so a provider swap is verifiable |
+| Unit | Vitest | Pricing, delivery fee, coupon/promotion rules, permission checks, order/delivery transition tables, inventory reservation math, money utilities, **locale fallback resolution**, **cash-ledger balance derivation** |
+| **Token verification** | Vitest | **Firebase ID token verifier against locally generated key pairs**: valid, expired, wrong `aud`, wrong `iss`, disallowed provider, `alg: none`, HMAC downgrade, tampered payload, rotated signing key. Hand-rolled security-critical code, so tested exhaustively |
+| Integration | Vitest + real Postgres (Docker/Testcontainers), transaction-rollback per test | **Firebase token exchange → session creation → `firebase_uid` mapping**, cart, checkout quote, order creation + idempotency, **stock reservation and release**, Razorpay webhook (incl. replay and bad signature), **COD collection + cash ledger idempotency**, vendor order flow, driver delivery flow, refund, RBAC enforcement per endpoint |
+| E2E | Playwright against a preview deployment | The four critical journeys from master spec §29, plus one journey in **Hindi** |
+| Contract | Vitest | Provider adapters against recorded fixtures: Razorpay, FCM, Places/Geocoding/Routes, GA4 Measurement Protocol |
 | A11y / perf | axe + Lighthouse CI | Key public pages, budget thresholds enforced |
+
+### 13.1 Testing against Firebase and Google services
+
+Every one of the four critical E2E journeys begins with sign-in, so **without a deterministic way to authenticate, the entire E2E suite is unimplementable.** Real SMS cannot be received in CI. The strategy:
+
+| Need | Approach |
+|---|---|
+| Automated sign-in in E2E | **Firebase Auth Emulator** in CI, which issues real-shaped ID tokens without sending SMS. The app points at the emulator via env when `FIREBASE_AUTH_EMULATOR_HOST` is set — production code paths are unchanged |
+| Firebase **test phone numbers** | Configured fictional numbers with fixed codes, for manual QA against a real project without SMS cost |
+| Token verifier unit tests | Local RSA key pair + a stub cert endpoint, so forged/expired/downgraded tokens can be constructed deliberately. **Never point unit tests at Google's live certs** |
+| reCAPTCHA in tests | Firebase test phone numbers and the emulator bypass the reCAPTCHA verifier; App Check runs in debug mode |
+| Google Maps (Places/Geocoding/Routes) | **Faked at the adapter boundary** with recorded fixtures. No billable calls from CI, ever |
+| FCM | Fake adapter asserting payload shape; no real device tokens |
+| GA4 / Cloud Logging | No-op adapters in test; assertions on the `track()`/logger interface, not the network |
+| Razorpay | Sandbox keys for manual QA; recorded fixtures + signed test payloads in CI |
+
+**Rule:** no test may make a billable or rate-limited call to any external provider. Provider adapters exist partly so this is enforceable at one seam.
 
 Coverage is targeted, not global: the pricing, permission and state-machine modules are the ones that must be near-exhaustively tested. No mock data in production code paths (master spec §43).
 
@@ -809,7 +828,7 @@ Secret rotation procedure and least-privilege scoping: [`SECURITY.md` §11](./SE
 
 ## 16. Approved decisions
 
-**Approval date:** 2026-08-14 · **Approved by:** Product owner · **Total:** 33 decisions — **28 approved, 2 blocked, 3 approved with an open sub-item**
+**Approval date:** 2026-08-14 · **Approved by:** Product owner · **Total:** 36 decisions — **32 approved, 4 blocked, 7 open sub-items**
 
 This section replaces the former open decision register. It is the authoritative record: implementation follows this table, and any change to it requires a new approval and a documentation update in the same PR.
 
@@ -906,7 +925,7 @@ So a Google-native answer does not exist. The realistic outcome is a third-party
 | Support ticket reply notification | In-app + push only |
 | Admin alerts | Routed through Cloud Monitoring alerting, not email templates |
 
-The notification service ships with an `EmailChannel` **interface and no adapter**, so adding a provider later is a single implementation and template set — not a redesign. `users.email` is still captured and verifiable for future use.
+The notification service ships with an `EmailChannel` **interface and no adapter**, so adding a provider later is a single implementation and template set — not a redesign. `users.email` is still **captured** for future use, but **cannot be verified in V1** — verification requires sending mail. `email_verified_at` therefore stays `NULL` for all users until D-25 is resolved.
 
 **Risk to note:** with email blocked and non-OTP SMS blocked (D-34), **push and in-app become the only outbound customer channels.** Push requires notification permission, which a large share of users decline, and iOS requires an installed PWA. Practically, some customers will receive **no** order-status notification at all in V1. That is a product consequence, not just a technical one.
 
@@ -974,13 +993,13 @@ COD is approved and buildable, but COD orders often need a payment receipt at th
 
 ### 16.8 Approval traceability
 
-| Group | Approved | Blocked | Open sub-item |
-|---|---|---|---|
-| Platform (D-01…D-07) | 7 | 0 | D-01a, D-03a, D-07a |
-| Identity (D-08…D-10, D-36) | **4** | 0 | D-35a |
-| Commerce (D-11…D-20) | 9 | **D-14** | D-19a |
-| Supporting (D-21…D-35) | **10** | **D-25, D-32, D-34** | D-27a, D-33a |
-| **Total** | **30** | **4** | **7** |
+| Group | Decisions | Approved | Blocked | Open sub-item |
+|---|---|---|---|---|
+| Platform (D-01…D-07) | 7 | 7 | 0 | D-01a, D-03a, D-07a |
+| Identity (D-08…D-10, D-36) | 4 | 4 | 0 | D-35a |
+| Commerce (D-11…D-20) | 10 | 9 | **D-14** | D-19a |
+| Supporting (D-21…D-35) | 15 | 12 | **D-25, D-32, D-34** | D-27a, D-33a |
+| **Total** | **36** | **32** | **4** | **7** |
 
 ### 16.9 Google-first revision summary
 
@@ -1006,3 +1025,56 @@ COD is approved and buildable, but COD orders often need a payment receipt at th
 | **Cloudflare Turnstile (D-35)** | Free with the existing edge; used where Firebase does not mandate reCAPTCHA |
 
 This follows the instruction not to adopt Google services merely for consistency where the existing architecture is stronger.
+
+---
+
+### 16.10 Deviations from the master specification
+
+The master spec is the product authority, so anywhere the approved architecture departs from it the deviation must be **visible and acknowledged**, not buried. These are the only deviations.
+
+| # | Master spec requirement | V1 architecture | Reason | Needs sign-off |
+|---|---|---|---|---|
+| **V-1** | **§21** — central notification service supporting **SMS, Email, Push, In-app** | **Push + In-app only** | D-25 (no Google-native transactional email) and D-34 (Firebase sends OTP only) are both blocked. Interfaces exist; adapters do not | ✅ **Yes — the most consequential deviation.** A customer who declines push permission receives no proactive order notification |
+| **V-2** | **§21** — OTP is a notification-service event with an admin-editable template | OTP delivered by **Firebase**; message content and language controlled by Google | D-24. We no longer own the OTP template | ✅ Yes — the OTP SMS will not reliably be Hindi despite D-33 |
+| **V-3** | **§12/§19** — cart shows "Taxes if applicable"; CMS and invoice tax fields | **No tax line, no invoices** | D-14 blocked; no tax assumption may be implemented | Already acknowledged |
+| **V-4** | **§23** — "Password hashing if passwords are retained" | **No passwords at all** | D-09. Firebase owns credentials | Already approved |
+| **V-5** | **§8** — lists `/order/[id]` and `/account/orders` alongside `/orders` and `/orders/[id]` | Canonical `/orders*`; the others are permanent redirects | Avoids two implementations of one list | Confirmation requested, still open |
+| **V-6** | **§44** — TASK numbering (015 CMS, 017 SEO) | Continuous renumbering (015 admin, 016 CMS, 017 notifications, 018 SEO) | Admin must exist before CMS is manageable | Confirmation requested, still open |
+| **V-7** | **§33** — example env vars include `REDIS_URL`, `OTP_PROVIDER_KEY`, `EMAIL_PROVIDER_KEY` | Replaced by Firebase/Google keys and an HTTP cache URL (§15) | Workers cannot use TCP Redis; providers changed | Mechanical, no sign-off needed |
+| **V-8** | **§6** — entity list includes `Subcategory` and `Rating` as separate entities | `categories` is self-referencing; ratings aggregate on `products`/`stores` from `reviews` | Normalised equivalents, no capability lost | Mechanical |
+| **V-9** | **§4** — "Redis-compatible cache" implying a standard Redis deployment | HTTP/REST Redis-compatible store | Workers cannot open arbitrary TCP connections | Mechanical |
+
+Everything else in the master spec is either implemented as written or explicitly deferred under §42 future modules.
+
+---
+
+## 17. Traceability to the master spec
+
+| Master spec section | Where addressed |
+|---|---|
+| §4 Tech stack | §4, §5, §7, §12, §13 |
+| §5 High-level architecture | §3, §4, §6 |
+| §6 Database entities | [`DATABASE.md`](./DATABASE.md) |
+| §7–§12 Customer nav, pages, home, product, location, cart/checkout | §11.4, §12.2, [`ROUTES.md`](./ROUTES.md) |
+| §13 Order state machine | §11.5, [`DATABASE.md` §7](./DATABASE.md) |
+| §14–§17 Vendor, driver, admin dashboards | §12.2, [`ROUTES.md`](./ROUTES.md), [`API_SPEC.md`](./API_SPEC.md) |
+| §18–§19 Marketing, CMS | §11.6 |
+| §20 SEO | §11.6, [`ROUTES.md`](./ROUTES.md) |
+| §21 Notifications | §11.3 · ⚠️ **deviation V-1/V-2, see §16.10** |
+| §22 Payments | §11.2 |
+| §23 Security | [`SECURITY.md`](./SECURITY.md) |
+| §24–§26 Design system, UX states, a11y | §12 |
+| §27–§28 SOP, Kiro rules | [`DEVELOPMENT_PLAN.md`](./DEVELOPMENT_PLAN.md) |
+| §29 Testing | §13 |
+| §30 Observability | §11.8 |
+| §31 Backup/migration | [`DEVELOPMENT_PLAN.md` §8](./DEVELOPMENT_PLAN.md), D-31 |
+| §32–§33 Deployment, environments | §4.3, §15 |
+| §34–§35 Admin settings, support | [`DATABASE.md`](./DATABASE.md), [`ROUTES.md`](./ROUTES.md) |
+| §36 Analytics events | §11.7 |
+| §37–§38 Performance, PWA | §12.3, §12.4 |
+| §39 Route security | [`ROUTES.md`](./ROUTES.md), [`SECURITY.md`](./SECURITY.md) |
+| §40–§41 DoD, build order | [`DEVELOPMENT_PLAN.md`](./DEVELOPMENT_PLAN.md) |
+| §42 Future modules | §1 non-goals, D-11/D-32 |
+| §31 Backup/migration | §16.10, D-31 (deferred) |
+| **Deviations from this spec** | **§16.10** |
+| §44 First execution plan | [`DEVELOPMENT_PLAN.md` §3](./DEVELOPMENT_PLAN.md) |

@@ -86,7 +86,16 @@ Delivery OTP: 6 digits from `crypto.getRandomValues`, **hashed** in `otp_verific
 
 ### 2.4 Account lockout
 
-**Scope narrowed by Firebase.** Login OTP attempt lockout is Firebase's responsibility and is not visible to us. What we lock is the **token-exchange endpoint**: 20 failed `/auth/session` attempts per IP in an hour → block and alert; 10 failed attempts per identifier in 15 minutes → 15-minute lock with a clear message. Lockout is tracked per identifier **and** per IP so an attacker cannot lock out a legitimate user cheaply, and legitimate users are not punished for someone else's IP. Every lock writes `login_attempts` and a `system_events` row.
+**Scope narrowed by Firebase.** Login OTP attempt lockout is Firebase's responsibility and is not visible to us. What we lock is the **token-exchange endpoint**.
+
+An important keying subtlety: a request whose token fails verification yields **no trustworthy identifier** — the `sub` claim cannot be trusted precisely because the signature did not verify. So:
+
+| Outcome | Lockout key |
+|---|---|
+| Token **fails** verification | **IP only** (20 failures/hour → block + alert). Any uid in the payload is attacker-controlled and must not be used as a key, or an attacker could lock out arbitrary accounts |
+| Token **verifies** but the account is suspended/banned | `firebase_uid` — safe, because the signature proved it |
+
+Every lock writes `login_attempts` and a `system_events` row. Lockout is tracked per identifier **and** per IP so an attacker cannot lock out a legitimate user cheaply, and legitimate users are not punished for someone else's IP. Every lock writes `login_attempts` and a `system_events` row.
 
 ---
 
@@ -146,11 +155,23 @@ Checking permissions rather than role strings means adding an "Ops manager who c
 | `DRIVER` | self | Own availability, assignments, earnings, documents |
 | `ADMIN_SUPPORT` | global | Read orders/customers, reply to tickets, no refunds, no settings |
 | `ADMIN_OPS` | global | Orders, deliveries, dispatch, vendor/driver approval |
-| `ADMIN_FINANCE` | global | Payments, refunds, payouts, financial reports |
+| `ADMIN_FINANCE` | global | Payments, refunds, payouts, financial reports, **COD cash reconciliation** (`cash:view`, `cash:reconcile`) |
 | `ADMIN` | global | All operational + marketing + CMS, **not** RBAC or sensitive settings |
 | `SUPER_ADMIN` | global | Everything incl. roles, permissions, sensitive settings, feature flags |
 
 A user may hold several roles. The **active context is derived from the route** and validated server-side; it is never read from client state, and it never widens what a user can do.
+
+#### COD cash permissions — assignment requires confirmation
+
+The COD flow introduced three permissions that the role table above did not previously assign to anyone. Proposed mapping, deliberately following separation of duties (§8.4):
+
+| Permission | Proposed roles | Rationale |
+|---|---|---|
+| `cash:view` | `ADMIN_FINANCE`, `ADMIN_OPS` | Ops needs to see which drivers are over the cash limit to understand dispatch behaviour |
+| `cash:reconcile` | `ADMIN_FINANCE` only | Verifying a deposit is a financial control |
+| `cash:adjust` | `SUPER_ADMIN` only | Write-offs and shortfall adjustments move money on paper. Deliberately **not** granted to the same role that verifies deposits |
+
+> ⚠️ **CONFIRM:** this is an authorization decision, not a technical one. Granting `cash:reconcile` and `cash:adjust` to the same person removes the separation of duties that makes cash fraud detectable. Please confirm or amend before TASK 011b.
 
 ### 5.3 Permission naming
 
@@ -204,7 +225,11 @@ Rules:
 
 - Rate limiting **fails closed** on sensitive endpoints (OTP, login, order, payment): if the counter store is unavailable, requests are rejected rather than allowed unmetered.
 - Responses use `429` with `Retry-After` and never leak how close a caller is to the limit.
-- **Turnstile** on: vendor/driver registration, contact form, repeated OTP requests, repeated failed logins, review submission (master spec §4 Cloudflare).
+- **Bot protection is split by owner (D-35).** Firebase mandates its own reCAPTCHA verifier on Phone Auth, so:
+  - **reCAPTCHA (Firebase)** — the sign-in flow. Repeated OTP requests and OTP brute-force are throttled by Google, not by us.
+  - **Cloudflare Turnstile** — vendor/driver registration, contact form, review submission. Non-auth public forms only.
+  - **Firebase App Check** — attests that Firebase API calls come from our real app rather than a script.
+  Consolidating to one system is **D-35a**, still open.
 - Spend alerts on the SMS provider are mandatory — SMS is the one attack with a direct, unbounded cash cost.
 
 ---

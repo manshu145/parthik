@@ -118,7 +118,7 @@ Central identity. One row per human, regardless of how many roles they hold.
 id,
 firebase_uid (unique, NOT NULL),        -- D-08: Firebase Authentication is the identity provider
 phone (unique, nullable), phone_verified_at,
-email (unique, nullable), email_verified_at,
+email (unique, nullable), email_verified_at,   -- always NULL in V1: cannot verify without email (D-25)
 -- NO password_hash. D-09: Firebase Phone Auth only, no passwords in V1.
 full_name, preferred_locale ('en'|'hi', default 'en'),   -- D-33
 status user_status, last_login_at,
@@ -756,7 +756,11 @@ delivery_otp_hash NOT NULL, otp_verified_at,      -- D-20: OTP mandatory for eve
 otp_attempts, otp_regenerated_count,
 assigned_at, accepted_at, reached_store_at, picked_up_at,
 reached_customer_at, delivered_at, failed_at, failure_reason,
-cod_amount_paise (nullable), cod_expected_paise, cod_collected_paise,
+cod_expected_paise (nullable),      -- snapshot of orders.cod_amount_paise at assignment
+-- NOTE: orders.cod_amount_paise is authoritative. deliveries.cod_expected_paise is a
+-- snapshot so a later order edit cannot retroactively change what the driver was told
+-- to collect. There is deliberately NO deliveries.cod_amount_paise column.
+cod_collected_paise (nullable), cod_collection_method (CASH),
 cod_collected_at, cod_variance_paise,              -- D-12: mismatch recorded, not swallowed
 created_at, updated_at
 ```
@@ -1151,7 +1155,7 @@ Managed PITR from the chosen host (**[D-01]**), plus an independent periodic log
 | **D-14 GST/tax** | Tax columns and `tax_rates`/`invoices` tables exist but carry **no logic, no seed data and produce no rows**. See §6.4. Unblocking is a backfill plus a strategy implementation, not a migration on live financial tables |
 | **D-08 auth library** | Affects no table. `sessions`/`otp_verifications` are library-agnostic as designed, so this blocks TASK 003 code rather than TASK 002 schema |
 | **D-32 multi-store** | `stores.vendor_id` already supports N per vendor. **No schema change either way** — only the vendor UI differs |
-| **D-25 email** | `notification_channel` retains `EMAIL`; **no email is sent**. `users.email` still captured and verifiable |
+| **D-25 email** | `notification_channel` retains `EMAIL`; **no email is sent**. `users.email` is captured but **`email_verified_at` stays NULL for all users** — verification requires sending mail |
 | **D-34 non-OTP SMS** | `notification_channel` retains `SMS`; **no SMS is sent** beyond Firebase's own OTP path |
 
 ### Open sub-items with schema impact

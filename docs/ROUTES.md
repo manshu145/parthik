@@ -130,7 +130,7 @@ Notes on the location dependency: the homepage and category pages vary by delive
 | `/account/orders` | — | CUSTOMER | Redirects to `/orders` (single implementation, no duplicate list) |
 | `/account/favorites` | — | CUSTOMER | Redirects to `/favorites` |
 | `/account/notifications` | CSR | CUSTOMER | Notification centre + preferences |
-| `/account/security` | SSR-PRIVATE | CUSTOMER | Sessions/devices, logout-everywhere, password/OTP settings |
+| `/account/security` | SSR-PRIVATE | CUSTOMER | Sessions/devices, logout-everywhere (**also revokes Firebase refresh tokens**), notification permission status. **No password settings — passwords do not exist (D-09)** |
 | `/account/support` | CSR | CUSTOMER | Tickets list + create |
 | `/account/support/[ticketId]` | CSR | CUSTOMER (owner) | Thread; internal notes never returned |
 
@@ -142,12 +142,20 @@ The master spec also lists `/order/[id]` (singular) alongside `/orders/[id]`. Ca
 
 | Path | Render | Access | Notes |
 |---|---|---|---|
-| `/login` | SSR | PUBLIC | Phone OTP + email, tabbed; `?next=` validated against an internal-path allowlist |
-| `/signup` | SSR | PUBLIC | |
-| `/verify-otp` | SSR | PUBLIC | Rate-limited, attempt-capped, Turnstile on repeat |
+| `/login` | SSR shell + **client flow** | PUBLIC | **Phone number entry AND OTP entry are steps of one client component**, not separate pages. `?next=` validated against an internal-path allowlist |
 | `/logout` | action | any | POST only (CSRF-safe) |
 
-Login is a real page (deep-linkable, indexable-safe) with a modal presentation layered on top for in-flow interruptions, so a customer who hits login mid-checkout is not thrown out of context.
+> ### ⚠️ Firebase constraint: OTP entry cannot be a separate page
+>
+> `signInWithPhoneNumber()` returns a `confirmationResult` object held **in browser memory**. Navigating to a separate `/verify-otp` route destroys it, and the code could never be confirmed.
+>
+> Therefore:
+> - **`/verify-otp` does not exist as a route.** An earlier draft listed it; that design is incompatible with Firebase and has been removed.
+> - `/login` is a single client-side state machine: `phone entry → reCAPTCHA → OTP entry → token exchange → redirect`.
+> - The reCAPTCHA verifier is instantiated once and reused across resends within the same mounted component.
+> - **`/signup` does not exist either.** First successful token exchange creates the user; profile completion happens at `/account/profile` afterwards, so there is no separate signup form to keep in sync.
+
+Login is a real page (deep-linkable, indexable-safe) with a modal presentation layered on top for in-flow interruptions, so a customer who hits login mid-checkout is not thrown out of context. Both presentations mount the same client flow component.
 
 ---
 
@@ -282,10 +290,15 @@ Middleware does:
 
 1. Generate/propagate `x-request-id`.
 2. Read and verify the signature of the session cookie; extract `userId`, `roles`, `exp` for **routing only**.
-3. Coarse gate by path prefix (table below) — redirect unauthenticated users to `/login?next=…`, and wrong-role users to their own home surface.
+3. Coarse gate by path prefix (table below) — redirect unauthenticated users to `/login?next=…` (locale-prefixed where applicable), and wrong-role users to their own home surface.
 4. Apply security headers and `noindex` for private prefixes.
 5. Enforce maintenance mode from a cached flag with an admin bypass.
-6. Resolve the delivery-zone cookie for cache-key variation.
+6. Resolve the delivery-zone cookie **and the locale** for cache-key variation ([`ARCHITECTURE.md` §8](./ARCHITECTURE.md#8-cache-strategy) — cache keys must vary by both).
+7. Resolve locale routing: `/hi/*` prefix handling, cookie/`Accept-Language` negotiation, `x-locale` header for downstream RSC.
+
+> **Composition constraint:** Next.js supports exactly **one** `middleware.ts`. `next-intl`'s middleware and our auth/security middleware therefore cannot both be exported — they are **composed manually** in a single handler: request-id → security headers → maintenance → locale resolution (next-intl handler invoked as a function) → auth gate → response. Order matters: locale must resolve before the auth gate so an unauthenticated Hindi user is redirected to `/hi/login`, not `/login`.
+>
+> This composed middleware must also stay within the constrained edge environment — no DB, no Node APIs, and **no Firebase Admin calls** ([`ARCHITECTURE.md` §4.2](./ARCHITECTURE.md#42-platform-constraints-that-shape-the-design)).
 
 Middleware does **not**: load a session from the DB, check granular permissions, verify vendor/driver approval status, or check resource ownership. All of that happens in the service layer on every request — a valid-looking cookie gets you to a page, never to data.
 

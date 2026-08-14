@@ -2,7 +2,7 @@
 
 Architecture and design documentation for the Parthik rebuild.
 
-**Status: architecture APPROVED, revised for a Google-first service strategy (2026-08-14).** 30 of 36 decisions settled, 4 blocked, 7 open sub-items. **No application code and no database migrations exist yet** — both are deliberately withheld.
+**Status: architecture APPROVED, revised for a Google-first service strategy (2026-08-14).** **32 of 36** decisions settled, 4 blocked, 7 open sub-items. **No application code and no database migrations exist yet** — both are deliberately withheld.
 
 ## Read in this order
 
@@ -59,10 +59,24 @@ Single-vendor orders · UPI + Card + **COD** with cash reconciliation · Razorpa
 | Item | Status |
 |---|---|
 | Documentation | **Approved** v1.1 |
-| Decisions resolved | 30 of 36 |
+| Decisions resolved | **32 of 36** |
 | Application code | Not started |
 | Database migrations | **Not generated** — withheld by instruction |
 | Legacy data | **Not migrated** — deferred by D-31 |
 | Production / DNS | **Untouched** |
 | Critical path | ✅ **Clear.** D-08 resolved by Firebase; DLT registration no longer gates authentication |
 | Next task | Complete **TASK 001** scaffold — see [`DEVELOPMENT_PLAN.md` §11](./DEVELOPMENT_PLAN.md) |
+
+
+## Pre-code audit (2026-08-14)
+
+A full pre-implementation audit was run across all documents. Outcome: **2 blockers found and fixed, 12 important issues fixed, 8 optional items logged.**
+
+The two blockers were both design errors that would have caused rework during implementation:
+
+1. **OTP entry as a separate `/verify-otp` page** — incompatible with Firebase, whose `confirmationResult` lives in browser memory and is destroyed by navigation. `/login` is now documented as a single client-side state machine.
+2. **No Firebase strategy in the test architecture** — every critical E2E journey starts with sign-in, and real SMS cannot be received in CI, so the whole E2E suite was unimplementable. [`ARCHITECTURE.md` §13.1](./ARCHITECTURE.md#131-testing-against-firebase-and-google-services) now specifies the Firebase Auth Emulator, test phone numbers, and adapter-level fakes for Maps/FCM/GA4.
+
+Also added: [**§16.10 Deviations from the master specification**](./ARCHITECTURE.md#1610-deviations-from-the-master-specification) — the master spec mandates SMS and Email notification channels (§21) and V1 ships neither, which needs explicit product sign-off rather than silent omission.
+
+Two items still need **your** decision and were deliberately not resolved: COD cash permission assignment (separation of duties) and the notification-channel deviation V-1.

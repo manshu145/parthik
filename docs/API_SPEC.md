@@ -446,7 +446,7 @@ Every admin endpoint: permission check → action → **audit log write** in the
 | `POST` | `/api/v1/uploads/confirm` | AUTH | Server re-validates the stored object and links it to its entity |
 | `POST` | `/api/v1/analytics/events` | GUEST-OK | Server-forwarded events to the **GA4 Measurement Protocol** for commercial truth (`order_created`, `payment_success`). Allowlisted names only, rate-limited. Interaction events go direct from the client via the Firebase/GA4 SDK |
 | `POST` | `/api/v1/client-errors` | GUEST-OK | Browser error reports forwarded to **Cloud Logging**. Interim measure for the D-27a gap — **no source-map symbolication**. Heavily rate-limited and size-capped |
-| `GET` | `/api/v1/health` | PUBLIC | Liveness — no dependency checks, cheap |
+| `GET` | `/api/v1/health` | PUBLIC | Liveness — no dependency checks, cheap. **Canonical path** (referenced by [`ARCHITECTURE.md` §11.8](./ARCHITECTURE.md#118-logging-and-observability)) |
 | `GET` | `/api/v1/health/deep` | ADMIN or internal token | DB, cache, storage, queue depth, provider reachability |
 
 Upload authorization is server-mediated by design: the browser never holds a bucket credential, and `purpose` is what prevents a customer from writing into the vendor-KYC path.
@@ -459,7 +459,7 @@ Stable codes the client is allowed to branch on.
 
 | Domain | Codes |
 |---|---|
-| Auth | `FIREBASE_TOKEN_INVALID`, `FIREBASE_TOKEN_EXPIRED`, `FIREBASE_PROVIDER_NOT_ALLOWED`, `PHONE_CLAIM_MISSING`, `SESSION_EXPIRED`, `ACCOUNT_SUSPENDED` · *delivery OTP:* `DELIVERY_OTP_INVALID`, `OTP_MAX_ATTEMPTS` |
+| Auth | `FIREBASE_TOKEN_INVALID`, `FIREBASE_TOKEN_EXPIRED`, `FIREBASE_PROVIDER_NOT_ALLOWED`, `PHONE_CLAIM_MISSING`, `SESSION_EXPIRED`, `ACCOUNT_SUSPENDED` |
 | Authorization | `UNAUTHENTICATED`, `FORBIDDEN`, `PERMISSION_REQUIRED`, `VENDOR_NOT_APPROVED`, `DRIVER_NOT_APPROVED`, `DRIVER_DOCUMENTS_EXPIRED` |
 | Location | `PINCODE_NOT_SERVICEABLE`, `ADDRESS_OUTSIDE_ZONE`, `GEOCODE_FAILED` |
 | Catalog | `PRODUCT_NOT_FOUND`, `PRODUCT_UNAVAILABLE`, `VARIANT_INACTIVE`, `STORE_CLOSED` |
@@ -467,7 +467,7 @@ Stable codes the client is allowed to branch on.
 | Coupon | `COUPON_NOT_FOUND`, `COUPON_EXPIRED`, `COUPON_INACTIVE`, `COUPON_MIN_CART_NOT_MET`, `COUPON_USAGE_LIMIT_REACHED`, `COUPON_USER_LIMIT_REACHED`, `COUPON_NOT_APPLICABLE`, `COUPON_FIRST_ORDER_ONLY`, `COUPON_ZONE_RESTRICTED` |
 | Checkout/Order | `MIN_ORDER_NOT_MET`, `ADDRESS_REQUIRED`, `ORDER_NOT_FOUND`, `INVALID_STATUS_TRANSITION`, `ORDER_NOT_CANCELLABLE`, `IDEMPOTENCY_KEY_REUSED`, `REQUEST_IN_PROGRESS` |
 | Payment | `PAYMENT_FAILED`, `PAYMENT_ALREADY_CAPTURED`, `WEBHOOK_SIGNATURE_INVALID`, `REFUND_EXCEEDS_PAYMENT`, `PROVIDER_UNAVAILABLE` |
-| Delivery | `ASSIGNMENT_TAKEN`, `ASSIGNMENT_EXPIRED`, `DELIVERY_OTP_INVALID`, `PROOF_REQUIRED`, `DRIVER_OFFLINE` |
+| Delivery | `ASSIGNMENT_TAKEN`, `ASSIGNMENT_EXPIRED`, `DELIVERY_OTP_INVALID`, `DELIVERY_OTP_MAX_ATTEMPTS`, `PROOF_REQUIRED`, `DRIVER_OFFLINE` |
 | Upload | `FILE_TOO_LARGE`, `MIME_TYPE_NOT_ALLOWED`, `UPLOAD_PURPOSE_INVALID` |
 | **COD** | `COD_NOT_AVAILABLE_IN_ZONE`, `COD_NOT_AVAILABLE_FOR_STORE`, `COD_LIMIT_EXCEEDED`, `COD_AMOUNT_MISMATCH`, `DRIVER_CASH_LIMIT_EXCEEDED`, `DEPOSIT_ALREADY_VERIFIED`, `DEPOSIT_AMOUNT_INVALID` |
 | **Locale** | `LOCALE_NOT_SUPPORTED`, `TRANSLATION_MISSING_BASE_LOCALE` |

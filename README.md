@@ -11,7 +11,7 @@ This is intentional. The [master specification](./docs/PARTHIK_MASTER_SPEC.md) �
 | | |
 |---|---|
 | Documentation | **Approved** v1.0 |
-| Decisions | **30 of 36 approved** — see [approved decisions](./docs/ARCHITECTURE.md#16-approved-decisions) |
+| Decisions | **32 of 36 approved** — see [approved decisions](./docs/ARCHITECTURE.md#16-approved-decisions) |
 | Blocked | **D-14** GST/tax · **D-25** transactional email · **D-34** order-status SMS · **D-32** multi-store |
 | Application code | Not started |
 | Database migrations | Not generated — withheld by instruction |
