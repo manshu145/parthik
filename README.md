@@ -8,51 +8,51 @@ Hyperlocal commerce and delivery platform — customer PWA, vendor dashboard, dr
 
 That is deliberate. The architecture gate is complete (32 of 36 decisions approved) and this repository now contains a working, verified scaffold. Commerce, vendor, driver and admin features are separate, sequenced tasks.
 
-| | |
-| --- | --- |
-| Documentation | **Approved** — see [`docs/`](./docs/README.md) |
-| Decisions | **32 of 36 approved** — see [approved decisions](./docs/ARCHITECTURE.md#16-approved-decisions) |
-| Blocked | **D-14** GST/tax · **D-25** transactional email · **D-34** order-status SMS · **D-32** multi-store |
-| Application foundation | **Implemented** (TASK 001) |
-| Database schema | **Implemented** (TASK 002) |
-| Database migrations | **Not generated** — withheld by instruction |
-| Auth flow (sign-in UI) | **Not implemented** — TASK 003 |
-| Commerce, vendor, driver, admin | Not implemented |
-| Legacy data migration | Deferred (D-31) |
-| Production / DNS | Untouched |
+|                                 |                                                                                                    |
+| ------------------------------- | -------------------------------------------------------------------------------------------------- |
+| Documentation                   | **Approved** — see [`docs/`](./docs/README.md)                                                     |
+| Decisions                       | **32 of 36 approved** — see [approved decisions](./docs/ARCHITECTURE.md#16-approved-decisions)     |
+| Blocked                         | **D-14** GST/tax · **D-25** transactional email · **D-34** order-status SMS · **D-32** multi-store |
+| Application foundation          | **Implemented** (TASK 001)                                                                         |
+| Database schema                 | **Implemented** (TASK 002)                                                                         |
+| Database migrations             | **Not generated** — withheld by instruction                                                        |
+| Auth flow (sign-in UI)          | **Not implemented** — TASK 003                                                                     |
+| Commerce, vendor, driver, admin | Not implemented                                                                                    |
+| Legacy data migration           | Deferred (D-31)                                                                                    |
+| Production / DNS                | Untouched                                                                                          |
 
 ## Documentation
 
 Start with **[`docs/`](./docs/README.md)**.
 
-| Document | Contents |
-| --- | --- |
-| [Master Spec](./docs/PARTHIK_MASTER_SPEC.md) | Authoritative product specification |
-| [Architecture](./docs/ARCHITECTURE.md) | System design, stack, module boundaries, decision register |
-| [Database](./docs/DATABASE.md) | Schema, enums, indexes, state machines |
-| [Routes](./docs/ROUTES.md) | Route map, rendering, access control, SEO |
-| [API Spec](./docs/API_SPEC.md) | Endpoints, conventions, error codes, webhooks |
-| [Security](./docs/SECURITY.md) | Threat model, auth, RBAC, data protection |
-| [Development Plan](./docs/DEVELOPMENT_PLAN.md) | Task sequence, workflow, CI/CD, cutover SOP |
-| [Development Guide](./docs/DEVELOPMENT.md) | Day-to-day mechanics: setup, commands, conventions |
+| Document                                       | Contents                                                   |
+| ---------------------------------------------- | ---------------------------------------------------------- |
+| [Master Spec](./docs/PARTHIK_MASTER_SPEC.md)   | Authoritative product specification                        |
+| [Architecture](./docs/ARCHITECTURE.md)         | System design, stack, module boundaries, decision register |
+| [Database](./docs/DATABASE.md)                 | Schema, enums, indexes, state machines                     |
+| [Routes](./docs/ROUTES.md)                     | Route map, rendering, access control, SEO                  |
+| [API Spec](./docs/API_SPEC.md)                 | Endpoints, conventions, error codes, webhooks              |
+| [Security](./docs/SECURITY.md)                 | Threat model, auth, RBAC, data protection                  |
+| [Development Plan](./docs/DEVELOPMENT_PLAN.md) | Task sequence, workflow, CI/CD, cutover SOP                |
+| [Development Guide](./docs/DEVELOPMENT.md)     | Day-to-day mechanics: setup, commands, conventions         |
 
 ## Stack
 
-| Layer | Choice |
-| --- | --- |
-| Framework | Next.js 16 (App Router), React 19, TypeScript strict |
-| Styling | Tailwind CSS v4 with design tokens, shadcn/ui primitives |
-| i18n | next-intl — **English + Hindi** from day one (D-33) |
-| Database | PostgreSQL via Drizzle ORM, Cloudflare Hyperdrive in production |
-| Hosting | Cloudflare Workers via OpenNext (D-04) |
-| Identity | Firebase Authentication (phone OTP) — Parthik owns RBAC |
-| Push | Firebase Cloud Messaging |
-| Maps | Google Maps Platform — Places, Geocoding, Routes, Route Matrix |
-| Analytics | Firebase Analytics + GA4 |
-| Logging | Google Cloud Logging / Monitoring |
-| Payments | Razorpay |
-| Storage | Cloudflare R2 |
-| Tests | Vitest (unit), Playwright (E2E) |
+| Layer     | Choice                                                          |
+| --------- | --------------------------------------------------------------- |
+| Framework | Next.js 16 (App Router), React 19, TypeScript strict            |
+| Styling   | Tailwind CSS v4 with design tokens, shadcn/ui primitives        |
+| i18n      | next-intl — **English + Hindi** from day one (D-33)             |
+| Database  | PostgreSQL via Drizzle ORM, Cloudflare Hyperdrive in production |
+| Hosting   | Cloudflare Workers via OpenNext (D-04)                          |
+| Identity  | Firebase Authentication (phone OTP) — Parthik owns RBAC         |
+| Push      | Firebase Cloud Messaging                                        |
+| Maps      | Google Maps Platform — Places, Geocoding, Routes, Route Matrix  |
+| Analytics | Firebase Analytics + GA4                                        |
+| Logging   | Google Cloud Logging / Monitoring                               |
+| Payments  | Razorpay                                                        |
+| Storage   | Cloudflare R2                                                   |
+| Tests     | Vitest (unit), Playwright (E2E)                                 |
 
 ## V1 scope highlights
 
@@ -87,22 +87,22 @@ Then check:
 
 ## Commands
 
-| Command | Purpose |
-| --- | --- |
-| `pnpm dev` | Development server |
-| `pnpm build` | Production build |
-| `pnpm typecheck` | `tsc --noEmit` |
-| `pnpm lint` | ESLint, including architectural import boundaries |
-| `pnpm format` / `format:check` | Prettier |
-| `pnpm test` | Unit tests |
-| `pnpm test:e2e` | Playwright E2E |
-| `pnpm verify` | typecheck + lint + format + test + build |
-| `pnpm cf:build` | Build for Cloudflare Workers |
-| `pnpm cf:preview` | Run the Workers build locally |
-| `pnpm db:check` | Validate the Drizzle schema without touching a database |
-| `pnpm seed` | Load deterministic reference data (needs `DATABASE_URL`) |
+| Command                          | Purpose                                                         |
+| -------------------------------- | --------------------------------------------------------------- |
+| `pnpm dev`                       | Development server                                              |
+| `pnpm build`                     | Production build                                                |
+| `pnpm typecheck`                 | `tsc --noEmit`                                                  |
+| `pnpm lint`                      | ESLint, including architectural import boundaries               |
+| `pnpm format` / `format:check`   | Prettier                                                        |
+| `pnpm test`                      | Unit tests                                                      |
+| `pnpm test:e2e`                  | Playwright E2E                                                  |
+| `pnpm verify`                    | typecheck + lint + format + test + build                        |
+| `pnpm cf:build`                  | Build for Cloudflare Workers                                    |
+| `pnpm cf:preview`                | Run the Workers build locally                                   |
+| `pnpm db:check`                  | Validate the Drizzle schema without touching a database         |
+| `pnpm seed`                      | Load deterministic reference data (needs `DATABASE_URL`)        |
 | `bash scripts/verify-runtime.sh` | Boot the built app and smoke-test routes, i18n, headers, health |
-| `bash scripts/check-secrets.sh` | Fail if credentials were committed |
+| `bash scripts/check-secrets.sh`  | Fail if credentials were committed                              |
 
 `pnpm db:generate` / `db:migrate` exist but **no migrations have been generated yet** — that step requires explicit authorization.
 
@@ -158,8 +158,8 @@ ESLint fails the build on any of these:
 
 ## Branches
 
-| Branch | Purpose |
-| --- | --- |
-| `main` | Production. Protected |
-| `develop` | Integration / staging |
+| Branch                         | Purpose                      |
+| ------------------------------ | ---------------------------- |
+| `main`                         | Production. Protected        |
+| `develop`                      | Integration / staging        |
 | `feature/*`, `fix/*`, `docs/*` | Work branches, merged via PR |

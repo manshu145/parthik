@@ -25,7 +25,10 @@
     "cf:typegen": "wrangler types --env-interface CloudflareEnv ./types/cloudflare-env.d.ts",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate",
-    "verify": "pnpm typecheck && pnpm lint && pnpm format:check && pnpm test && pnpm build"
+    "verify": "pnpm typecheck && pnpm lint && pnpm format:check && pnpm test && pnpm build",
+    "db:check": "drizzle-kit export --sql > /dev/null && echo \"Drizzle schema is valid (no migrations generated)\"",
+    "db:export": "drizzle-kit export --sql",
+    "seed": "tsx db/seed/index.ts"
   },
   "dependencies": {
     "@radix-ui/react-slot": "^1.2.3",
@@ -62,6 +65,7 @@
     "prettier-plugin-tailwindcss": "^0.6.14",
     "reflect-metadata": "^0.2.2",
     "tailwindcss": "^4.1.16",
+    "tsx": "^4.23.12",
     "typescript": "^5.9.3",
     "typescript-eslint": "^8.46.0",
     "vitest": "^3.2.4",
