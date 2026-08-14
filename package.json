@@ -2,7 +2,7 @@
   "name": "parthik",
   "version": "0.1.0",
   "private": true,
-  "description": "Parthik — hyperlocal commerce and delivery platform",
+  "description": "Parthik \u2014 hyperlocal commerce and delivery platform",
   "engines": {
     "node": ">=22.0.0"
   },
@@ -28,9 +28,11 @@
     "verify": "pnpm typecheck && pnpm lint && pnpm format:check && pnpm test && pnpm build",
     "db:check": "drizzle-kit export --sql > /dev/null && echo \"Drizzle schema is valid (no migrations generated)\"",
     "db:export": "drizzle-kit export --sql",
-    "seed": "tsx db/seed/index.ts"
+    "seed": "tsx db/seed/index.ts",
+    "test:e2e:ci": "bash scripts/run-e2e.sh"
   },
   "dependencies": {
+    "@radix-ui/react-dialog": "^1.1.23",
     "@radix-ui/react-slot": "^1.2.3",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
@@ -43,6 +45,7 @@
     "postgres": "^3.4.9",
     "react": "^19.2.0",
     "react-dom": "^19.2.0",
+    "sonner": "^2.0.8",
     "tailwind-merge": "^3.3.1",
     "zod": "^4.1.12"
   },
@@ -53,6 +56,9 @@
     "@peculiar/x509": "^2.0.0",
     "@playwright/test": "^1.57.0",
     "@tailwindcss/postcss": "^4.1.16",
+    "@testing-library/jest-dom": "^7.0.1",
+    "@testing-library/react": "^16.3.2",
+    "@testing-library/user-event": "^14.6.4",
     "@types/node": "^22.19.0",
     "@types/react": "^19.2.2",
     "@types/react-dom": "^19.2.2",
@@ -60,6 +66,7 @@
     "eslint": "^9.39.0",
     "eslint-config-next": "^16.3.0",
     "eslint-config-prettier": "^10.1.8",
+    "jsdom": "^30.0.1",
     "postcss": "^8.5.6",
     "prettier": "^3.6.2",
     "prettier-plugin-tailwindcss": "^0.6.14",

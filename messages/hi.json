@@ -10,7 +10,92 @@
     "goHome": "होम पर जाएँ",
     "search": "खोजें",
     "language": "भाषा",
-    "changeLanguage": "भाषा बदलें"
+    "changeLanguage": "भाषा बदलें",
+    "comingSoon": "जल्द आ रहा है"
+  },
+  "nav": {
+    "primary": "मुख्य नेविगेशन",
+    "secondary": "अतिरिक्त नेविगेशन",
+    "skipToContent": "मुख्य सामग्री पर जाएँ",
+    "homeLink": "पार्थिक होम",
+    "home": "होम",
+    "categories": "श्रेणियाँ",
+    "offers": "ऑफ़र",
+    "cart": "कार्ट",
+    "account": "खाता",
+    "favorites": "पसंदीदा",
+    "orders": "ऑर्डर",
+    "profile": "प्रोफ़ाइल",
+    "addresses": "पते",
+    "notifications": "सूचनाएँ",
+    "security": "सुरक्षा",
+    "support": "सहायता",
+    "openCart": "कार्ट खोलें",
+    "cartItemCount": "{count, plural, =0 {कार्ट खाली है} one {कार्ट में # आइटम} other {कार्ट में # आइटम}}"
+  },
+  "footer": {
+    "company": "कंपनी",
+    "legal": "कानूनी",
+    "partners": "हमारे साथ जुड़ें",
+    "help": "मदद",
+    "about": "हमारे बारे में",
+    "contact": "संपर्क करें",
+    "careers": "करियर",
+    "blog": "ब्लॉग",
+    "privacy": "प्राइवेसी नीति",
+    "terms": "नियम और शर्तें",
+    "refundPolicy": "रिफ़ंड नीति",
+    "shippingPolicy": "डिलीवरी नीति",
+    "cancellationPolicy": "रद्दीकरण नीति",
+    "vendorRegistration": "वेंडर बनें",
+    "driverRegistration": "डिलीवरी पार्टनर बनें",
+    "faq": "सामान्य प्रश्न",
+    "support": "सहायता",
+    "rightsReserved": "सर्वाधिकार सुरक्षित।"
+  },
+  "location": {
+    "deliverTo": "डिलीवरी यहाँ",
+    "selectLocation": "स्थान चुनें",
+    "sheetTitle": "डिलीवरी का स्थान चुनें",
+    "sheetDescription": "इससे हम आपके आसपास उपलब्ध सामान दिखाते हैं।",
+    "detectLocation": "मेरा मौजूदा स्थान इस्तेमाल करें",
+    "notConfiguredTitle": "स्थान चुनना अभी उपलब्ध नहीं है",
+    "notConfiguredDescription": "पता खोजना और स्थान पता लगाना लोकेशन सुविधा के साथ आएगा।"
+  },
+  "search": {
+    "label": "उत्पाद खोजें",
+    "placeholder": "आटा, दूध, सब्ज़ियाँ खोजें…",
+    "resultsTitle": "खोज",
+    "emptyTitle": "खोज अभी उपलब्ध नहीं है",
+    "emptyDescription": "उत्पाद खोज कैटलॉग के साथ आएगी।",
+    "queryLabel": "आपने खोजा"
+  },
+  "cart": {
+    "title": "आपकी कार्ट",
+    "subtotal": "उप-योग",
+    "viewCart": "कार्ट देखें",
+    "startShopping": "खरीदारी शुरू करें",
+    "emptyTitle": "आपकी कार्ट खाली है",
+    "emptyDescription": "आइटम जोड़ें, वे यहाँ दिखेंगे। ऑर्डर देने तक कुछ भी सुरक्षित नहीं रखा जाता।",
+    "quantityShort": "मात्रा {count}",
+    "pageEmptyDescription": "पहला आइटम जोड़ने के लिए श्रेणियाँ देखें।"
+  },
+  "shell": {
+    "notImplementedTitle": "अभी नहीं बना",
+    "notImplementedDescription": "यह स्क्रीन बाद के चरण का हिस्सा है। इसके आसपास का नेविगेशन और लेआउट पूरा है।",
+    "placeholderNotice": "सिर्फ़ शेल — इस स्क्रीन पर अभी वास्तविक डेटा नहीं है।"
+  },
+  "pages": {
+    "home": { "title": "होम", "heading": "रोज़ की ज़रूरतें, तेज़ डिलीवरी" },
+    "categories": { "title": "श्रेणियाँ", "heading": "श्रेणी से खरीदें" },
+    "category": { "title": "श्रेणी", "heading": "श्रेणी" },
+    "product": { "title": "उत्पाद", "heading": "उत्पाद" },
+    "offers": { "title": "ऑफ़र", "heading": "ऑफ़र और कूपन" },
+    "cart": { "title": "कार्ट", "heading": "आपकी कार्ट" },
+    "favorites": { "title": "पसंदीदा", "heading": "आपके पसंदीदा" },
+    "account": { "title": "खाता", "heading": "आपका खाता" },
+    "search": { "title": "खोज", "heading": "खोज" },
+    "offline": { "title": "ऑफ़लाइन", "heading": "आप ऑफ़लाइन हैं" }
   },
   "states": {
     "loading": {

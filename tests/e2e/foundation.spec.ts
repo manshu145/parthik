@@ -29,7 +29,10 @@ test.describe('foundation', () => {
 
   test('switches locale while preserving the page', async ({ page }) => {
     await page.goto('/');
-    await page.getByRole('button', { name: 'हिन्दी' }).click();
+    // Scoped to the FOOTER switcher, which is the one present at every
+    // breakpoint. The header switcher is intentionally desktop-only, so mobile
+    // users rely on this one.
+    await page.getByTestId('site-footer').getByRole('button', { name: 'हिन्दी' }).click();
 
     await expect(page).toHaveURL(/\/hi(\/)?$/);
     await expect(page.locator('html')).toHaveAttribute('lang', 'hi-IN');

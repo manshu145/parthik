@@ -44,3 +44,7 @@ beforeEach(() => {
 
   resetEnvCacheForTests();
 });
+
+// Component-test matchers (toBeVisible, toHaveAttribute, ...). Importing here
+// keeps individual test files free of setup noise.
+import '@testing-library/jest-dom/vitest';
