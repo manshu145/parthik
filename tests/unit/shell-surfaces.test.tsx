@@ -35,8 +35,13 @@ vi.mock('@/i18n/navigation', () => ({
   ),
 }));
 
-// The locale switcher needs Next's route params; not the subject of these tests.
-vi.mock('next/navigation', () => ({ useParams: () => ({ locale: 'en' }) }));
+// The locale switcher needs Next's route params, and the location sheet calls
+// router.refresh() so server components re-read the location cookie.
+const mockRefresh = vi.hoisted(() => vi.fn());
+vi.mock('next/navigation', () => ({
+  useParams: () => ({ locale: 'en' }),
+  useRouter: () => ({ refresh: mockRefresh }),
+}));
 
 const { SiteHeader } = await import('@/components/layout/site-header');
 const { SiteFooter } = await import('@/components/layout/site-footer');
@@ -51,7 +56,9 @@ const { SearchBar } = await import('@/components/layout/search-bar');
 afterEach(() => {
   cleanup();
   mockPush.mockReset();
+  mockRefresh.mockReset();
   mockPathname.current = '/';
+  vi.unstubAllGlobals();
 });
 
 function withShell(ui: React.ReactElement, cart = EMPTY_CART_SUMMARY, locale: 'en' | 'hi' = 'en') {
@@ -248,7 +255,48 @@ describe('CartDrawer', () => {
 });
 
 describe('LocationSheet', () => {
-  it('opens from the trigger and is honest that selection is unavailable', async () => {
+  /**
+   * Stubs the location endpoints.
+   *
+   * `select` is stubbed too, because choosing a location persists it — a test that
+   * only stubbed serviceability would pass while the cookie write was broken.
+   */
+  function stubLocationApi(serviceability: Record<string, unknown>) {
+    const fetchMock = vi.fn((input: RequestInfo | URL) => {
+      const url = typeof input === 'string' ? input : input.toString();
+
+      if (url.includes('/api/v1/location/serviceability') || url.includes('/location/select')) {
+        return Promise.resolve(
+          new Response(JSON.stringify({ success: true, data: serviceability, meta: {} }), {
+            status: 200,
+            headers: { 'Content-Type': 'application/json' },
+          })
+        );
+      }
+
+      return Promise.resolve(
+        new Response(JSON.stringify({ success: true, data: { suggestions: [] }, meta: {} }), {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' },
+        })
+      );
+    });
+
+    vi.stubGlobal('fetch', fetchMock);
+    return fetchMock;
+  }
+
+  const SERVICEABLE = {
+    isServiceable: true,
+    pincode: '452001',
+    zone: { id: 'zone-1', code: 'ZONE-001', name: 'Central', city: 'Indore', state: 'MP' },
+    baseDeliveryFeePaise: 2_500,
+    freeDeliveryThresholdPaise: 19_900,
+    minOrderPaise: 9_900,
+    etaMinutes: 35,
+  };
+
+  it('opens from the trigger with all three ways to set a location', async () => {
     const user = userEvent.setup();
     withShell(
       <>
@@ -263,9 +311,167 @@ describe('LocationSheet', () => {
     const dialog = screen.getByRole('dialog');
 
     expect(within(dialog).getByText('Choose delivery location')).toBeDefined();
-    expect(within(dialog).getByText('Location selection is not available yet')).toBeDefined();
-    // Shown but disabled, rather than appearing functional.
-    expect(within(dialog).getByRole('button', { name: /current location/i })).toBeDisabled();
+    // Detect is now functional, not a disabled placeholder.
+    expect(within(dialog).getByTestId('location-detect')).not.toBeDisabled();
+    expect(within(dialog).getByTestId('location-search')).toBeDefined();
+    expect(within(dialog).getByTestId('location-pincode')).toBeDefined();
+  });
+
+  it('shows the delivery terms for a serviceable pincode', async () => {
+    const user = userEvent.setup();
+    stubLocationApi(SERVICEABLE);
+
+    withShell(
+      <>
+        <LocationTrigger />
+        <LocationSheet />
+      </>
+    );
+
+    await user.click(screen.getByTestId('location-trigger'));
+    await user.type(screen.getByTestId('location-pincode'), '452001');
+    await user.click(screen.getByRole('button', { name: 'Check' }));
+
+    const outcome = await screen.findByTestId('location-serviceable');
+
+    expect(outcome.textContent).toContain('We deliver to Indore');
+    // Fees come from the SERVER response and are only formatted here. ₹25 and ₹199
+    // must render as such, or the paise/rupee boundary is wrong somewhere.
+    expect(outcome.textContent).toContain('₹25');
+    expect(outcome.textContent).toContain('₹199');
+    expect(outcome.textContent).toContain('35 min');
+  });
+
+  it('says plainly that an unserviceable pincode is not covered', async () => {
+    const user = userEvent.setup();
+    stubLocationApi({
+      isServiceable: false,
+      pincode: '110001',
+      zone: null,
+      baseDeliveryFeePaise: null,
+      freeDeliveryThresholdPaise: null,
+      minOrderPaise: null,
+      etaMinutes: null,
+    });
+
+    withShell(
+      <>
+        <LocationTrigger />
+        <LocationSheet />
+      </>
+    );
+
+    await user.click(screen.getByTestId('location-trigger'));
+    await user.type(screen.getByTestId('location-pincode'), '110001');
+    await user.click(screen.getByRole('button', { name: 'Check' }));
+
+    const outcome = await screen.findByTestId('location-unserviceable');
+
+    expect(outcome.textContent).toContain('110001');
+    // No fee or ETA is invented for an area we do not serve.
+    expect(outcome.textContent).not.toContain('₹');
+  });
+
+  it('keeps the check button disabled until six digits are entered', async () => {
+    const user = userEvent.setup();
+    withShell(<LocationSheet />);
+
+    // The sheet is closed, so open it via the shell trigger instead.
+    cleanup();
+    withShell(
+      <>
+        <LocationTrigger />
+        <LocationSheet />
+      </>
+    );
+    await user.click(screen.getByTestId('location-trigger'));
+
+    const check = screen.getByRole('button', { name: 'Check' });
+    expect(check).toBeDisabled();
+
+    await user.type(screen.getByTestId('location-pincode'), '4520');
+    expect(check).toBeDisabled();
+
+    await user.type(screen.getByTestId('location-pincode'), '01');
+    expect(check).not.toBeDisabled();
+  });
+
+  it('strips non-digits from pincode input', async () => {
+    const user = userEvent.setup();
+    withShell(
+      <>
+        <LocationTrigger />
+        <LocationSheet />
+      </>
+    );
+
+    await user.click(screen.getByTestId('location-trigger'));
+    const input = screen.getByTestId('location-pincode') as HTMLInputElement;
+
+    await user.type(input, '45a2b0c01');
+
+    // An invalid value cannot be entered at all, rather than being rejected later.
+    expect(input.value).toBe('452001');
+  });
+
+  it('refreshes the server tree after a location is chosen', async () => {
+    const user = userEvent.setup();
+    stubLocationApi(SERVICEABLE);
+
+    withShell(
+      <>
+        <LocationTrigger />
+        <LocationSheet />
+      </>
+    );
+
+    await user.click(screen.getByTestId('location-trigger'));
+    await user.type(screen.getByTestId('location-pincode'), '452001');
+    await user.click(screen.getByRole('button', { name: 'Check' }));
+    await screen.findByTestId('location-serviceable');
+
+    // Server components read the location cookie, so without a refresh the page
+    // would keep rendering the previous zone.
+    expect(mockRefresh).toHaveBeenCalled();
+  });
+
+  it('updates the header label to the chosen location', async () => {
+    const user = userEvent.setup();
+    stubLocationApi(SERVICEABLE);
+
+    withShell(
+      <>
+        <LocationTrigger />
+        <LocationSheet />
+      </>
+    );
+
+    await user.click(screen.getByTestId('location-trigger'));
+    await user.type(screen.getByTestId('location-pincode'), '452001');
+    await user.click(screen.getByRole('button', { name: 'Check' }));
+    await screen.findByTestId('location-serviceable');
+
+    expect(screen.getByTestId('location-trigger').textContent).toContain('Indore');
+  });
+
+  it('renders the Hindi flow', async () => {
+    const user = userEvent.setup();
+    stubLocationApi(SERVICEABLE);
+
+    withShell(
+      <>
+        <LocationTrigger />
+        <LocationSheet />
+      </>,
+      EMPTY_CART_SUMMARY,
+      'hi'
+    );
+
+    await user.click(screen.getByTestId('location-trigger'));
+    const dialog = screen.getByRole('dialog');
+
+    expect(within(dialog).getByText('डिलीवरी का स्थान चुनें')).toBeDefined();
+    expect(within(dialog).getByTestId('location-pincode')).toBeDefined();
   });
 });
 

@@ -163,7 +163,7 @@ test.describe('cart drawer', () => {
 });
 
 test.describe('location selector', () => {
-  test('opens the bottom sheet and states it is unavailable', async ({ page }) => {
+  test('opens the bottom sheet with working controls', async ({ page }) => {
     await gotoWithViewport(page, '/', MOBILE);
 
     await page.getByTestId('location-trigger').click();
@@ -171,8 +171,9 @@ test.describe('location selector', () => {
     const dialog = page.getByRole('dialog');
     await expect(dialog).toBeVisible();
     await expect(dialog).toContainText('Choose delivery location');
-    // Honest rather than a control that silently does nothing.
-    await expect(dialog.getByRole('button', { name: /current location/i })).toBeDisabled();
+    // Wired up in TASK 005; the full flow is covered in tests/e2e/location.spec.ts.
+    await expect(dialog.getByTestId('location-detect')).toBeEnabled();
+    await expect(dialog.getByTestId('location-pincode')).toBeVisible();
   });
 });
 
@@ -191,6 +192,12 @@ test.describe('locale switching', () => {
 test.describe('accessibility basics', () => {
   test('skip link is the first tab stop and moves focus to main', async ({ page }) => {
     await gotoWithViewport(page, '/', DESKTOP);
+
+    // Wait for the shell to be interactive before pressing Tab. Without this the
+    // keypress can land while the document is still settling and focus goes
+    // nowhere, which made this test flake intermittently in both projects.
+    await expect(page.getByTestId('site-header')).toBeVisible();
+    await expect(page.getByTestId('skip-link')).toBeAttached();
 
     await page.keyboard.press('Tab');
     const skip = page.getByTestId('skip-link');

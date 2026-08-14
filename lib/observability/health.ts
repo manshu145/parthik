@@ -2,7 +2,7 @@ import { getServerEnv } from '@/lib/config/env';
 import { isDatabaseConfigured } from '@/lib/db/client';
 import { isFirebaseClientConfigured, isFirebaseServerConfigured } from '@/lib/firebase/config';
 import { pushSender } from '@/lib/firebase/messaging';
-import { mapsProvider } from '@/lib/maps/google-provider';
+import { resolveMapsProvider } from '@/lib/maps/provider-factory';
 import { analytics } from '@/lib/analytics';
 import { cloudLoggingSink } from './cloud-logging';
 
@@ -30,6 +30,23 @@ export interface HealthReport {
   environment: string;
   timestamp: string;
   components: ComponentHealth[];
+}
+
+/**
+ * Maps readiness.
+ *
+ * The STATE reflects whether a real provider is configured; the active provider
+ * name goes in the detail. So a mock fallback reads as `not_configured` — truthful,
+ * since there is no key — while the detail makes it impossible to mistake the mock
+ * for live Google.
+ *
+ * Deliberately NOT `degraded`: degradation means a configured dependency is
+ * misbehaving. Every developer machine and preview deploy legitimately runs on
+ * mocks, and permanently reporting the whole system as degraded would train
+ * everyone to ignore the health check.
+ */
+function mapsState(): ComponentState {
+  return getServerEnv().GOOGLE_MAPS_SERVER_KEY ? 'ok' : 'not_configured';
 }
 
 /**
@@ -82,9 +99,13 @@ export function getHealthReport(): HealthReport {
     },
     {
       name: 'google-maps',
-      state: mapsProvider.isConfigured() ? 'ok' : 'not_configured',
+      // Reports the ACTIVE provider, not merely whether a key exists. A green
+      // "ok" while the mock is quietly serving requests would be worse than no
+      // check at all. The provider NAME is safe to expose here; key material is
+      // not, and never appears.
+      state: mapsState(),
       required: false,
-      detail: 'Places, Geocoding, Routes (D-23)',
+      detail: `Places, Geocoding, Routes (D-23) — active provider: ${resolveMapsProvider().name}`,
     },
     {
       name: 'analytics',

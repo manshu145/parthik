@@ -11,7 +11,10 @@
     "search": "खोजें",
     "language": "भाषा",
     "changeLanguage": "भाषा बदलें",
-    "comingSoon": "जल्द आ रहा है"
+    "comingSoon": "जल्द आ रहा है",
+    "clear": "साफ़ करें",
+    "check": "देखें",
+    "continue": "आगे बढ़ें"
   },
   "nav": {
     "primary": "मुख्य नेविगेशन",
@@ -59,8 +62,27 @@
     "sheetTitle": "डिलीवरी का स्थान चुनें",
     "sheetDescription": "इससे हम आपके आसपास उपलब्ध सामान दिखाते हैं।",
     "detectLocation": "मेरा मौजूदा स्थान इस्तेमाल करें",
-    "notConfiguredTitle": "स्थान चुनना अभी उपलब्ध नहीं है",
-    "notConfiguredDescription": "पता खोजना और स्थान पता लगाना लोकेशन सुविधा के साथ आएगा।"
+    "detecting": "आपका स्थान पता कर रहे हैं…",
+    "detectDenied": "स्थान की अनुमति नहीं मिली। कृपया अपना पिन कोड डालें, या ब्राउज़र सेटिंग में अनुमति दें।",
+    "detectFailed": "हम आपका स्थान पता नहीं कर सके। कृपया अपना पिन कोड डालें।",
+    "detectNoAddress": "आपके स्थान का पता नहीं मिला। कृपया अपना पिन कोड डालें।",
+    "noPincodeForAddress": "इस पते का पिन कोड नहीं मिला। कृपया अपना पिन कोड डालें।",
+    "searchLabel": "इलाका या लैंडमार्क खोजें",
+    "searchPlaceholder": "जैसे पलासिया, विजय नगर",
+    "searchHint": "कम से कम 3 अक्षर लिखें।",
+    "searching": "खोज रहे हैं…",
+    "pincodeLabel": "या अपना पिन कोड डालें",
+    "pincodePlaceholder": "452001",
+    "invalidPincode": "6 अंकों का सही पिन कोड डालें।",
+    "errorTitle": "स्थान सेट नहीं हो सका",
+    "serviceableTitle": "हम {label} में डिलीवरी करते हैं",
+    "unserviceableTitle": "हम अभी {pincode} में डिलीवरी नहीं करते",
+    "unserviceableDescription": "हम नए इलाकों में पहुँच रहे हैं। आप देख सकते हैं, लेकिन इस पिन कोड पर ऑर्डर उपलब्ध नहीं है।",
+    "deliveryFee": "डिलीवरी शुल्क",
+    "freeDeliveryAbove": "मुफ़्त डिलीवरी इससे ऊपर",
+    "minOrder": "न्यूनतम ऑर्डर",
+    "estimatedDelivery": "अनुमानित डिलीवरी",
+    "minutes": "{count} मिनट"
   },
   "search": {
     "label": "उत्पाद खोजें",
@@ -86,16 +108,46 @@
     "placeholderNotice": "सिर्फ़ शेल — इस स्क्रीन पर अभी वास्तविक डेटा नहीं है।"
   },
   "pages": {
-    "home": { "title": "होम", "heading": "रोज़ की ज़रूरतें, तेज़ डिलीवरी" },
-    "categories": { "title": "श्रेणियाँ", "heading": "श्रेणी से खरीदें" },
-    "category": { "title": "श्रेणी", "heading": "श्रेणी" },
-    "product": { "title": "उत्पाद", "heading": "उत्पाद" },
-    "offers": { "title": "ऑफ़र", "heading": "ऑफ़र और कूपन" },
-    "cart": { "title": "कार्ट", "heading": "आपकी कार्ट" },
-    "favorites": { "title": "पसंदीदा", "heading": "आपके पसंदीदा" },
-    "account": { "title": "खाता", "heading": "आपका खाता" },
-    "search": { "title": "खोज", "heading": "खोज" },
-    "offline": { "title": "ऑफ़लाइन", "heading": "आप ऑफ़लाइन हैं" }
+    "home": {
+      "title": "होम",
+      "heading": "रोज़ की ज़रूरतें, तेज़ डिलीवरी"
+    },
+    "categories": {
+      "title": "श्रेणियाँ",
+      "heading": "श्रेणी से खरीदें"
+    },
+    "category": {
+      "title": "श्रेणी",
+      "heading": "श्रेणी"
+    },
+    "product": {
+      "title": "उत्पाद",
+      "heading": "उत्पाद"
+    },
+    "offers": {
+      "title": "ऑफ़र",
+      "heading": "ऑफ़र और कूपन"
+    },
+    "cart": {
+      "title": "कार्ट",
+      "heading": "आपकी कार्ट"
+    },
+    "favorites": {
+      "title": "पसंदीदा",
+      "heading": "आपके पसंदीदा"
+    },
+    "account": {
+      "title": "खाता",
+      "heading": "आपका खाता"
+    },
+    "search": {
+      "title": "खोज",
+      "heading": "खोज"
+    },
+    "offline": {
+      "title": "ऑफ़लाइन",
+      "heading": "आप ऑफ़लाइन हैं"
+    }
   },
   "states": {
     "loading": {
