@@ -175,6 +175,24 @@ Bindings in `wrangler.jsonc` are commented out until the corresponding Cloudflar
 
 Secrets are set with `wrangler secret put NAME` or in the dashboard, never in `wrangler.jsonc`.
 
+### Workers Builds settings
+
+These live in the Cloudflare dashboard under **Settings → Build**, not in this repository, so they are recorded here.
+
+| Setting                              | Value                          |
+| ------------------------------------ | ------------------------------ |
+| Root directory                       | `/`                            |
+| Build command                        | `pnpm cf:build`                |
+| Deploy command                       | `npx wrangler deploy`          |
+| Non-production branch deploy command | `npx wrangler versions upload` |
+| Builds for non-production branches   | enabled                        |
+
+**The build command is not optional.** `.open-next/` is a gitignored build artifact, and `wrangler.jsonc` points `main` and `assets.directory` inside it. With no build command the checkout has no `.open-next/`, and the deploy fails with `Could not detect a directory containing static files` — which reads like a misconfigured assets path but actually means the build never ran.
+
+`pnpm cf:build` runs `next build` first and then the Workers bundling step, so it is the only build command needed.
+
+Reproduce the whole pipeline locally with `pnpm cf:build && npx wrangler deploy --dry-run`. The dry run validates the config and resolves the assets directory without deploying or needing credentials.
+
 ## Known warnings
 
 | Warning                                                                       | Status                                                                                                                                                                                                      |
