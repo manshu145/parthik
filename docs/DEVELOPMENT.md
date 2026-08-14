@@ -25,13 +25,27 @@ Nothing in `.env.local` is required. Every provider is optional and the app degr
 Run before pushing. CI runs the same steps.
 
 ```bash
-pnpm verify                        # typecheck + lint + format + test + build
-pnpm cf:build                      # Cloudflare Workers target
-bash scripts/verify-runtime.sh     # boot and smoke-test the built app
-bash scripts/check-secrets.sh      # no committed credentials
+pnpm verify                             # typecheck + lint + format + test + build
+pnpm cf:build                           # Cloudflare Workers target
+bash scripts/verify-runtime.sh          # boot and smoke-test the built app
+bash scripts/check-secrets.sh           # no committed credentials
+bash scripts/db-integration-check.sh    # real PostgreSQL: schema + seeds + SQL
 ```
 
 `pnpm cf:build` matters: the Workers bundle can fail even when `next build` succeeds. It already caught one real issue — `pg` pulls in a `pg-cloudflare` shim whose published entry point does not resolve, which is why this project uses `postgres.js`.
+
+### `db-integration-check.sh`
+
+Spins up a throwaway PostgreSQL container, applies the schema, seeds it, and executes every catalog query. Needs `docker` or `podman`; it skips cleanly when neither is present. It writes **no migration files** — `drizzle-kit export` prints SQL to stdout — and never touches a shared database.
+
+This is the only check that runs real SQL. Drizzle typechecks the query _builder_, not the statement it emits, and the unit suite runs against in-memory repositories. Both of those pass on SQL that PostgreSQL rejects. It has already caught two bugs that nothing else could:
+
+| Bug                                                             | Why nothing else caught it                                                                                                                                                                                         |
+| --------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `search_vector_*` columns declared `text` instead of `tsvector` | A GIN index over `text` has no default operator class, so `CREATE INDEX ... USING gin` failed and **the whole schema could not be created**. Typechecked fine.                                                     |
+| Translation CTEs aliased `t_${locale}`                          | The requested and fallback CTEs collided whenever the requested locale _was_ the fallback — i.e. **every English request**, the default. PostgreSQL rejected it with `Alias "t_en" is already used in this query`. |
+
+> ⚠️ **PostgreSQL version.** Every primary key defaults to `uuidv7()`, which is native only in **PostgreSQL 18+**. `docs/DATABASE.md` and `docs/ARCHITECTURE.md` both state "PostgreSQL 16+". These disagree, and it matters for the managed-provider choice (D-01a). On a server below 18 this script installs a non-time-sortable `uuidv7()` shim so the rest of the schema can still be validated — that shim is for local validation only and is not a fix.
 
 ## Provider configuration
 

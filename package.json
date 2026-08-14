@@ -29,6 +29,7 @@
     "db:check": "drizzle-kit export --sql > /dev/null && echo \"Drizzle schema is valid (no migrations generated)\"",
     "db:export": "drizzle-kit export --sql",
     "seed": "tsx db/seed/index.ts",
+    "seed:demo": "SEED_DEMO=1 tsx db/seed/index.ts",
     "test:e2e:ci": "bash scripts/run-e2e.sh"
   },
   "dependencies": {

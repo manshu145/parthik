@@ -3,6 +3,7 @@ import { apiSuccess, requestIdFrom } from '@/lib/http/api-response';
 import { resolveMapsProvider } from '@/lib/maps/provider-factory';
 import { describeMockFixtures } from '@/lib/maps/mock-provider';
 import { describeLocationBackend } from '@/modules/location';
+import { describeCatalogBackend } from '@/modules/catalog';
 
 /**
  * GET /api/v1/diagnostics/providers — DEVELOPMENT ONLY.
@@ -34,6 +35,7 @@ export async function GET(request: Request) {
 
   const maps = resolveMapsProvider();
   const location = describeLocationBackend();
+  const catalog = describeCatalogBackend();
 
   return apiSuccess(
     {
@@ -52,6 +54,12 @@ export async function GET(request: Request) {
         ...(location.serviceablePincodes
           ? { serviceablePincodes: location.serviceablePincodes }
           : {}),
+      },
+      catalog: {
+        backend: catalog.backend,
+        databaseConfigured: catalog.databaseConfigured,
+        ...(catalog.categorySlugs ? { categorySlugs: catalog.categorySlugs } : {}),
+        ...(catalog.productSlugs ? { productSlugs: catalog.productSlugs } : {}),
       },
       notes: [
         'Development diagnostics. This endpoint returns 404 in production.',

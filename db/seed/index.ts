@@ -15,6 +15,7 @@ import {
   ROLE_PERMISSIONS,
   SUPPORTED_LOCALES,
 } from './reference-data';
+import { DEV_PRODUCTS, DEV_STORE, DEV_USERS, DEV_VENDOR } from './dev-data';
 
 /**
  * Seed runner.
@@ -317,6 +318,216 @@ async function seedReferenceData(db: Database): Promise<SeedSummary> {
   return { inserted, skipped: Object.keys(INTENTIONALLY_UNSEEDED) };
 }
 
+/**
+ * Demo catalogue — DEVELOPMENT AND TEST ONLY.
+ *
+ * Loads the vendor, store, products, variants and inventory that
+ * `db/seed/dev-data.ts` describes, so a Postgres database matches what the
+ * in-memory catalog repository serves. If these two drift, the fake stops being
+ * evidence of anything.
+ *
+ * The caller MUST gate this on APP_ENV — demo products in a real catalogue would
+ * be an incident, not untidiness. `main()` refuses outside development/test.
+ */
+async function seedDemoData(db: Database): Promise<SeedSummary> {
+  const inserted: Record<string, number> = {};
+
+  const ownerFixture = DEV_USERS.find((user) => user.ref === 'vendor-owner');
+  if (!ownerFixture) throw new Error('Missing the vendor-owner fixture in dev-data.ts.');
+
+  // ---- Owner user ----
+  // Roles and permissions are deliberately NOT assigned here: RBAC belongs to
+  // TASK 003. This row exists only to satisfy vendors.owner_user_id.
+  const [owner] = await db
+    .insert(schema.users)
+    .values({
+      firebaseUid: ownerFixture.firebaseUid,
+      phone: ownerFixture.phone,
+      fullName: ownerFixture.fullName,
+      preferredLocale: ownerFixture.preferredLocale,
+    })
+    .onConflictDoUpdate({
+      target: schema.users.firebaseUid,
+      set: { fullName: ownerFixture.fullName, phone: ownerFixture.phone },
+    })
+    .returning({ id: schema.users.id });
+
+  if (!owner) throw new Error('Failed to upsert the demo vendor owner.');
+  inserted.users = 1;
+
+  // ---- Vendor ----
+  const [vendor] = await db
+    .insert(schema.vendors)
+    .values({
+      ownerUserId: owner.id,
+      businessName: DEV_VENDOR.businessName,
+      legalName: DEV_VENDOR.legalName,
+      slug: DEV_VENDOR.slug,
+      contactPhone: DEV_VENDOR.contactPhone,
+      commissionRate: DEV_VENDOR.commissionRate,
+      status: 'APPROVED',
+      approvedAt: new Date(),
+    })
+    .onConflictDoUpdate({
+      target: schema.vendors.slug,
+      set: { businessName: DEV_VENDOR.businessName, status: 'APPROVED' },
+    })
+    .returning({ id: schema.vendors.id });
+
+  if (!vendor) throw new Error('Failed to upsert the demo vendor.');
+  inserted.vendors = 1;
+
+  // ---- Store ----
+  const [store] = await db
+    .insert(schema.stores)
+    .values({
+      vendorId: vendor.id,
+      name: DEV_STORE.name,
+      slug: DEV_STORE.slug,
+      status: DEV_STORE.status,
+      line1: DEV_STORE.line1,
+      city: DEV_STORE.city,
+      state: DEV_STORE.state,
+      pincode: DEV_STORE.pincode,
+      latitude: DEV_STORE.latitude,
+      longitude: DEV_STORE.longitude,
+      deliveryRadiusKm: DEV_STORE.deliveryRadiusKm,
+      minOrderPaise: DEV_STORE.minOrderPaise,
+      avgPrepTimeMinutes: DEV_STORE.avgPrepTimeMinutes,
+      codEnabled: DEV_STORE.codEnabled,
+      // Defaults to false in the schema; an unbrowsable demo store is useless.
+      isAcceptingOrders: true,
+    })
+    .onConflictDoUpdate({
+      target: schema.stores.slug,
+      set: { status: DEV_STORE.status, isAcceptingOrders: true },
+    })
+    .returning({ id: schema.stores.id });
+
+  if (!store) throw new Error('Failed to upsert the demo store.');
+  inserted.stores = 1;
+
+  // ---- Products, translations, one default variant each, inventory ----
+  let productCount = 0;
+  let translationCount = 0;
+  let variantCount = 0;
+  let inventoryCount = 0;
+
+  for (const fixture of DEV_PRODUCTS) {
+    const [category] = await db
+      .select({ id: schema.categories.id })
+      .from(schema.categories)
+      .where(eq(schema.categories.slug, fixture.categorySlug))
+      .limit(1);
+
+    if (!category) {
+      throw new Error(
+        `Demo product "${fixture.slug}" references category "${fixture.categorySlug}", which reference data does not define.`
+      );
+    }
+
+    const [product] = await db
+      .insert(schema.products)
+      .values({
+        vendorId: vendor.id,
+        storeId: store.id,
+        categoryId: category.id,
+        slug: fixture.slug,
+        status: 'ACTIVE',
+        unitLabel: fixture.unitLabel,
+        mrpPaise: fixture.mrpPaise,
+        pricePaise: fixture.pricePaise,
+        publishedAt: new Date(),
+      })
+      .onConflictDoUpdate({
+        target: schema.products.slug,
+        set: {
+          status: 'ACTIVE',
+          mrpPaise: fixture.mrpPaise,
+          pricePaise: fixture.pricePaise,
+          unitLabel: fixture.unitLabel,
+          categoryId: category.id,
+        },
+      })
+      .returning({ id: schema.products.id });
+
+    if (!product) continue;
+    productCount += 1;
+
+    for (const [locale, content] of Object.entries(fixture.translations)) {
+      await db
+        .insert(schema.productTranslations)
+        .values({
+          productId: product.id,
+          locale: locale as 'en' | 'hi',
+          name: content.name,
+          shortDescription: content.shortDescription,
+        })
+        .onConflictDoUpdate({
+          target: [schema.productTranslations.productId, schema.productTranslations.locale],
+          set: { name: content.name, shortDescription: content.shortDescription },
+        });
+      translationCount += 1;
+    }
+
+    // One default variant per product. The schema permits only one
+    // (`product_variants_default_key`), so this looks the existing row up rather
+    // than relying on a conflict target a partial index cannot provide.
+    const [existingVariant] = await db
+      .select({ id: schema.productVariants.id })
+      .from(schema.productVariants)
+      .where(eq(schema.productVariants.productId, product.id))
+      .limit(1);
+
+    const variantId =
+      existingVariant?.id ??
+      (
+        await db
+          .insert(schema.productVariants)
+          .values({
+            productId: product.id,
+            mrpPaise: fixture.mrpPaise,
+            pricePaise: fixture.pricePaise,
+            unitLabel: fixture.unitLabel,
+            isDefault: true,
+            displayOrder: 0,
+          })
+          .returning({ id: schema.productVariants.id })
+      )[0]?.id;
+
+    if (!variantId) continue;
+
+    if (existingVariant) {
+      await db
+        .update(schema.productVariants)
+        .set({ mrpPaise: fixture.mrpPaise, pricePaise: fixture.pricePaise })
+        .where(eq(schema.productVariants.id, variantId));
+    }
+    variantCount += 1;
+
+    await db
+      .insert(schema.inventory)
+      .values({
+        variantId,
+        storeId: store.id,
+        quantityAvailable: fixture.stock,
+        trackInventory: true,
+      })
+      .onConflictDoUpdate({
+        target: schema.inventory.variantId,
+        set: { quantityAvailable: fixture.stock },
+      });
+    inventoryCount += 1;
+  }
+
+  inserted.products = productCount;
+  inserted.product_translations = translationCount;
+  inserted.product_variants = variantCount;
+  inserted.inventory = inventoryCount;
+
+  return { inserted, skipped: [] };
+}
+
 async function main(): Promise<void> {
   const env = getServerEnv();
   const includeDemoData = env.APP_ENV === 'development';
@@ -346,9 +557,25 @@ async function main(): Promise<void> {
     console.log(`  ${table.padEnd(28)} ${reason}`);
   }
 
-  if (includeDemoData) {
-    console.log('\nDemo data: APP_ENV=development detected.');
-    console.log('  Run `pnpm seed:demo` to load demo vendors, products and coupons.');
+  // `pnpm seed:demo` sets SEED_DEMO=1. Demo rows are refused outside
+  // development/test regardless of the flag.
+  const demoRequested = process.env.SEED_DEMO === '1';
+
+  if (demoRequested && !includeDemoData) {
+    throw new Error(
+      `Refusing to load demo data in APP_ENV="${env.APP_ENV}". Demo vendors and products must never reach staging or production.`
+    );
+  }
+
+  if (demoRequested) {
+    const demo = await seedDemoData(db);
+    console.log('\nDemo data:');
+    for (const [table, rows] of Object.entries(demo.inserted)) {
+      console.log(`  ${table.padEnd(28)} ${rows}`);
+    }
+  } else if (includeDemoData) {
+    console.log('\nDemo data: not loaded.');
+    console.log('  Run `pnpm seed:demo` to load the demo vendor, store and products.');
   } else {
     console.log(`\nDemo data: SKIPPED — refusing to load demo rows in "${env.APP_ENV}".`);
   }

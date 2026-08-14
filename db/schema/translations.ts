@@ -1,6 +1,6 @@
 import { sql } from 'drizzle-orm';
 import { index, jsonb, pgTable, text, uniqueIndex, uuid } from 'drizzle-orm/pg-core';
-import { primaryId, timestamps } from './_helpers';
+import { primaryId, timestamps, tsvector } from './_helpers';
 import { localeCode } from './enums';
 import { users } from './identity';
 import { blogPosts, cancellationReasons, cmsPages, faqs, seoMeta } from './cms';
@@ -78,6 +78,10 @@ export const brandTranslations = pgTable(
  * English stemmer, `search_vector_simple` uses no stemmer. Hindi queries use the
  * simple vector plus pg_trgm, because PostgreSQL ships no Hindi stemmer
  * (docs/ARCHITECTURE.md §16.7 C-2).
+ *
+ * They MUST be `tsvector`, not `text`. As `text` the GIN indexes below cannot be
+ * created — PostgreSQL has no default GIN operator class for text — and the whole
+ * schema fails to apply. See the `tsvector` helper in ./_helpers.ts.
  */
 export const productTranslations = pgTable(
   'product_translations',
@@ -93,10 +97,10 @@ export const productTranslations = pgTable(
     specifications: jsonb('specifications'),
     unitLabel: text('unit_label'),
 
-    searchVectorEnglish: text('search_vector_english').generatedAlwaysAs(
+    searchVectorEnglish: tsvector('search_vector_english').generatedAlwaysAs(
       sql`to_tsvector('english', coalesce(name, '') || ' ' || coalesce(short_description, ''))`
     ),
-    searchVectorSimple: text('search_vector_simple').generatedAlwaysAs(
+    searchVectorSimple: tsvector('search_vector_simple').generatedAlwaysAs(
       sql`to_tsvector('simple', coalesce(name, '') || ' ' || coalesce(short_description, ''))`
     ),
 

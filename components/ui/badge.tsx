@@ -36,3 +36,41 @@ export function CountBadge({
     </span>
   );
 }
+
+/**
+ * Static label badge — discount percentages, stock states, statuses.
+ *
+ * Separate from `CountBadge`, which is absolutely positioned and carries a
+ * screen-reader label for a numeric count. This one is inline and renders its own
+ * text, so the text itself is the accessible name.
+ */
+const BADGE_VARIANTS = {
+  neutral: 'bg-muted text-foreground',
+  success: 'bg-success text-success-foreground',
+  danger: 'bg-danger text-danger-foreground',
+  warning: 'bg-warning text-warning-foreground',
+  primary: 'bg-primary text-primary-foreground',
+} as const;
+
+export type BadgeVariant = keyof typeof BADGE_VARIANTS;
+
+export function Badge({
+  variant = 'neutral',
+  className,
+  children,
+  ...props
+}: React.HTMLAttributes<HTMLSpanElement> & { variant?: BadgeVariant }) {
+  return (
+    <span
+      className={cn(
+        'inline-flex items-center rounded-[var(--radius-pill)] px-2 py-0.5',
+        'text-[0.6875rem] leading-tight font-semibold',
+        BADGE_VARIANTS[variant],
+        className
+      )}
+      {...props}
+    >
+      {children}
+    </span>
+  );
+}

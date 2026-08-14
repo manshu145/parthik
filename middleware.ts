@@ -92,7 +92,14 @@ function decorate(
   });
 
   // Private surfaces must never be cached by a shared cache.
-  if (classifySurface(meta.pathname) !== 'public') {
+  //
+  // `api` is excluded deliberately: the API layer owns its own cache policy.
+  // `apiSuccess`/`apiError` already default every response to
+  // `private, no-store`, so the safe default is preserved — but a genuinely public
+  // endpoint (the category tree, product listings) must be able to opt into shared
+  // caching, and a blanket override here silently defeated that.
+  const surface = classifySurface(meta.pathname);
+  if (surface !== 'public' && surface !== 'api') {
     response.headers.set('Cache-Control', 'private, no-store, max-age=0');
   }
 }

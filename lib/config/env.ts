@@ -98,6 +98,16 @@ const clientSchema = z.object({
 
   NEXT_PUBLIC_GA4_MEASUREMENT_ID: nonEmpty.optional(),
   NEXT_PUBLIC_APP_URL: z.string().url().default('http://localhost:3000'),
+
+  /**
+   * Public base URL for stored images (R2 public bucket or its custom domain).
+   *
+   * OPTIONAL AND UNSET BY DEFAULT. The database stores object keys, not URLs, and
+   * decision D-07a (Cloudflare Images vs a custom loader) is still open — so with
+   * this absent, `lib/catalog/image.ts` returns null and the UI renders a
+   * placeholder rather than a guessed, broken URL.
+   */
+  NEXT_PUBLIC_ASSET_BASE_URL: z.string().url().optional(),
 });
 
 export type ServerEnv = z.infer<typeof serverSchema>;
@@ -145,6 +155,7 @@ function readClientEnv(): Record<string, string | undefined> {
     NEXT_PUBLIC_GOOGLE_MAPS_BROWSER_KEY: process.env.NEXT_PUBLIC_GOOGLE_MAPS_BROWSER_KEY,
     NEXT_PUBLIC_GA4_MEASUREMENT_ID: process.env.NEXT_PUBLIC_GA4_MEASUREMENT_ID,
     NEXT_PUBLIC_APP_URL: process.env.NEXT_PUBLIC_APP_URL,
+    NEXT_PUBLIC_ASSET_BASE_URL: process.env.NEXT_PUBLIC_ASSET_BASE_URL,
   };
 }
 

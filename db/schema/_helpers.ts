@@ -1,5 +1,5 @@
 import { sql } from 'drizzle-orm';
-import { bigint, numeric, timestamp, uuid } from 'drizzle-orm/pg-core';
+import { bigint, customType, numeric, timestamp, uuid } from 'drizzle-orm/pg-core';
 
 /**
  * Shared column builders (docs/DATABASE.md §1).
@@ -80,3 +80,22 @@ export const actorColumns = {
 
 /** Optimistic locking, on tables where concurrent edits must be detected. */
 export const version = () => sql`1`;
+
+/**
+ * `tsvector` column, for PostgreSQL full-text search.
+ *
+ * Drizzle ships no native `tsvector` builder, and declaring these columns as `text`
+ * DOES NOT WORK: a GIN index over `text` has no default operator class, so
+ * `CREATE INDEX ... USING gin (search_vector)` fails outright with
+ * "data type text has no default operator class for access method gin" — the schema
+ * could not be created at all. Caught by scripts/db-integration-check.sh, which
+ * applies the schema to a real database.
+ *
+ * Typed as `string` on the TS side because these columns are generated and never
+ * read or written by the application; they exist purely for the search index.
+ */
+export const tsvector = customType<{ data: string; driverData: string }>({
+  dataType() {
+    return 'tsvector';
+  },
+});
