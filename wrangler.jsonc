@@ -33,6 +33,31 @@
   // (`wrangler versions upload`) publishes for reviewing a PR.
   "preview_urls": true,
 
+  // ---------------------------------------------------------------------------
+  // The build lives HERE, not in dashboard state.
+  //
+  // `main` and `assets.directory` above point into `.open-next/`, which is a
+  // gitignored build artifact. Something must generate it before a deploy, and
+  // wrangler runs this command for both `wrangler deploy` and
+  // `wrangler versions upload`.
+  //
+  // WHY IN THE REPO: Cloudflare Workers Builds stores `build_command` PER
+  // TRIGGER — one for the production branch, a separate one for preview
+  // branches. The dashboard's Build settings page exposes a single "Build
+  // command" field, so it is easy to end up with the production trigger
+  // configured and the preview trigger's `build_command` still empty. A preview
+  // build then installs dependencies and jumps straight to the deploy command,
+  // never generating `.open-next/`, and fails on the missing entry point. That
+  // is a silent, invisible misconfiguration; owning the build here removes the
+  // dashboard as a point of failure entirely.
+  //
+  // Leave `build_command` EMPTY on both Workers Builds triggers. Setting it
+  // there as well is not harmful, just a wasted duplicate build.
+  // ---------------------------------------------------------------------------
+  "build": {
+    "command": "pnpm cf:build",
+  },
+
   "observability": {
     "enabled": true,
   },

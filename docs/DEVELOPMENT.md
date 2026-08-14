@@ -182,16 +182,40 @@ These live in the Cloudflare dashboard under **Settings → Build**, not in this
 | Setting                              | Value                          |
 | ------------------------------------ | ------------------------------ |
 | Root directory                       | `/`                            |
-| Build command                        | `pnpm cf:build`                |
+| Build command                        | _leave empty_ — see below      |
 | Deploy command                       | `npx wrangler deploy`          |
 | Non-production branch deploy command | `npx wrangler versions upload` |
 | Builds for non-production branches   | enabled                        |
+| Production branch                    | `main`                         |
 
-**The build command is not optional.** `.open-next/` is a gitignored build artifact, and `wrangler.jsonc` points `main` and `assets.directory` inside it. With no build command the checkout has no `.open-next/`, and the deploy fails with `Could not detect a directory containing static files` — which reads like a misconfigured assets path but actually means the build never ran.
+**The build is owned by `wrangler.jsonc`, not by the dashboard.** `build.command` there runs `pnpm cf:build` for both `wrangler deploy` and `wrangler versions upload`, so `.open-next/` is always generated before the upload regardless of dashboard state.
 
-`pnpm cf:build` runs `next build` first and then the Workers bundling step, so it is the only build command needed.
+That is deliberate. Workers Builds stores `build_command` **per trigger** — one trigger for the production branch, a separate one for preview branches — while the dashboard exposes a single "Build command" field. It is therefore easy to have the production trigger configured and the preview trigger's `build_command` still empty. The symptom is specific and easy to misread:
 
-Reproduce the whole pipeline locally with `pnpm cf:build && npx wrangler deploy --dry-run`. The dry run validates the config and resolves the assets directory without deploying or needing credentials.
+```
+Installing project dependencies...
+Executing user deploy command: npx wrangler versions upload   ← no build step ran
+✘ The entry-point file at ".open-next/worker.js" was not found.
+```
+
+On the Cloudflare side the same failure can instead surface as `Could not detect a directory containing static files`, which reads like a wrong assets path but means the build never ran.
+
+`pnpm cf:build` runs `next build` and then the Workers bundling step, so it is the only build command needed.
+
+To inspect what a trigger actually has stored — the dashboard form can look correct while the preview trigger is empty — use the [Builds API](https://developers.cloudflare.com/workers/ci-cd/builds/api-reference/) with a **user-scoped** token (account-scoped tokens are rejected):
+
+```bash
+# 1. Worker tag (the API needs the tag, not the name)
+curl -s "https://api.cloudflare.com/client/v4/accounts/$CF_ACCOUNT_ID/workers/scripts" \
+  -H "Authorization: Bearer $CF_API_TOKEN" | jq '.result[] | select(.id=="parthik") | .tag'
+
+# 2. Both triggers, with the build command each one actually holds
+curl -s "https://api.cloudflare.com/client/v4/accounts/$CF_ACCOUNT_ID/builds/workers/$WORKER_TAG/triggers" \
+  -H "Authorization: Bearer $CF_API_TOKEN" \
+  | jq '.result[] | {trigger_name, branch_includes, branch_excludes, build_command, deploy_command}'
+```
+
+Reproduce the whole pipeline locally with `npx wrangler versions upload --dry-run`. Because the build is in `wrangler.jsonc`, that single command builds and validates from a clean checkout without deploying or needing credentials.
 
 ## Known warnings
 
