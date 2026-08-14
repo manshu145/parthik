@@ -1,9 +1,9 @@
 # Parthik — Development Plan
 
-**Status:** **APPROVED** · **Version:** 1.0 · **Approved:** 2026-08-14
+**Status:** **APPROVED** · **Version:** 1.1 · **Revised:** 2026-08-14 (Google-first services)
 **Depends on:** [`ARCHITECTURE.md` §16 Approved Decisions](./ARCHITECTURE.md#16-approved-decisions)
 
-> Master spec §27 Step 1 gate is **complete**: 28 of 33 decisions approved.
+> Master spec §27 Step 1 gate is **complete**: 30 of 36 decisions approved. **D-08 (auth) is resolved by Firebase Authentication, which clears the former critical-path blocker.**
 >
 > **Current standing instruction:** no database migrations, no application features, no production/DNS changes, no legacy data migration. TASK 001's remaining scaffold work is the next authorized step.
 
@@ -21,7 +21,7 @@
 | Legacy data | **Not migrated, by decision (D-31).** A separate migration plan follows schema approval |
 | Legacy Parthik backup | **Still not verified by me.** Master spec §31 requires source, database, media, config and DNS backups with a rehearsed restore before any replacement work. Please confirm |
 | Cloudflare zone / accounts | Not yet provisioned — needed for TASK 001 completion |
-| Provider accounts | Razorpay, Resend, Google Maps, Sentry, PostHog chosen; **SMS vendor pick still open (D-24a) and DLT registration has not started** |
+| Provider accounts | **Firebase/Google Cloud project needed** (Auth, FCM, Analytics, Maps, Logging) + Razorpay. ✅ **DLT registration no longer required for OTP.** 🔴 Email (D-25) and non-OTP SMS (D-34) blocked |
 | Production domain / DNS | **Untouched, as instructed.** No cutover activity |
 
 ---
@@ -70,9 +70,13 @@ Mapped directly to master spec §44 and §41. Each task is a PR (or a small seri
 | `.env.example` + validated config module | ✅ **Unblocked** (all providers chosen except D-24a) |
 | Directory structure + module boundaries | ✅ Ready |
 | Drizzle setup + Hyperdrive binding + connection helper (**no schema, no migrations**) | ✅ **Unblocked** (D-01/D-02); needs provider pick D-01a for a live URL |
-| Auth + RBAC **architecture placeholders only** | ⚠️ Interfaces yes; implementation blocked on **D-08** |
+| Auth + RBAC | ✅ **Unblocked** — D-08 resolved (Firebase Authentication) |
 | Error taxonomy + structured logger | ✅ Ready |
-| Sentry wiring | ✅ **Unblocked** (D-27) |
+| **Firebase client SDK + Auth wiring** | ✅ **Unblocked** (D-08) — needs a Firebase project |
+| **Firebase ID token verifier (Web Crypto, x509 certs)** | ✅ **Unblocked** — security-critical, gets its own tests |
+| **FCM service worker (merged into the PWA worker via `importScripts`)** | ✅ **Unblocked** (D-26) |
+| **GA4 / Firebase Analytics init + `track()` interface** | ✅ **Unblocked** (D-28) |
+| **Cloud Logging tail-consumer Worker** | ✅ **Unblocked** (D-27) |
 | Test setup (Vitest + Playwright) | ✅ Ready |
 | README + CI pipeline | ✅ Ready |
 | Typecheck, lint, production build green | Gate for closing TASK 001 |
@@ -85,12 +89,12 @@ Mapped directly to master spec §44 and §41. Each task is a PR (or a small seri
   🚫 **Migration generation withheld pending explicit authorization.**
 
 ### Phase 2 — Identity
-- **TASK 003 — Authentication + RBAC.** Phone OTP, **email OTP fallback (no passwords — D-09)**, sessions with role-specific lifetimes (D-10), revocation, rate limiting, permission engine, `can()`/`requirePermission()`, route gating, login/signup/verify UI, security page, locale preference.
-  🔴 **BLOCKED on D-08** (auth library) and **D-24a** (SMS vendor → DLT registration). D-03a needed for the cache. **This is the critical path.**
+- **TASK 003 — Authentication + RBAC.** **Firebase Phone Auth** sign-in UI with reCAPTCHA verifier, **`POST /auth/session` ID-token verification and exchange**, `firebase_uid` → user mapping, Parthik sessions with role-specific lifetimes (D-10), revocation incl. **Firebase refresh-token revocation**, Identity Platform REST helper (D-36), rate limiting, permission engine, `can()`/`requirePermission()`, route gating, security page, locale preference.
+  ✅ **UNBLOCKED** — D-08 resolved and the DLT dependency is gone. ⚠️ Needs a **Firebase project** and **D-03a** cache. **Phone-only sign-in: no email fallback while D-25 is blocked.**
 
 ### Phase 3 — Customer core
 - **TASK 004 — Customer shell + navigation.** Layouts, bottom nav, desktop header, footer, location selector shell, cart drawer shell, toasts, skeleton/empty/error/offline components, PWA manifest and app shell, **locale switcher and `/hi/` routing**. ✅ Approved. ⚠️ Confirm **D-33a** URL strategy.
-- **TASK 005 — Location and serviceability.** Zones, pincodes, detection, address search, address CRUD, serviceability checks, **zone-based fee with the admin-configurable ₹199 threshold**. ✅ Approved (D-17, D-23).
+- **TASK 005 — Location and serviceability.** Zones, pincodes, browser Geolocation detection, **Google Places autocomplete with session tokens**, **Geocoding** proxy, address CRUD, serviceability checks, **Google Routes** distance/ETA, **zone-based fee with the admin-configurable ₹199 threshold**. ✅ Approved (D-17, D-23).
 - **TASK 006 — Catalog.** Categories, products, variants, images, **translation-aware reads with EN fallback**, product cards, category pages, product detail, admin/vendor catalog CRUD foundations, ISR + tag revalidation. ✅ Approved. ⚠️ **D-07a** image transformation.
 - **TASK 007 — Search.** Per-locale search vectors, `pg_trgm`, suggestions, filters, sort, empty states. ✅ Approved (D-21), with the Hindi stemming limitation documented (C-2).
 - **TASK 008 — Cart.** Guest + user carts, merge on login, **single-vendor enforcement (D-11)**, quantity rules, stock validation, the shared pricing engine with unit tests. ✅ Approved. 🔴 Pricing engine ships `NoTaxStrategy` — **D-14 blocked, no tax assumption**.
@@ -106,16 +110,19 @@ Mapped directly to master spec §44 and §41. Each task is a PR (or a small seri
 - **TASK 013 — Vendor dashboard.** Application/KYC, onboarding gate, store profile and hours (**incl. per-store COD toggle**), product management incl. bulk import/export and **Hindi translation fields**, inventory, order workflow, analytics, **payouts view showing calculated-but-manually-settled amounts (D-15)**, documents, support. ✅ Approved. 🔴 **D-32** decides whether the store UI is single or multi.
 
 ### Phase 6 — Driver
-- **TASK 014 — Driver dashboard.** Application/KYC, availability, **auto-nearest offer queue with timeout/expiry countdown (D-18)**, delivery flow, **mandatory OTP proof with photo/signature exception (D-20)**, **COD collection + cash screens**, earnings ledger, history. ✅ Approved. ⚠️ Dispatch timeout/attempt defaults need confirmation. ⚠️ Confirm whether the driver dashboard is fully Hindi at launch.
+- **TASK 014 — Driver dashboard.** Application/KYC, availability, **auto-nearest offer queue using a haversine pre-filter plus Google Route Matrix ranking, with timeout/expiry countdown (D-18)**, delivery flow, **mandatory OTP proof with photo/signature exception (D-20)**, **COD collection + cash screens**, earnings ledger, history. ✅ Approved. ⚠️ Dispatch timeout/attempt defaults need confirmation. ⚠️ Confirm whether the driver dashboard is fully Hindi at launch.
 
 ### Phase 7 — Admin
 - **TASK 015 — Admin dashboard.** KPIs and charts, order control incl. assign/cancel/refund, customer/vendor/driver management with approval queues, catalog moderation, delivery board, zones, payments/refunds/payouts, reviews, support queue, reports, settings, roles and permissions UI, audit log viewer, system health, feature flags.
 - **TASK 016 — Marketing and CMS.** Banners, campaigns, CMS pages, home layout builder, blog, redirect manager, **translation management UI + completeness dashboard**. ✅ Approved (D-30, D-33).
-- **TASK 017 — Notifications.** Notification service, channel adapters, admin-editable templates **in EN + HI**, preferences, in-app centre, campaign fan-out via queues, web push. ✅ Approved (D-25 Resend, D-26 Web Push). 🔴 **D-24a** and **DLT registration in both languages**.
+- **TASK 017 — Notifications.** Notification service, **FCM push + in-app channels only**, admin-editable templates **in EN + HI**, preferences, in-app centre, campaign fan-out via queues, FCM token lifecycle.
+  ✅ Approved (D-26 FCM). 🔴 **Email (D-25) and non-OTP SMS (D-34) blocked** — both ship as interfaces with no adapter.
+  ⚠️ **Product consequence to confirm:** a customer who declines push permission receives **no proactive order notification** in V1.
 
 ### Phase 8 — Growth and hardening
 - **TASK 018 — SEO.** Metadata, **per-locale canonicals and `hreflang`**, bilingual sitemap, robots, JSON-LD, OG images, redirects, 404, internal linking, Lighthouse budgets. ✅ Approved.
-- **TASK 019 — Analytics and observability.** PostHog event tracking, Sentry, request tracing, dashboards, alerts (**incl. cash and dispatch alerts**), health checks. ✅ Approved (D-27, D-28). ⚠️ Consent stance for PostHog needs defining.
+- **TASK 019 — Analytics and observability.** **Firebase Analytics + GA4** client events, **GA4 Measurement Protocol** for server-side commercial events, **Cloud Logging tail consumer**, **Cloud Monitoring alert policies** (incl. cash, dispatch and **Identity Platform SMS spend**), Error Reporting, request tracing, health checks. ✅ Approved (D-27, D-28).
+  ⚠️ **Consent banner required** — GA4 sets cookies; configure Google Consent Mode. 🔴 **D-27a: no source-mapped browser error tracking** — interim `/client-errors` → Cloud Logging.
 - **TASK 020 — Testing completion.** Full unit/integration/E2E suites for the four critical journeys, concurrency tests, a11y and performance checks in CI.
 
 ### Phase 9 — Production
@@ -128,7 +135,9 @@ Mapped directly to master spec §44 and §41. Each task is a PR (or a small seri
 
 | Task | Blocked by |
 |---|---|
-| **TASK 003** Authentication + RBAC | **D-08** auth library · **D-24a** SMS vendor + DLT |
+| ~~**TASK 003** Authentication + RBAC~~ | ✅ **Unblocked** — Firebase Authentication resolves D-08 |
+| Email OTP fallback sign-in, order emails, account recovery | **D-25** |
+| Order-status SMS notifications | **D-34** |
 | Invoice generation, tax display, GST reporting *(within TASK 009/010)* | **D-14** |
 | Vendor store UI shape *(within TASK 013)* | **D-32** |
 | **TASK 023** Legacy migration | **D-31** — deliberately deferred |
@@ -225,10 +234,10 @@ These are the items that will delay the project if started late, and none of the
 
 | Item | Why it takes time | Needed by |
 |---|---|---|
-| **SMS vendor pick (D-24a) + DLT registration** | Sender ID and every transactional template pre-registered and approved — now needed in **English AND Hindi**, roughly doubling the template set. Days to weeks | **TASK 003 — blocking, start immediately** |
+| ~~SMS vendor + DLT registration~~ | ✅ **Removed from the critical path.** Firebase operates OTP delivery. Returns only if D-34 (order-status SMS) is unblocked | — |
 | **Razorpay merchant account** | KYC, business documents, live-mode activation, webhook secret | TASK 011 |
-| Resend domain verification | SPF/DKIM/DMARC records plus warm-up | TASK 003 |
-| Google Maps billing + key restrictions | Billing setup, quota, referrer/IP restrictions | TASK 005 |
+| **Firebase / Google Cloud project setup** | Project creation, Phone Auth enablement, **billing account (Phone Auth SMS is metered)**, App Check, service-account key, IAM roles | **TASK 001/003** |
+| Google Maps Platform billing + **two restricted keys** | Browser key (referrer-restricted, display only) and server key (IP-restricted: Places, Geocoding, Routes) | TASK 005 |
 | Cloudflare account/zone, R2, Queues | Paid plan needed for Queues and Durable Objects | TASK 001 |
 | Managed Postgres provisioning (D-01a) | Provider pick, ap-south region, PITR config | TASK 002 |
 | **GST/tax determination (D-14)** | **Blocking.** Needs your accountant. Gates invoices and any tax display | TASK 009/010 |
@@ -270,7 +279,14 @@ Per master spec §31 and §46, in order, with no step skipped:
 |---|---|---|
 | ~~Unresolved commerce decisions~~ | — | **Resolved.** D-11, D-12, D-16, D-17, D-18, D-19, D-20 approved |
 | **D-14 tax still blocked** while commerce is built | Rework of totals display, invoices and possibly `order_items` if it lands after real orders exist | Tax isolated behind `TaxStrategy`; columns pre-created so unblocking is a backfill, not a migration on live financial data. **Resolve before launch, ideally before TASK 009** |
-| **D-08 blocks the critical path** | TASK 003 cannot start; everything after it waits | Decide auth library now. Recommendation: in-house, since D-09 removed passwords and OAuth |
+| ~~D-08 blocks the critical path~~ | — | ✅ **Resolved** by Firebase Authentication |
+| **Push is the only outbound channel** (D-25 + D-34 both blocked) | Customers who decline notification permission get no order updates; iOS needs an installed PWA. Real support-load and satisfaction risk | In-app notification centre always populated; order-status page always available; **resolve D-25 or D-34 before launch** |
+| **No account recovery without the phone number** (D-25 blocked) | A user who changes or loses their number is locked out; support must intervene manually | Document an admin-assisted recovery procedure with identity checks and full auditing |
+| **Firebase Phone Auth SMS cost under abuse** | Direct cash loss, and we cannot throttle at Google's edge | App Check enforced, reCAPTCHA mandatory, our own `/auth/session` limits, **Cloud billing alerts on Identity Platform spend** |
+| **Firebase service-account key is now the crown jewel** | Compromise allows acting on any user account | Worker secret only, minimal IAM, rotation schedule, Cloud Audit Log monitoring |
+| **Firebase Admin SDK unusable on Workers** | Hand-rolled token verification is security-critical code we own | Dedicated test suite covering forged/expired/wrong-audience/`alg`-downgrade tokens before launch |
+| **OTP SMS not reliably Hindi** (Google controls the message) | Inconsistent with the D-33 bilingual commitment at the very first touchpoint | Accept, or revisit D-24 with a DLT-registered provider for OTP |
+| **No source-mapped browser error tracking** (D-27a) | Client-side bugs are harder to diagnose | Interim `/client-errors` → Cloud Logging; revisit if diagnosis proves too slow |
 | **COD cash leakage** (new risk from D-12) | Direct financial loss, hard to detect late | Append-only ledger, per-driver cash limit gating dispatch, two-step deposit verification, variance and aged-cash alerts (§8.4 of SECURITY.md) |
 | **Bilingual scope creep** (new risk from D-33) | Translation debt across every content surface; untranslated strings shipped | Capability built once, content scope explicitly bounded; completeness dashboard makes gaps visible; EN fallback guarantees nothing renders empty |
 | **Hindi SMS cost and DLT workload** | Unicode SMS costs more with shorter segments; template set roughly doubles | Budget for it; register templates early; keep transactional copy short |
@@ -293,8 +309,9 @@ Per master spec §31 and §46, in order, with no step skipped:
 
 | Need | Blocks | Why it matters |
 |---|---|---|
-| **D-08** auth library: in-house or Better Auth | **TASK 003 and everything after it** | This is the critical path. My recommendation is now **in-house**, because D-09 removed passwords and there is no OAuth, leaving a library with little to contribute |
-| **D-24a** MSG91 or 2Factor, then start DLT registration | TASK 003 | Longest external lead time in the project, now doubled by needing Hindi templates |
+| **Firebase/Google Cloud project with billing enabled** | **TASK 001 completion and TASK 003** | Phone Auth SMS is metered, so a billing account is required before sign-in works at all |
+| **D-25** transactional email: accept none in V1, or pick a provider | Email fallback sign-in, all order emails, account recovery | **Google operates no first-party transactional email service.** With D-34 also blocked, push/in-app are the only outbound channels — and **a user who loses their phone number has no account-recovery path** |
+| **D-34** order-status SMS: none, or a provider plus our own DLT | Order notifications reaching users who decline push | Choosing SMS reintroduces full DLT registration in EN + HI |
 | **D-14** GST/tax from your accountant | Invoices, tax display, GST reporting | Everything else is built around it; the longer it stays open the more expensive it gets |
 
 ### ⚠️ Needed soon
@@ -303,6 +320,9 @@ Per master spec §31 and §46, in order, with no step skipped:
 |---|---|
 | **D-01a** managed Postgres provider (Neon or Supabase, ap-south) | TASK 002 live database |
 | **D-03a** cache provider (recommend Upstash) | TASK 003 |
+| **Firebase project region / data residency** for Identity Platform | Before production |
+| **D-27a** accept the browser-error gap, or reinstate a tool | TASK 019 |
+| **D-35a** confirm reCAPTCHA (auth) + Turnstile (other forms), or consolidate | TASK 003 |
 | **D-32** one store per vendor, or many | TASK 013 vendor UI. Default proposed: schema many, UI one |
 | **D-19a** cancellation/refund **values** per role × status | TASK 010 |
 | **D-33a** confirm default-unprefixed locale URLs | TASK 004 |
@@ -312,7 +332,7 @@ Per master spec §31 and §46, in order, with no step skipped:
 | COD control values: max order value, driver cash limit, deposit grace period | TASK 011b |
 | Hindi translator/resource for UI strings, categories and templates | TASK 004/017 |
 | Whether the **driver dashboard** must be fully Hindi at launch | TASK 014 |
-| PostHog consent stance | TASK 019 |
+| GA4 consent stance + Google Consent Mode configuration | TASK 019 |
 
 ### Confirmations requested
 
@@ -322,6 +342,8 @@ Per master spec §31 and §46, in order, with no step skipped:
 4. `/orders` vs `/account/orders` consolidation (one canonical route + redirect).
 5. Task numbering deviation from master spec §44.
 6. Payment-data localisation obligations — confirm with Razorpay and counsel.
+7. **Push-only notifications are acceptable for V1** (consequence of D-25 + D-34), or one of them gets unblocked first.
+8. **Admin-assisted account recovery** is acceptable as the only path for a user who loses their phone number.
 
 ---
 
@@ -329,8 +351,8 @@ Per master spec §31 and §46, in order, with no step skipped:
 
 **Complete TASK 001 — the application scaffold**, which is now unblocked apart from brand tokens:
 
-Next.js 16 + TypeScript strict · OpenNext/Wrangler config for Workers · Tailwind + token structure · shadcn/ui init · next-intl with `en`/`hi` catalogs · ESLint import-boundary rules · Prettier/Husky/lint-staged · validated config module + `.env.example` · directory structure and module boundaries · Drizzle client + Hyperdrive binding (**no schema, no migrations**) · error taxonomy · structured logger · Sentry · Vitest + Playwright · CI pipeline · typecheck/lint/build green.
+Next.js 16 + TypeScript strict · OpenNext/Wrangler config for Workers · Tailwind + token structure · shadcn/ui init · next-intl with `en`/`hi` catalogs · ESLint import-boundary rules · Prettier/Husky/lint-staged · validated config module + `.env.example` · directory structure and module boundaries · Drizzle client + Hyperdrive binding (**no schema, no migrations**) · error taxonomy · structured logger · **Firebase client SDK + ID-token verifier** · **FCM service worker** · **GA4/Firebase Analytics init** · **Cloud Logging tail consumer** · Vitest + Playwright · CI pipeline · typecheck/lint/build green.
 
-**Explicitly excluded from that task:** database migrations, any schema definition, any commerce feature, any auth implementation (D-08), production/DNS configuration, and legacy data.
+**Explicitly excluded from that task:** database migrations, any schema definition, any commerce feature, production/DNS configuration, and legacy data. Auth *wiring* is now in scope (D-08 resolved) but the full identity feature remains TASK 003.
 
-Running TASK 001 in parallel with your D-08 and D-24a decisions keeps the critical path moving, since the scaffold does not depend on either.
+**The critical path is now clear.** TASK 001 → TASK 002 → TASK 003 can run continuously, provided a **Firebase/Google Cloud project with billing** exists. The remaining blocked items (D-14 tax, D-25 email, D-34 SMS, D-32 store UI) affect later tasks, not the foundation.

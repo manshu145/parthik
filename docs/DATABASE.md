@@ -1,6 +1,6 @@
 # Parthik — Database Design
 
-**Status:** **APPROVED** design · **Version:** 1.0 · **Approved:** 2026-08-14
+**Status:** **APPROVED** design · **Version:** 1.1 · **Revised:** 2026-08-14 (Google-first services)
 **Depends on:** [`ARCHITECTURE.md` §16](./ARCHITECTURE.md#16-approved-decisions)
 **ORM:** Drizzle (D-02) · **Host:** managed PostgreSQL behind Hyperdrive (D-01)
 
@@ -87,7 +87,8 @@ delivery_status          PENDING_ASSIGNMENT | OFFERED | ASSIGNED | EN_ROUTE_TO_S
                          | AT_STORE | PICKED_UP | EN_ROUTE_TO_CUSTOMER | AT_CUSTOMER
                          | DELIVERED | FAILED | CANCELLED | RETURNED_TO_STORE
 proof_type               OTP | PHOTO | SIGNATURE | CUSTOMER_CONFIRMATION
-notification_channel     SMS | EMAIL | PUSH | IN_APP | WHATSAPP
+notification_channel     PUSH | IN_APP          -- active in V1 (D-26 FCM)
+                         | EMAIL | SMS | WHATSAPP   -- reserved; EMAIL blocked D-25, SMS blocked D-34
 notification_status      QUEUED | SENT | DELIVERED | FAILED | READ
 review_status            PENDING | APPROVED | REJECTED | HIDDEN
 ticket_status            OPEN | IN_PROGRESS | WAITING_ON_CUSTOMER | RESOLVED | CLOSED
@@ -114,14 +115,20 @@ dispatch_mode            AUTO_NEAREST | BROADCAST | MANUAL               -- D-18
 Central identity. One row per human, regardless of how many roles they hold.
 
 ```text
-id, phone (unique, nullable), phone_verified_at,
+id,
+firebase_uid (unique, NOT NULL),        -- D-08: Firebase Authentication is the identity provider
+phone (unique, nullable), phone_verified_at,
 email (unique, nullable), email_verified_at,
--- NOTE: no password_hash column. D-09 approved: phone OTP primary, no passwords in V1.
+-- NO password_hash. D-09: Firebase Phone Auth only, no passwords in V1.
 full_name, preferred_locale ('en'|'hi', default 'en'),   -- D-33
-status user_status, last_login_at, locale,
+status user_status, last_login_at,
 created_at, updated_at, deleted_at, anonymized_at
 ```
-Constraint: at least one of `phone`/`email` present. Indexes: unique on `lower(email)`, unique on `phone`, index on `status`.
+Constraint: at least one of `phone`/`email` present. Indexes: **unique on `firebase_uid`** (the primary lookup on every sign-in), unique on `lower(email)`, unique on `phone`, index on `status`.
+
+**`firebase_uid` is the join key between Firebase and Parthik.** It is written once at first sign-in from the *verified* token, never from client input, and never changes. Phone and email are mirrored from the verified token for display and operational contact — Firebase remains authoritative for the credential, Parthik for everything else.
+
+**Roles are never stored in Firebase custom claims.** `user_roles` in PostgreSQL is the only source of authorization truth, because roles are vendor-scoped, auditable and must change without an external round-trip.
 
 ### `roles` / `permissions` / `role_permissions` / `user_roles`
 Permission-based RBAC (see [`SECURITY.md` §5](./SECURITY.md)).
@@ -140,17 +147,25 @@ Server-side sessions, revocable (master spec §23).
 
 ```text
 id, user_id, token_hash (unique), active_role_id, device_id,
+firebase_token_issued_at,        -- audit trail of which Firebase sign-in created this session
 ip_hash, user_agent, expires_at, last_seen_at, revoked_at, revoked_reason, created_at
 ```
 Only the **hash** of the session token is stored. Index on `user_id`, `expires_at`.
 
+Created by exchanging a verified Firebase ID token (D-10). The Firebase token is **not** retained — only the fact and time of the sign-in that produced this session, so an incident can be traced back to a Firebase auth event.
+
 ### `otp_verifications`
+**Scope reduced by D-24.** Login/signup OTP is now generated, delivered and verified entirely by **Firebase Phone Authentication** — we neither store nor see those codes. This table is retained **only for delivery OTP (D-20)** and any future non-Firebase OTP need.
+
 ```text
-id, user_id (nullable — signup), destination (phone/email), channel,
-purpose otp_purpose, code_hash, attempts, max_attempts,
+id, user_id (nullable), destination (phone), channel,
+purpose otp_purpose,          -- V1 uses ORDER_DELIVERY only
+code_hash, attempts, max_attempts,
 expires_at, consumed_at, ip_hash, created_at
 ```
 Codes are hashed, never stored in plaintext, never logged. Index on `(destination, purpose, created_at desc)` for throttling.
+
+> `otp_purpose` values `LOGIN`, `SIGNUP`, `PHONE_VERIFY`, `PASSWORD_RESET` become **unused in V1** — Firebase owns those paths and passwords do not exist. They stay in the enum for future use rather than being removed.
 
 ### `login_attempts`
 ```text
@@ -159,10 +174,15 @@ failure_reason, user_agent, created_at
 ```
 Feeds lockout and abuse detection. Index on `(identifier, created_at desc)` and `(ip_hash, created_at desc)`. Retention-limited by cron.
 
+**Records the token-exchange step**, not the OTP entry itself: Firebase handles OTP attempts, so what we can observe and rate-limit is `POST /auth/session` — successful and failed ID-token exchanges. Firebase's own abuse signals are not visible to us, which is a monitoring blind spot worth knowing (see [`SECURITY.md` §6](./SECURITY.md)).
+
 ### `devices`
+FCM registration tokens rotate, so `fcm_token_updated_at` drives cleanup of stale tokens (FCM rejects them and we must prune rather than retry forever). `push_permission` is stored because with email and SMS blocked, **knowing which users are unreachable is operationally important** — see [`ARCHITECTURE.md` §11.3](./ARCHITECTURE.md#113-notifications).
 ```text
-id, user_id, device_fingerprint, platform, push_token (nullable),
-push_provider, last_active_at, is_trusted, created_at, revoked_at
+id, user_id, device_fingerprint, platform,
+fcm_token (nullable), fcm_token_updated_at,     -- D-26: Firebase Cloud Messaging
+push_permission (GRANTED|DENIED|DEFAULT),
+last_active_at, is_trusted, created_at, revoked_at
 ```
 
 ---
@@ -848,7 +868,9 @@ subject, body, variables jsonb, provider_template_id (nullable),   -- DLT id for
 is_active, version, updated_by, created_at, updated_at
 -- unique (event_key, channel, locale, version)
 ```
-Admin-editable with variables (master spec §21). `provider_template_id` exists because Indian transactional SMS requires pre-registered DLT templates (**[D-24]**).
+Admin-editable with variables (master spec §21), required in **English and Hindi** for transactional events (D-33).
+
+**V1 populates `PUSH` and `IN_APP` channels only.** `provider_template_id` was originally for DLT-registered SMS templates; **login OTP no longer needs it** because Firebase owns that delivery (D-24). It is retained for the day D-34 (non-OTP SMS) or D-25 (email) is unblocked.
 
 ### `notifications`
 ```text
@@ -1034,7 +1056,7 @@ response_status, response_body jsonb, locked_at, completed_at, expires_at, creat
 ```
 
 ### `analytics_events`
-Only if a self-hosted event store is chosen (**[D-28]**); otherwise events go to the provider and this table is skipped.
+🚫 **Not created in V1.** D-28 selects Firebase Analytics + GA4, which own event storage, with BigQuery export kept future-ready. This definition is retained only in case a self-hosted event store is ever needed.
 ```text
 id, event_name, user_id (nullable), anonymous_id, session_id,
 properties jsonb, url, referrer, device_type, occurred_at, created_at
@@ -1082,6 +1104,7 @@ Deterministic seeds for: permissions and role→permission mappings, a super adm
 | `otp_verifications` | Purge consumed/expired after 30 days |
 | `login_attempts` | Purge after 90 days |
 | `sessions` | Purge expired/revoked after 30 days |
+| Stale `devices.fcm_token` | Pruned when FCM reports the token invalid, or after 90 days inactive |
 | Driver **current** position | Cleared the moment availability becomes `OFFLINE` (D-29 + C-1) |
 | Driver location **trail** (active delivery) | **Purged after 7 days** (D-29) |
 | `cash_deposits` proof files | Retained 12 months for reconciliation disputes |
@@ -1102,7 +1125,10 @@ Managed PITR from the chosen host (**[D-01]**), plus an independent periodic log
 | Decision | Outcome in the schema |
 |---|---|
 | **D-01/D-02** | Drizzle definitions against managed PostgreSQL via Hyperdrive |
-| **D-09** | **No `password_hash` column.** Phone OTP only; `preferred_locale` added |
+| **D-08/D-09** | **`users.firebase_uid` unique NOT NULL** as the Firebase↔Parthik join key. **No `password_hash`.** `otp_verifications` reduced to delivery OTP only |
+| **D-10** | `sessions.firebase_token_issued_at` for traceability; Parthik sessions remain authoritative |
+| **D-26** | `devices.fcm_token`, `fcm_token_updated_at`, `push_permission` |
+| **D-28** | No analytics tables — GA4/Firebase own event storage; `analytics_events` **not created** in V1 |
 | **D-11** | `carts.store_id` / `orders.store_id` — single vendor per order. No order-group table |
 | **D-12** | `orders.is_cod` + `cod_amount_paise`, `deliveries.cod_*` with variance, `driver_cash_ledger`, `cash_deposits`, COD entry directly at `CONFIRMED` (§6.2, §7.1) |
 | **D-15** | `vendors.commission_rate`, `orders.vendor_payout_paise`, `payout_batches` — calculation only, no auto-settlement |
@@ -1115,7 +1141,8 @@ Managed PITR from the chosen host (**[D-01]**), plus an independent periodic log
 | **D-29** | Split into ephemeral position (cleared offline) and 7-day-purged trail |
 | **D-30** | `cms_pages`, `home_layouts`, `blog_posts`, `redirects` — DB-driven |
 | **D-31** | **No migration tables, no id-mapping tables built yet.** A separate plan follows schema approval |
-| **D-33** | `supported_locales` + `*_translations` tables (§10.1); base tables hold no language-specific text |
+| **D-33** | `supported_locales` + `*_translations` tables (§10.1); base tables hold no language-specific text. ⚠️ *Firebase OTP SMS language is not under our control* |
+| **D-36** | No schema impact — Identity Platform REST is a runtime concern |
 
 ### 🔴 Still blocked — schema deliberately inert
 
@@ -1124,6 +1151,8 @@ Managed PITR from the chosen host (**[D-01]**), plus an independent periodic log
 | **D-14 GST/tax** | Tax columns and `tax_rates`/`invoices` tables exist but carry **no logic, no seed data and produce no rows**. See §6.4. Unblocking is a backfill plus a strategy implementation, not a migration on live financial tables |
 | **D-08 auth library** | Affects no table. `sessions`/`otp_verifications` are library-agnostic as designed, so this blocks TASK 003 code rather than TASK 002 schema |
 | **D-32 multi-store** | `stores.vendor_id` already supports N per vendor. **No schema change either way** — only the vendor UI differs |
+| **D-25 email** | `notification_channel` retains `EMAIL`; **no email is sent**. `users.email` still captured and verifiable |
+| **D-34 non-OTP SMS** | `notification_channel` retains `SMS`; **no SMS is sent** beyond Firebase's own OTP path |
 
 ### Open sub-items with schema impact
 

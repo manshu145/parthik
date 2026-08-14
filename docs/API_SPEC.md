@@ -1,6 +1,6 @@
 # Parthik — API Specification
 
-**Status:** **APPROVED** design · **Version:** 1.0 · **Approved:** 2026-08-14
+**Status:** **APPROVED** design · **Version:** 1.1 · **Revised:** 2026-08-14 (Google-first services)
 **Depends on:** [`ARCHITECTURE.md`](./ARCHITECTURE.md) · [`SECURITY.md`](./SECURITY.md) · [`DATABASE.md`](./DATABASE.md)
 
 > This is the internal API contract for the Parthik web application. It is not a public partner API. Everything here is versioned under `/api/v1` so a future mobile app or extracted API service can consume it unchanged.
@@ -94,22 +94,63 @@ Enforced at the edge and in-application. Full table in [`SECURITY.md` §7](./SEC
 
 ## 2. Authentication endpoints
 
+**Firebase Authentication owns the OTP exchange. Our API begins after Firebase has verified the phone number.** There is no longer an OTP request/verify endpoint on our side, because we never see the code.
+
+### 2.1 The token exchange
+
+```text
+Browser (Firebase JS SDK)                    Parthik API
+─────────────────────────                    ───────────
+signInWithPhoneNumber(+91…)
+  ↓ reCAPTCHA verifier (Firebase-mandated)
+Firebase sends OTP SMS
+confirmResult.confirm(code)
+  ↓ Firebase ID token (JWT, ~1 h)
+                              POST /api/v1/auth/session { idToken }
+                                             ↓ verify signature/iss/aud/exp
+                                               against Google x509 certs
+                                               (Web Crypto, cached)
+                                             ↓ find or create user by firebase_uid
+                                             ↓ create Parthik session
+                              ← Set-Cookie: __Host-session   { user, roles, isNewUser }
+```
+
+After this, **the Firebase ID token is never used again**. Every subsequent request authenticates with our session cookie. Rationale in [`ARCHITECTURE.md` §11.1](./ARCHITECTURE.md#111-authentication-and-rbac).
+
 | Method | Path | Access | Purpose |
 |---|---|---|---|
-| `POST` | `/api/v1/auth/otp/request` | PUBLIC | Request phone OTP. Body `{ phone, purpose, turnstileToken? }`. **Always returns a generic success** — never reveals whether the number is registered |
-| `POST` | `/api/v1/auth/otp/verify` | PUBLIC | `{ phone, code, purpose }` → session cookie + `{ user, roles, isNewUser }` |
-| `POST` | `/api/v1/auth/email-otp/request` | PUBLIC | Email OTP fallback. **D-09 approved: no password login in V1** |
-| `POST` | `/api/v1/auth/email-otp/verify` | PUBLIC | |
-| `POST` | `/api/v1/auth/signup` | PUBLIC | `{ fullName, phone, email?, preferredLocale? }` — **no password field** |
-| `POST` | `/api/v1/auth/logout` | AUTH | Revokes the current session |
-| `POST` | `/api/v1/auth/logout-all` | AUTH | Revokes every session for the user |
-| `GET` | `/api/v1/auth/session` | AUTH | Current user, roles, permissions, active context |
-| `GET` | `/api/v1/auth/sessions` | AUTH | Active devices/sessions list |
+| `POST` | `/api/v1/auth/session` | PUBLIC | **The exchange.** `{ idToken, preferredLocale?, fullName? }` → verifies the Firebase token, maps `firebase_uid` → Parthik user (creating it on first sign-in), issues our session cookie. Returns `{ user, roles, permissions, isNewUser }`. Rate-limited per IP and per uid |
+| `GET` | `/api/v1/auth/session` | AUTH | Current user, roles, permissions, active context, resolved locale |
+| `POST` | `/api/v1/auth/logout` | AUTH | Revokes the current Parthik session and clears the cookie |
+| `POST` | `/api/v1/auth/logout-all` | AUTH | Revokes every Parthik session **and** revokes Firebase refresh tokens via the Identity Platform REST API (D-36) — otherwise the client could mint a fresh ID token and re-establish a session |
+| `GET` | `/api/v1/auth/sessions` | AUTH | Active devices/sessions |
 | `DELETE` | `/api/v1/auth/sessions/[id]` | AUTH (owner) | Revoke one session |
-| `POST` | `/api/v1/auth/email/verify` | AUTH | |
+| `POST` | `/api/v1/auth/profile` | AUTH | Complete profile after first sign-in (`fullName`, optional `email`) |
 | `PATCH` | `/api/v1/auth/locale` | AUTH | Persist `preferredLocale` (D-33) |
 
-> **Removed by D-09:** `/auth/login` (password), `/auth/password/reset-request`, `/auth/password/reset`. No password endpoint exists in V1.
+### 2.2 Endpoints that no longer exist
+
+| Removed | Why |
+|---|---|
+| `/auth/otp/request`, `/auth/otp/verify` | **Firebase owns login OTP (D-24).** MSG91/2Factor removed |
+| `/auth/login`, `/auth/password/*` | No passwords in V1 (D-09) |
+| `/auth/email-otp/request`, `/auth/email-otp/verify` | 🔴 Requires email delivery — **blocked (D-25)**. V1 sign-in is **phone-only** |
+| `/auth/email/verify` | 🔴 Same reason. `users.email` is captured but not verified in V1 |
+| `/auth/signup` | Merged into `/auth/session` — first successful exchange creates the user |
+
+### 2.3 Verification rules for `/auth/session`
+
+Non-negotiable, because this endpoint is the entire front door:
+
+1. Verify the JWT **signature** against Google's current x509 signing certs for `securetoken@system.gserviceaccount.com`, cached with respect to `Cache-Control` and refreshed on rotation.
+2. Verify `iss` is `https://securetoken.google.com/<projectId>`, `aud` is `<projectId>`, `exp` is in the future, `iat` is not in the future, and `auth_time` is present.
+3. Verify `sub` (the uid) is non-empty — it becomes `firebase_uid`.
+4. Take **phone and email from the token claims only**, never from the request body. A client-supplied phone number is ignored entirely.
+5. Require `phone_number` to be present and `firebase.sign_in_provider` to be `phone` for V1.
+6. Reject a token whose `firebase_uid` maps to a user with status `SUSPENDED`/`BANNED`, before any session is created.
+7. Rate-limit by IP **and** by uid, and log every failure as a security event.
+
+Token verification failures return `401 FIREBASE_TOKEN_INVALID` with no detail about which check failed.
 
 ---
 
@@ -118,12 +159,16 @@ Enforced at the edge and in-application. Full table in [`SECURITY.md` §7](./SEC
 | Method | Path | Access | Purpose |
 |---|---|---|---|
 | `GET` | `/api/v1/location/serviceability?pincode=` | PUBLIC | `{ serviceable, zoneId, zoneName, deliveryFeePaise, freeDeliveryThresholdPaise, minOrderPaise, etaMinutes }` |
-| `GET` | `/api/v1/location/reverse-geocode?lat=&lng=` | PUBLIC | Proxied to the maps provider **server-side** so the API key is never in the browser; rate-limited and cached |
-| `GET` | `/api/v1/location/autocomplete?q=` | PUBLIC | Same proxy pattern, debounced client-side |
+| `GET` | `/api/v1/location/reverse-geocode?lat=&lng=` | PUBLIC | **Google Geocoding API** proxied server-side so the key is never in the browser; rate-limited and cached |
+| `GET` | `/api/v1/location/autocomplete?q=&sessionToken=` | PUBLIC | **Google Places Autocomplete** proxied server-side. `sessionToken` is required so a multi-keystroke search bills as one session rather than per request |
+| `GET` | `/api/v1/location/place-details?placeId=&sessionToken=` | PUBLIC | **Google Places Details** — resolves the chosen suggestion to coordinates and address components |
+| `POST` | `/api/v1/location/route-estimate` | PUBLIC | **Google Routes API** — road distance and ETA for a store↔address pair, cached, used for distance-based fees and delivery estimates |
 | `GET` | `/api/v1/location/zones` | PUBLIC | Active serviceable zones/cities |
 | `POST` | `/api/v1/location/select` | GUEST-OK | Persists the chosen zone in a cookie for cache variation |
 
-Provider proxying is deliberate: it protects the key, lets us cache aggressively, and keeps map spend controllable (D-23: Google Maps).
+Provider proxying is deliberate: it protects the server key, lets us cache aggressively, and keeps Google Maps spend controllable (D-23). Only the **Maps JavaScript** display key is exposed to the browser, and it is HTTP-referrer restricted.
+
+**Dispatch note:** driver ranking uses **Google Route Matrix**, but only after a haversine pre-filter narrows candidates — a Matrix call across every online driver would be needlessly expensive.
 
 ---
 
@@ -243,8 +288,8 @@ In one transaction: verify OTP → mark delivery `DELIVERED` → mark order `DEL
 | Method | Path | Auth |
 |---|---|---|
 | `POST` | `/api/v1/webhooks/payments/[provider]` | Provider HMAC signature over the **raw** body |
-| `POST` | `/api/v1/webhooks/sms/[provider]` | Provider signature — delivery receipts |
-| `POST` | `/api/v1/webhooks/email/[provider]` | Provider signature — bounces/complaints |
+| `POST` | `/api/v1/webhooks/sms/[provider]` | 🚫 **Not implemented** — no SMS provider in V1 (D-24 Firebase owns OTP, D-34 blocks other SMS) |
+| `POST` | `/api/v1/webhooks/email/[provider]` | 🚫 **Not implemented** — email blocked (D-25) |
 
 Webhook handler contract, in order:
 
@@ -393,13 +438,14 @@ Every admin endpoint: permission check → action → **audit log write** in the
 | `POST` | `/api/v1/notifications/[id]/read` | AUTH (owner) | |
 | `POST` | `/api/v1/notifications/read-all` | AUTH | |
 | `GET`/`PATCH` | `/api/v1/notification-preferences` | AUTH | |
-| `POST` | `/api/v1/push/subscribe` | AUTH | Web Push subscription (D-26: Web Push/VAPID) |
-| `DELETE` | `/api/v1/push/subscribe` | AUTH | |
+| `POST` | `/api/v1/push/subscribe` | AUTH | Register an **FCM registration token** (D-26): `{ fcmToken, platform }`. Upserts `devices.fcm_token` |
+| `DELETE` | `/api/v1/push/subscribe` | AUTH | Unregister the FCM token for this device |
 | `GET`/`POST` | `/api/v1/tickets` | AUTH | Own tickets |
 | `GET`/`POST` | `/api/v1/tickets/[id]/messages` | AUTH (owner) | Internal notes filtered out at the repository layer |
 | `POST` | `/api/v1/uploads/authorize` | AUTH | `{ purpose, fileName, mimeType, sizeBytes }` → scoped short-lived upload credential. Purpose determines bucket + permission + allowed types |
 | `POST` | `/api/v1/uploads/confirm` | AUTH | Server re-validates the stored object and links it to its entity |
-| `POST` | `/api/v1/analytics/events` | GUEST-OK | Batched client events, allowlisted names only, rate-limited |
+| `POST` | `/api/v1/analytics/events` | GUEST-OK | Server-forwarded events to the **GA4 Measurement Protocol** for commercial truth (`order_created`, `payment_success`). Allowlisted names only, rate-limited. Interaction events go direct from the client via the Firebase/GA4 SDK |
+| `POST` | `/api/v1/client-errors` | GUEST-OK | Browser error reports forwarded to **Cloud Logging**. Interim measure for the D-27a gap — **no source-map symbolication**. Heavily rate-limited and size-capped |
 | `GET` | `/api/v1/health` | PUBLIC | Liveness — no dependency checks, cheap |
 | `GET` | `/api/v1/health/deep` | ADMIN or internal token | DB, cache, storage, queue depth, provider reachability |
 
@@ -413,7 +459,7 @@ Stable codes the client is allowed to branch on.
 
 | Domain | Codes |
 |---|---|
-| Auth | `INVALID_CREDENTIALS`, `OTP_INVALID`, `OTP_EXPIRED`, `OTP_MAX_ATTEMPTS`, `OTP_RATE_LIMITED`, `SESSION_EXPIRED`, `ACCOUNT_SUSPENDED`, `PHONE_ALREADY_REGISTERED` |
+| Auth | `FIREBASE_TOKEN_INVALID`, `FIREBASE_TOKEN_EXPIRED`, `FIREBASE_PROVIDER_NOT_ALLOWED`, `PHONE_CLAIM_MISSING`, `SESSION_EXPIRED`, `ACCOUNT_SUSPENDED` · *delivery OTP:* `DELIVERY_OTP_INVALID`, `OTP_MAX_ATTEMPTS` |
 | Authorization | `UNAUTHENTICATED`, `FORBIDDEN`, `PERMISSION_REQUIRED`, `VENDOR_NOT_APPROVED`, `DRIVER_NOT_APPROVED`, `DRIVER_DOCUMENTS_EXPIRED` |
 | Location | `PINCODE_NOT_SERVICEABLE`, `ADDRESS_OUTSIDE_ZONE`, `GEOCODE_FAILED` |
 | Catalog | `PRODUCT_NOT_FOUND`, `PRODUCT_UNAVAILABLE`, `VARIANT_INACTIVE`, `STORE_CLOSED` |
@@ -434,7 +480,8 @@ Stable codes the client is allowed to branch on.
 - Zod schemas are the single source of truth for every request/response. Types are inferred, never hand-duplicated.
 - OpenAPI is **generated** from the Zod schemas rather than maintained by hand, so it cannot drift.
 - Integration tests assert the envelope shape, status code and `code` value for both the happy path and each documented failure of every endpoint that touches money, stock or permissions.
-- Provider adapters have contract tests against recorded fixtures so a provider swap (Razorpay, MSG91/2Factor, Resend) is verifiable without hitting a live sandbox.
+- Provider adapters have contract tests against recorded fixtures so a provider swap is verifiable without hitting a live sandbox. V1 adapters under contract test: **Razorpay** (payments), **Firebase ID token verification**, **FCM**, **Google Places/Geocoding/Routes**, **GA4 Measurement Protocol**.
+- **Firebase token verification gets its own dedicated suite** covering forged signatures, expired tokens, wrong `aud`/`iss`, a disallowed sign-in provider, `alg: none` and HMAC downgrade attempts. It is hand-rolled security-critical code (the Admin SDK cannot run on Workers), so it is tested as such.
 
 ---
 
@@ -444,7 +491,12 @@ Stable codes the client is allowed to branch on.
 
 | Decision | API outcome |
 |---|---|
-| **D-09** | Password endpoints removed; phone OTP + optional email OTP only |
+| **D-08/D-24** | **`POST /auth/session` token exchange replaces all OTP endpoints.** Firebase owns OTP |
+| **D-09** | Password endpoints removed. **Phone-only sign-in** — email OTP unavailable while D-25 is blocked |
+| **D-23** | Places (with session tokens), Geocoding, Routes proxied server-side; Route Matrix for dispatch |
+| **D-26** | `/push/subscribe` registers an **FCM token** |
+| **D-28** | `/analytics/events` forwards to the **GA4 Measurement Protocol**; client events go direct via SDK |
+| **D-36** | `/auth/logout-all` also revokes Firebase refresh tokens via Identity Platform REST |
 | **D-11** | `POST /orders` creates exactly **one** order; `/cart` returns one vendor group; `MIXED_VENDOR_CART` on violation |
 | **D-12** | COD creation path, collection on delivery, cash reconciliation endpoints (§6.1–6.2) |
 | **D-13** | Razorpay adapter shapes `clientPayload` and webhook event names |
@@ -462,12 +514,13 @@ Stable codes the client is allowed to branch on.
 | Decision | API consequence |
 |---|---|
 | **D-14 GST/tax** | `taxAmountPaise` is present but always `0`; **no invoice endpoint is implemented**. `GET /orders/[id]/invoice` returns an **order summary**, explicitly not a tax invoice, and is documented as such. Unblocking adds real tax fields to `/cart/quote` and a genuine invoice endpoint |
-| **D-08 auth library** | No API shape impact — the endpoints in §2 are final regardless. Blocks implementation only |
+| **D-25 email** | `/auth/email-otp/*` and `/auth/email/verify` **do not exist**. No email is sent by any endpoint |
+| **D-34 non-OTP SMS** | No endpoint sends order-status SMS. Push + in-app only |
 
 ### Open sub-items
 
 | Ref | API consequence |
 |---|---|
 | **D-19a** | Cancellation policy *values* change what `/orders/[id]/cancel` permits and refunds |
-| **D-24a** | SMS provider choice fixes the `/webhooks/sms/[provider]` payload contract |
+| **D-27a** | Whether `/client-errors` remains the only browser error path, or a real error-tracking tool returns |
 | **D-33a** | Locale URL strategy affects link generation, not endpoint shapes |

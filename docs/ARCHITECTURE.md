@@ -1,8 +1,8 @@
 # Parthik — Technical Architecture
 
-**Status:** **APPROVED** (28 of 33 decisions) — 3 blocked, 6 open sub-items
-**Version:** 1.0
-**Approved:** 2026-08-14
+**Status:** **APPROVED** — Google-first service strategy · 30 of 36 decisions settled
+**Version:** 1.1
+**Approved:** 2026-08-14 · **Revised:** 2026-08-14 (Google-first)
 **Authority:** [`PARTHIK_MASTER_SPEC.md`](./PARTHIK_MASTER_SPEC.md) is the product authority. This document is the technical interpretation of it.
 **Companion documents:** [`DATABASE.md`](./DATABASE.md) · [`ROUTES.md`](./ROUTES.md) · [`API_SPEC.md`](./API_SPEC.md) · [`SECURITY.md`](./SECURITY.md) · [`DEVELOPMENT_PLAN.md`](./DEVELOPMENT_PLAN.md)
 
@@ -118,6 +118,12 @@ Additionally excluded from V1 by explicit approval:
 | Build/deploy | `opennextjs-cloudflare build` / `deploy`; Wrangler is not invoked directly |
 | Node version | Node 22 LTS locally and in CI, `nodejs_compat` flag enabled on the Worker |
 | Package manager | pnpm, with a committed lockfile |
+| Identity | **Firebase Authentication** (phone OTP), verified server-side via Web Crypto |
+| Push | **Firebase Cloud Messaging** |
+| Analytics | **Firebase Analytics + Google Analytics 4** |
+| Maps | **Google Maps Platform** — Maps JS, Places, Geocoding, Routes, Route Matrix |
+| Logging/monitoring | **Google Cloud Logging, Cloud Monitoring, Error Reporting** |
+| Payments | **Razorpay** (retained as external — Google is not a payment gateway) |
 
 Sources: [OpenNext Cloudflare adapter](https://opennext.js.org/cloudflare), [Cloudflare's OpenNext adapter announcement](https://blog.cloudflare.com/deploying-nextjs-apps-to-cloudflare-workers-with-the-opennext-adapter/), [Next.js adapters](https://nextjs.org/nextjs-across-platforms). *Content was rephrased for compliance with licensing restrictions.*
 
@@ -129,6 +135,7 @@ These are not preferences — they are hard limits of the target runtime, and se
 |---|---|
 | **Node Middleware is not yet supported by the OpenNext Cloudflare adapter.** `middleware.ts` therefore runs in the constrained edge environment. | Middleware performs **coarse, stateless route gating only** — it reads a signed session cookie and redirects unauthenticated/wrong-role traffic. It must not query Postgres or the cache. Authoritative permission checks happen in the service layer on every request. See [`SECURITY.md` §4](./SECURITY.md). |
 | **Workers cannot open arbitrary outbound TCP connections.** | Postgres is reached through a **Hyperdrive binding** (which provides the pooled connection and terminates the TCP side). The cache must expose an **HTTP/REST** API — a self-hosted TCP-only Redis is not directly usable. |
+| **Firebase Admin SDK cannot run on Workers** (Node dependencies), and Firebase publishes no standard JWKS document | ID tokens are verified manually against Google's x509 certs with **Web Crypto**; privileged Firebase operations go through the **Identity Platform REST API** with a service-account-signed JWT (D-36). See [§11.1](#111-authentication-and-rbac) |
 | Serverless request isolates, no long-lived process | No in-process job runner (BullMQ-style workers are not viable). Background work uses **Cloudflare Queues** consumers; scheduled work uses **Cron Triggers**. |
 | Per-request CPU/time limits | No synchronous heavy work in the request path: report generation, bulk product import, bulk notification fan-out are all queued. |
 | ISR/tag-cache state lives in Cloudflare primitives | Incremental cache in **R2**; revalidation queue / tag cache via **Durable Objects**. Note the DO-backed revalidation queue can keep a Durable Object warm and become a visible cost line — must be watched in staging before production. |
@@ -410,14 +417,62 @@ Queue choice: **Cloudflare Queues + Cron Triggers** (D-05 approved).
 
 ### 11.1 Authentication and RBAC
 
-Summarized here, specified in [`SECURITY.md`](./SECURITY.md).
+**Firebase Authentication owns identity; Parthik owns authorization.** That split is the whole design, and keeping it clean is what stops Firebase from becoming a dependency for every permission check.
 
-- Identity supports **phone OTP** and **email** login, matching existing behaviour.
-- Sessions are **server-side records** in Postgres, cached for fast reads, referenced by an opaque signed HTTP-only cookie. Because middleware cannot reach the DB, the cookie also carries a small signed claim set (`userId`, `roles`, `sessionId`, `exp`) used **only** for coarse routing decisions; every service call revalidates against the session store.
-- RBAC is **permission-based**, not role-string-based: roles are bundles of granular permissions (`order:refund`, `product:publish`, `vendor:approve`). Checks are `can(actor, permission, resource)` in the service layer.
-- One user may hold multiple roles (a vendor owner who is also a customer). The active dashboard context is derived from the route and validated, never from client state.
-- **D-09 approved: phone OTP is primary and passwords are not used in V1.** Email is a verified contact channel with optional email-OTP fallback. **D-10 approved:** customer 30 d, vendor/driver 14 d, admin 8 h with a 30-minute idle timeout.
-- Auth implementation library is 🔴 **BLOCKED (D-08)**; in-house sessions are now recommended because the passwordless/OAuth-free design leaves a library little to do.
+| Concern | Owner |
+|---|---|
+| Credential handling, OTP generation and SMS delivery, phone verification | **Firebase Authentication** |
+| User record, roles, permissions, vendor/driver scope, session lifecycle, business state | **Parthik (PostgreSQL)** |
+
+#### Sign-in flow
+
+```text
+1. Browser  → Firebase JS SDK: signInWithPhoneNumber(+91…)
+              (reCAPTCHA verifier — mandated by Firebase for web)
+2. Firebase → sends OTP SMS, returns confirmationResult
+3. Browser  → confirmationResult.confirm(code) → Firebase ID token (JWT, ~1 h)
+4. Browser  → POST /api/v1/auth/session   { idToken }
+5. Worker   → verify the ID token signature, issuer, audience and expiry
+              against Google's public x509 certs (Web Crypto, cached)
+6. Worker   → find or create the Parthik user by firebase_uid
+              (phone comes from the verified token, never from the client)
+7. Worker   → create a Parthik session row + set our signed HttpOnly cookie
+8. Response → session cookie; the Firebase ID token is NOT used again
+```
+
+#### Why we exchange the Firebase token for our own session
+
+Using Firebase ID tokens directly as the session would break four things already approved:
+
+1. **Revocation.** D-10 requires "logout everywhere", ban and role-change to take effect immediately. Firebase ID tokens are valid for ~1 hour and cannot be invalidated mid-life without a per-request Firebase lookup.
+2. **Role-specific lifetimes.** D-10 sets admin sessions to 8 hours with a 30-minute idle timeout. Firebase has no such notion.
+3. **Middleware gating.** Our middleware cannot query a database ([§4.2](#42-platform-constraints-that-shape-the-design)); it reads our own signed cookie claims. Verifying a Firebase JWT on every request in middleware would mean network calls at the edge.
+4. **Latency and coupling.** Firebase availability would become a hard dependency of every authenticated page load, not just of sign-in.
+
+So Firebase is authoritative **at the moment of authentication**, and our session is authoritative thereafter. Sessions, `user_roles` and permissions work exactly as previously specified.
+
+#### Platform constraint: the Admin SDK does not run on Workers
+
+The Firebase Admin SDK depends on Node APIs unavailable in the Workers runtime, and Firebase does not publish a standard JWKS document. Consequences (D-36):
+
+| Need | Approach |
+|---|---|
+| Verify an ID token | Fetch Google's x509 signing certs, convert to a `CryptoKey`, verify RS256 with **Web Crypto**. Certs cached in the app cache and refreshed on `max-age` |
+| User lookup, disable/enable, set custom claims, bulk import | **Identity Platform REST API**, authenticated with a short-lived JWT signed from a service-account key held as a Worker secret |
+| Revoke Firebase refresh tokens | REST API; combined with revoking our own session row |
+
+We do **not** put roles in Firebase custom claims. Roles live in `user_roles` in PostgreSQL, because they are scoped (per vendor), auditable and change without touching an external system. Custom claims would be a second source of truth for authorization — exactly what §2 principle 1 forbids.
+
+#### RBAC (unchanged)
+
+Permission-based, not role-string-based: `can(actor, 'order:refund', resource)`. Roles bundle granular permissions; a user may hold several; the active dashboard context derives from the route and is validated server-side. See [`SECURITY.md` §5](./SECURITY.md).
+
+#### Identity consequences to be aware of
+
+- **Phone-only sign-in in V1.** Email OTP would need email delivery, which is blocked (D-25).
+- **OTP message content is Google's.** We cannot set sender ID, wording, or reliably the language — a real loss versus a DLT-registered template, and it interacts with the bilingual requirement (D-33): the OTP SMS itself will not be reliably Hindi.
+- **Firebase Phone Auth SMS is billed per verification** through Identity Platform pricing once past the free tier. Abuse protection (§11.1 rate limits, reCAPTCHA, App Check) protects a real cost, not just a queue.
+- **Legacy migration (D-31)** will require importing existing users into Firebase via the REST bulk-import path, keyed on phone number, before their Parthik rows can authenticate.
 
 ### 11.2 Payments
 
@@ -513,23 +568,38 @@ notify(event, recipient, context)
   → persist Notification row with delivery status + provider id
 ```
 
-- Channels for V1: **SMS, Email, In-app, Web Push**. WhatsApp is an adapter slot only (master spec §21).
+- Channels for V1: **FCM push and In-app only.** 🔴 **Email is blocked (D-25) and non-OTP SMS is blocked (D-34)** — both ship as interfaces with no adapter. WhatsApp remains an adapter slot only (master spec §21).
+- **Consequence worth stating plainly:** with email and SMS both unavailable, a customer who declines push permission receives **no proactive order notification**. In-app is the only guaranteed surface. This is a product decision to confirm, not merely a technical gap.
+- **OTP is no longer a notification-service concern** — Firebase delivers login OTP directly (D-24). The notification service handles **delivery OTP** (D-20) and order lifecycle events only.
 - Templates are **admin-editable with variables**, versioned; editing a template never requires a deploy.
 - Transactional notifications (OTP, order lifecycle, payment, refund) ignore marketing opt-outs; campaign notifications respect them.
 - OTP delivery is rate-limited and abuse-protected independently of the generic notification path.
-- Providers: SMS **MSG91 or 2Factor** (D-24 approved, final pick open — D-24a, *urgent, gates DLT registration*), Email **Resend** (D-25), Push **Web Push/VAPID** (D-26).
+- Providers: Push **Firebase Cloud Messaging** (D-26). Login OTP **Firebase Phone Auth** (D-24). Email 🔴 **blocked** (D-25). Non-OTP SMS 🔴 **blocked** (D-34).
 - Templates are stored per `(event_key, channel, locale)` and must exist in **English and Hindi** for transactional events (D-33).
 
 ### 11.4 Location and serviceability
 
 Location is a first-class subsystem (master spec §11):
 
-- Sources: browser geolocation, manual selection, address search/autocomplete, saved addresses.
+- Sources: **browser Geolocation API** for detection, **Google Places Autocomplete** for address search, **Google Geocoding** for coordinate↔address resolution, manual selection, saved addresses.
+- **Google Routes API** provides road distance and ETA for distance-based delivery fees and delivery estimates; **Route Matrix** ranks candidate drivers for auto-nearest dispatch (D-18).
 - Serviceability resolves a coordinate/pincode to a `DeliveryZone`, which determines store availability, delivery fee band and ETA.
 - **Serviceability is re-verified at checkout and again at order creation**, because zones, store hours and stock change between browsing and paying.
 - Driver location is stored coarsely, with a retention window and purge job, and is only exposed to the parties who operationally need it.
 
-Zone model: **zone-based fee, ₹199 free-delivery threshold, admin-configurable** (D-17 approved). Maps: **Google Maps Platform, server-side proxied** (D-23 approved). Location retention: **active delivery only, purged after 7 days** (D-29 approved) — with the ephemeral online-position exception required by auto-dispatch, see §16.7 C-1.
+Zone model: **zone-based fee, ₹199 free-delivery threshold, admin-configurable** (D-17 approved).
+
+**Google Maps Platform is the only maps provider (D-23).** API usage discipline, because these are metered per request:
+
+| API | Use | Cost control |
+|---|---|---|
+| Maps JavaScript | Map display, address pin | Client-side, restricted key by HTTP referrer |
+| **Places** Autocomplete | Address search | **Session tokens** to bill as one session rather than per keystroke; debounced client-side |
+| **Geocoding** | Pincode/coordinate resolution, address validation on save | **Server-side proxied**, results cached (addresses rarely move) |
+| **Routes** | Delivery distance, ETA | Server-side, cached per store↔zone pair |
+| **Route Matrix** | Rank drivers for dispatch | **Haversine pre-filter to the top N candidates first**, then one Matrix call — never a Matrix call across every online driver |
+
+Server-side keys never reach the browser; the browser key is referrer-restricted and separate. Location retention: **active delivery only, purged after 7 days** (D-29 approved) — with the ephemeral online-position exception required by auto-dispatch, see §16.7 C-1.
 
 ### 11.5 Orders and delivery
 
@@ -545,7 +615,20 @@ Full transition tables: [`DATABASE.md` §7](./DATABASE.md). Dispatch: **auto-nea
 
 ### 11.7 Analytics
 
-A thin `track(event, properties)` interface with a strict allowlist of the events in master spec §36, defined once in `lib/analytics/events.ts`. Server-side emission for trustworthy commercial events (`order_created`, `payment_success`), client-side for interaction events. No PII beyond a pseudonymous id; no card/OTP/address contents ever. Provider: **PostHog** (D-28 approved).
+**Firebase Analytics + Google Analytics 4** (D-28). On web these are effectively the same pipeline, configured once. A thin `track(event, properties)` interface in `lib/analytics/` keeps call sites provider-agnostic, with the strict event allowlist from master spec §36.
+
+| Event class | Emission |
+|---|---|
+| Interaction (`page_view`, `search`, `product_view`, `add_to_cart`, `location_selected`) | Client-side via the GA4/Firebase SDK |
+| Commercial truth (`order_created`, `payment_success`, `order_delivered`, `order_cancelled`) | **Server-side via the GA4 Measurement Protocol**, so an ad-blocker or a closed tab cannot lose a conversion |
+
+**The important architectural point: GA4 is not the source of business truth.** The admin dashboard KPIs from master spec §16 — GMV, net sales, AOV, cancellation rate, refund value, delivery success rate — are computed from **PostgreSQL**, which is authoritative, unsampled and reconcilable with payments. GA4 is for marketing attribution and behavioural funnels only.
+
+This is why dropping PostHog costs relatively little: the numbers the business runs on were never going to come from a client-side analytics tool.
+
+**BigQuery is kept future-ready, not built:** GA4 has a native BigQuery export, and a Postgres→BigQuery path can be added later for blended product/operational analysis. No BigQuery dependency exists in V1.
+
+Privacy is unchanged: pseudonymous ids only, no PII, no card/OTP/address contents in any event (master spec §36). Consent handling must be defined before launch since GA4 sets cookies.
 
 ### 11.8 Logging and observability
 
@@ -555,7 +638,8 @@ A thin `track(event, properties)` interface with a strict allowlist of the event
 - **Audit log** is separate from application logs and lives in Postgres: every admin action, every permission-sensitive mutation, every order/payment state change, with actor, before/after diff, IP and user agent. Audit rows are append-only.
 - Webhook log retains raw payload + signature verification result for dispute resolution.
 - `GET /api/health` (liveness) and `GET /api/health/deep` (DB, cache, storage, queue depth, provider reachability) feed the admin **System Health** screen.
-- Error tracking/APM: **Sentry** (D-27 approved), with source maps uploaded from CI.
+- **Google Cloud Logging + Cloud Monitoring + Error Reporting** (D-27). Workers do not write to Cloud Logging natively, so logs are shipped by a **tail consumer Worker** posting structured entries to the Cloud Logging API (with Cloudflare Logpush to GCS/BigQuery as the bulk/archive path). Errors formatted to Error Reporting's expected structure get grouped automatically, and Cloud Monitoring owns the alert policies in §11.8.
+- 🔴 **Known gap (D-27a): browser-side error tracking.** Cloud Monitoring covers the server well but gives no source-mapped JavaScript stack traces from customers' devices, and **Crashlytics is mobile-only — it does not cover web**. Interim approach: a `/api/v1/client-errors` endpoint forwarding to Cloud Logging **without symbolication**. This is the one capability genuinely missing from the Google toolchain, flagged per your "unless demonstrated unavailable" instruction.
 
 ---
 
@@ -589,7 +673,9 @@ Favorites is reachable from Account and product cards; the bottom nav stays at f
 
 ### 12.3 PWA
 
-Installable manifest, icons, theme/splash, **offline app shell**, and network-aware error states. The service worker caches the shell and static assets only. Checkout, payment and any authenticated mutation are explicitly **not** offline-capable (master spec §38) — they show an honest offline state. Push notifications ship behind a flag.
+Installable manifest, icons, theme/splash, **offline app shell**, and network-aware error states. The service worker caches the shell and static assets only. Checkout, payment and any authenticated mutation are explicitly **not** offline-capable (master spec §38) — they show an honest offline state.
+
+**FCM integration detail:** Firebase Messaging expects a `firebase-messaging-sw.js` service worker, which would collide with our PWA service worker if both registered at the scope root. We register **one** service worker and pull the Firebase messaging logic into it via `importScripts`, so there is a single worker owning caching and push. Push ships behind a feature flag. iOS delivers web push only for an **installed** PWA, so push cannot be assumed available — which matters more now that it is the primary outbound channel (D-25/D-34 blocked).
 
 ### 12.4 Performance budget
 
@@ -681,7 +767,41 @@ Full workflow, PR template, CI stages and release process: [`DEVELOPMENT_PLAN.md
 
 All configuration is read **once** through `lib/config`, validated with Zod at startup; the app refuses to boot on invalid/missing config rather than failing later at runtime. `.env.example` is committed with every key documented and no real values. Secrets live in Cloudflare Worker secrets and GitHub Actions secrets only — never in source, never in client bundles. Only `NEXT_PUBLIC_*` values are exposed to the browser, and they must contain nothing sensitive.
 
-Baseline keys (master spec §33): `DATABASE_URL`, `HYPERDRIVE_*`, `REDIS_URL`/`CACHE_REST_URL`+token, `AUTH_SECRET`, `OTP_PROVIDER_KEY`, `EMAIL_PROVIDER_KEY`, `PAYMENT_KEY_ID`, `PAYMENT_SECRET`, `PAYMENT_WEBHOOK_SECRET`, `R2_ACCESS_KEY`, `R2_SECRET_KEY`, `R2_BUCKET_PUBLIC`, `R2_BUCKET_PRIVATE`, `MAPS_API_KEY`, `PUBLIC_APP_URL`, `SENTRY_DSN`, `ANALYTICS_KEY`, `TURNSTILE_SECRET`.
+Baseline keys (master spec §33), revised for the Google-first strategy:
+
+```text
+# Core
+DATABASE_URL / HYPERDRIVE_*          PUBLIC_APP_URL
+AUTH_SECRET                          CACHE_REST_URL / CACHE_REST_TOKEN
+
+# Firebase — client (safe to expose)
+NEXT_PUBLIC_FIREBASE_API_KEY         NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN
+NEXT_PUBLIC_FIREBASE_PROJECT_ID      NEXT_PUBLIC_FIREBASE_APP_ID
+NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID
+NEXT_PUBLIC_FCM_VAPID_KEY            NEXT_PUBLIC_RECAPTCHA_SITE_KEY
+
+# Firebase / Google Cloud — server (secret)
+FIREBASE_PROJECT_ID                  FIREBASE_SERVICE_ACCOUNT_EMAIL
+FIREBASE_SERVICE_ACCOUNT_PRIVATE_KEY   # signs JWTs for Identity Platform + FCM
+GCP_PROJECT_ID                       GCP_LOGGING_SERVICE_ACCOUNT_KEY
+
+# Google Maps Platform
+NEXT_PUBLIC_GOOGLE_MAPS_BROWSER_KEY  # referrer-restricted, display only
+GOOGLE_MAPS_SERVER_KEY               # IP-restricted: Places, Geocoding, Routes
+
+# Analytics
+NEXT_PUBLIC_GA4_MEASUREMENT_ID       GA4_API_SECRET   # Measurement Protocol
+
+# Payments (external, retained)
+RAZORPAY_KEY_ID  RAZORPAY_KEY_SECRET  RAZORPAY_WEBHOOK_SECRET
+
+# Storage + abuse protection
+R2_ACCESS_KEY  R2_SECRET_KEY  R2_BUCKET_PUBLIC  R2_BUCKET_PRIVATE
+TURNSTILE_SECRET
+```
+
+> **Removed:** `OTP_PROVIDER_KEY`, `EMAIL_PROVIDER_KEY`, `SENTRY_DSN`, `POSTHOG_KEY`.
+> **Note:** `FIREBASE_SERVICE_ACCOUNT_PRIVATE_KEY` is now the single most sensitive secret in the system — it can mint credentials for any user. It is scoped to the minimum IAM roles needed and rotated on the documented schedule ([`SECURITY.md` §9.1](./SECURITY.md)).
 
 Secret rotation procedure and least-privilege scoping: [`SECURITY.md` §11](./SECURITY.md).
 
@@ -709,9 +829,10 @@ This section replaces the former open decision register. It is the authoritative
 
 | # | Decision | **Approved outcome** |
 |---|---|---|
-| **D-09** | Primary authentication | **Phone OTP is the primary authentication method. Passwords are NOT required for V1.** No `password_hash` usage, no password reset flow, no credential-stuffing surface. Email becomes a verified contact channel and an optional email-OTP fallback, not a password credential |
-| **D-10** | Sessions | **Role-specific session lifetimes.** Approved values: customer 30 days rolling · vendor/driver 14 days · **admin 8 hours with a 30-minute idle timeout**. Server-side revocable sessions per [`SECURITY.md` §3](./SECURITY.md) |
-| **D-08** | Auth implementation library | 🔴 **BLOCKED** — see [§16.5](#165-blocked-decisions) |
+| **D-08** | Auth implementation | ✅ **RESOLVED — Firebase Authentication.** Was the critical-path blocker. Firebase owns credential handling and OTP delivery; **Parthik owns RBAC, permissions and all authorization** |
+| **D-09** | Primary authentication | **Firebase Phone Authentication is the primary method. No passwords in V1.** No `password_hash`, no reset flow, no credential-stuffing surface. ⚠️ *Email-OTP fallback is now unavailable because email is blocked (D-25) — V1 is **phone-only sign-in*** |
+| **D-10** | Sessions | **Firebase ID token is exchanged for a Parthik session.** Role-specific lifetimes retained: customer 30 d rolling · vendor/driver 14 d · **admin 8 h with 30-min idle**. Server-side revocable sessions per [`SECURITY.md` §3](./SECURITY.md). See [§11.1](#111-authentication-and-rbac) for why we do not use Firebase tokens directly as our session |
+| **D-36** | Firebase admin operations on Workers | **Identity Platform REST API called from the Worker with a service-account-signed JWT.** The Firebase **Admin SDK cannot run on Workers** (Node dependencies), so user lookup, custom claims and bulk import go through REST rather than the SDK |
 
 ### 16.3 Commerce business rules — APPROVED
 
@@ -732,15 +853,17 @@ This section replaces the former open decision register. It is the authoritative
 
 | # | Decision | **Approved outcome** |
 |---|---|---|
-| **D-21** | Search | **PostgreSQL search initially** (full-text + `pg_trgm`), behind a swappable interface. ⚠️ *Hindi has no Postgres stemmer — see [§16.4](#167-clarifications-required-by-these-approvals)* |
+| **D-21** | Search | **PostgreSQL search initially** (full-text + `pg_trgm`), behind a swappable interface. ⚠️ *Hindi has no Postgres stemmer — see [§16.7](#167-clarifications-required-by-these-approvals)* |
 | **D-22** | Order tracking | **Adaptive polling** — interval widens when order state is stable, tightens when a delivery is active |
-| **D-23** | Maps/geocoding | **Google Maps Platform**, called **server-side only** through our proxy so the key is never in the browser; responses cached, requests rate-limited |
-| **D-24** | SMS/OTP | **MSG91 or 2Factor.** ⚠️ *One must be chosen before DLT registration can start — see [§16.6](#166-open-sub-items)* |
-| **D-25** | Email | **Resend**, with SPF/DKIM/DMARC domain verification |
-| **D-26** | Push | **Web Push (VAPID)** for the PWA, behind a feature flag |
-| **D-27** | Error tracking | **Sentry**, with source maps uploaded from CI |
-| **D-28** | Product analytics | **PostHog** |
-| **D-29** | Driver location | **Retained only during an active delivery, purged after 7 days.** ⚠️ *Dispatch requires a narrow exception — see [§16.4](#167-clarifications-required-by-these-approvals)* |
+| **D-23** | Maps/geocoding/routing | **Google Maps Platform only** — Maps JS, **Places** (autocomplete), **Geocoding**, **Routes**, **Route Matrix**. Browser Geolocation for detection. Billable APIs are **server-side proxied**; no other maps provider is introduced |
+| **D-24** | OTP delivery | **Firebase Phone Authentication.** ✅ *MSG91 and 2Factor removed.* **We no longer register DLT templates for OTP** — Google operates that delivery path. ⚠️ *We also lose control of OTP sender ID, wording and language* |
+| **D-25** | Transactional email | 🔴 **BLOCKED** — see [§16.5](#165-blocked-decisions). **Google operates no first-party transactional email service** |
+| **D-26** | Push | **Firebase Cloud Messaging (FCM)** for web push, behind a feature flag. ✅ *Raw Web Push/VAPID replaced* |
+| **D-27** | Logging & monitoring | **Google Cloud Logging + Cloud Monitoring + Error Reporting.** ✅ *Sentry removed from V1.* ⚠️ *Browser-side error tracking is a genuine capability gap — see [§16.6](#166-open-sub-items) D-27a* |
+| **D-28** | Analytics | **Firebase Analytics + Google Analytics 4**, with **BigQuery export kept future-ready**. ✅ *PostHog removed.* Business KPIs come from **PostgreSQL, not GA4** — see [§11.7](#117-analytics) |
+| **D-34** | Non-OTP transactional SMS | 🔴 **BLOCKED** — see [§16.5](#165-blocked-decisions). Firebase covers **OTP only**; order-lifecycle SMS has no Google-native path |
+| **D-35** | Bot/abuse protection | **reCAPTCHA (Firebase-mandated for Phone Auth) + Cloudflare Turnstile for non-auth forms.** ⚠️ *Two systems — consolidation option in [§16.6](#166-open-sub-items)* |
+| **D-29** | Driver location | **Retained only during an active delivery, purged after 7 days.** ⚠️ *Dispatch requires a narrow exception — see [§16.7](#167-clarifications-required-by-these-approvals)* |
 | **D-30** | CMS | **Database-driven CMS** managed inside the admin dashboard |
 | **D-31** | Legacy data migration | **Deferred.** No legacy data is migrated now. Foundation and schema are built first; after schema approval, a **separate legacy migration plan** covering users, addresses, historical orders, catalog and coupons is written and approved before any migration work |
 | **D-33** | Localisation | **English + Hindi from the beginning** (changed from the original English-only assumption). Architecture must not block additional Indian languages. V1 translation *content* scope is deliberately bounded — see [§12.6](#126-localisation-en-hi) |
@@ -766,13 +889,39 @@ How the build proceeds without it:
 
 **To unblock, we need:** inclusive or exclusive pricing · per-product GST rates and HSN codes · whether Parthik or the vendor is the seller of record on the invoice · TCS/TDS obligations · invoice numbering and format requirements.
 
-#### 🔴 D-08 — Auth implementation library · BLOCKED (not addressed in approval)
+#### 🔴 D-25 — Transactional email · BLOCKED (by instruction)
 
-D-09 settled the *method* (phone OTP primary, no passwords) but not *what builds it*. Options remain **Better Auth** vs **fully in-house sessions**; Auth.js is effectively eliminated because the approved design has no OAuth and no passwords.
+**Finding: Google operates no first-party transactional email service.** Google Cloud's own guidance for sending mail from GCP points at **third-party partners** (SendGrid, Mailgun, Mailjet). The App Engine Mail API is a legacy bundled service, and Gmail/Workspace SMTP relay is built for human correspondence with sending limits and terms that make it unsuitable as a transactional channel. Sources: [Sending email from an instance](https://docs.cloud.google.com/compute/docs/tutorials/sending-mail). *Content was rephrased for compliance with licensing restrictions.*
 
-Given D-09, the surface we need is now considerably smaller — OTP issue/verify, session create/revoke, multi-role — which **strengthens the in-house case**, since a library's main value (OAuth providers, password flows, adapters) is largely unused. **My recommendation is now in-house sessions**, built on the schema already specified, with the OTP and session logic covered by the [`SECURITY.md`](./SECURITY.md) controls and integration tests.
+So a Google-native answer does not exist. The realistic outcome is a third-party provider chosen later, or no email in V1.
 
-**Blocks:** TASK 003 (Authentication + RBAC).
+**What is affected while blocked:**
+
+| Capability | Status |
+|---|---|
+| Email OTP fallback sign-in | **Not available.** V1 sign-in is **phone-only** |
+| Order confirmation / status emails | Not sent. Push (FCM) + in-app carry order notifications |
+| Invoice email | Already blocked by D-14 anyway |
+| Vendor/driver onboarding and KYC-status email | Not sent; in-app + push only |
+| Support ticket reply notification | In-app + push only |
+| Admin alerts | Routed through Cloud Monitoring alerting, not email templates |
+
+The notification service ships with an `EmailChannel` **interface and no adapter**, so adding a provider later is a single implementation and template set — not a redesign. `users.email` is still captured and verifiable for future use.
+
+**Risk to note:** with email blocked and non-OTP SMS blocked (D-34), **push and in-app become the only outbound customer channels.** Push requires notification permission, which a large share of users decline, and iOS requires an installed PWA. Practically, some customers will receive **no** order-status notification at all in V1. That is a product consequence, not just a technical one.
+
+#### 🔴 D-34 — Non-OTP transactional SMS · BLOCKED (new, created by this change)
+
+Firebase Phone Authentication delivers **OTP messages only**. It is not a general-purpose SMS API, so it cannot send "order confirmed", "out for delivery" or "driver assigned".
+
+There is **no Google-native transactional SMS product**. The options are:
+
+| Option | Consequence |
+|---|---|
+| **No non-OTP SMS in V1** *(recommended given the Google-first strategy)* | Order updates rely on FCM push + in-app. Simplest, cheapest, no DLT work |
+| Add a third-party SMS provider for non-OTP only | Reintroduces an external dependency **and our own DLT registration**, now for order templates in **English and Hindi** |
+
+**Important:** [DLT registration is mandatory for all commercial SMS to Indian numbers](https://www.smscountry.com/blog/dlt-registration/), so choosing to send order-status SMS means doing the full DLT process ourselves — sender ID, per-template approval, and template variables. Using Firebase for OTP removes that burden **only if we send no other SMS**. *Content was rephrased for compliance with licensing restrictions.*
 
 #### 🔴 D-32 — Multiple stores per vendor · BLOCKED (low risk, default proposed)
 
@@ -788,11 +937,15 @@ Smaller items inside otherwise-approved decisions. Each has a recommendation; no
 |---|---|---|---|
 | **D-01a** | Which managed Postgres provider | **Neon** or **Supabase**, ap-south region, PITR enabled | TASK 002 |
 | **D-03a** | Which HTTP cache provider | **Upstash Redis** — REST API works from Workers, and its rate-limit SDK covers a mandated control | TASK 003 |
-| **D-07a** | Image transformation/optimization. R2 is settled as *storage*; how images are **resized and served** is not | **Cloudflare Images** with a custom `next/image` loader — the default Next optimizer is a poor fit on Workers. Has a per-image cost worth seeing first | TASK 006 |
-| **D-19a** | Default cancellation/refund **values** — who may cancel at which status, refund percentage per window, restocking, driver compensation. The *engine* is approved; the *numbers* are undefined | Engine ships with an admin-editable policy table; **launch values need your input**. I will not invent refund percentages | TASK 010 |
-| **D-24a** | MSG91 **or** 2Factor — one must be picked | **MSG91** for broader template/campaign tooling; 2Factor is leaner if OTP is the only use. **DLT registration cannot start until this is chosen, and it gates all authentication** | TASK 003 — *urgent* |
-| **D-33a** | Locale URL strategy: prefix every locale (`/en/…`, `/hi/…`) vs default-unprefixed (`/…` = English, `/hi/…` = Hindi) | **Default-unprefixed.** Preserves existing/legacy URL shapes and their SEO equity, which matters for the D-31 migration and the `redirects` table | TASK 004 |
+| **D-07a** | Image transformation/optimization. R2 is settled as *storage*; how images are **resized and served** is not | **Cloudflare Images** with a custom `next/image` loader — the default Next optimizer is a poor fit on Workers | TASK 006 |
+| **D-19a** | Default cancellation/refund **values** — who may cancel at which status, refund percentage per window, restocking, driver compensation | Engine ships with an admin-editable policy table; **launch values need your input**. I will not invent refund percentages | TASK 010 |
+| **D-27a** | **Browser-side error tracking.** Cloud Logging/Monitoring/Error Reporting cover the **server** well. They do not give source-mapped JavaScript stack traces from customers' browsers, and **Crashlytics is mobile-only — it does not cover web** | Either accept the gap in V1 (log client errors to our own `/api/v1/client-errors` endpoint → Cloud Logging, without source-map symbolication), or reinstate a browser error tool. **This is the one capability genuinely absent from the Google toolchain**, per your "unless demonstrated unavailable" clause | TASK 019 |
+| **D-35a** | Two bot-protection systems: reCAPTCHA is **required** by Firebase Phone Auth; Turnstile was chosen for other forms | Keep both — reCAPTCHA only on the Firebase auth widget, Turnstile on vendor/driver registration, contact and reviews. Alternative is reCAPTCHA everywhere for consistency, at the cost of dropping a free Cloudflare feature | TASK 003 |
+| **D-33a** | Locale URL strategy: prefix every locale vs default-unprefixed | **Default-unprefixed.** Preserves existing/legacy URL shapes and their SEO equity | TASK 004 |
+| — | Firebase project region and data residency for Identity Platform | Choose an India/Asia region where supported; confirm alongside payment-data localisation | Before production |
 | — | Payment-data localisation obligations under Indian regulation | Confirm with Razorpay and counsel. Not something I should assume | Before production |
+
+> **Closed by this change:** ~~D-24a (MSG91 vs 2Factor)~~ — no longer applicable. Firebase Phone Auth replaces both, and **the DLT registration that was the project's longest lead-time item is removed from the critical path** (unless D-34 reintroduces it).
 
 ### 16.7 Clarifications required by these approvals
 
@@ -824,35 +977,32 @@ COD is approved and buildable, but COD orders often need a payment receipt at th
 | Group | Approved | Blocked | Open sub-item |
 |---|---|---|---|
 | Platform (D-01…D-07) | 7 | 0 | D-01a, D-03a, D-07a |
-| Identity (D-08…D-10) | 2 | **D-08** | — |
+| Identity (D-08…D-10, D-36) | **4** | 0 | D-35a |
 | Commerce (D-11…D-20) | 9 | **D-14** | D-19a |
-| Supporting (D-21…D-33) | 12 | **D-32** | D-24a, D-33a |
-| **Total** | **28** | **3** | **6** |
-## 17. Traceability to the master spec
+| Supporting (D-21…D-35) | **10** | **D-25, D-32, D-34** | D-27a, D-33a |
+| **Total** | **30** | **4** | **7** |
 
-| Master spec section | Where addressed |
+### 16.9 Google-first revision summary
+
+| Removed from V1 | Replaced by | Notes |
+|---|---|---|
+| MSG91 / 2Factor | **Firebase Phone Authentication** | Removes our DLT burden for OTP; loses control of sender ID, wording and language |
+| Custom OTP generation/verification | **Firebase** | Our `otp_verifications` table is no longer used for login OTP; it is retained **only** for delivery OTP (D-20) |
+| Resend | 🔴 **Nothing — D-25 blocked** | No Google-native transactional email exists |
+| Web Push (raw VAPID) | **Firebase Cloud Messaging** | FCM uses VAPID underneath; we gain topics and Google's delivery infrastructure |
+| Sentry | **Cloud Logging + Cloud Monitoring + Error Reporting** | Server-side is well covered; browser errors are a gap (D-27a) |
+| PostHog | **Firebase Analytics + GA4** (BigQuery future-ready) | Loses product-analytics funnels; **business KPIs already come from PostgreSQL**, so the operational loss is limited |
+
+**Retained deliberately as non-Google**, because each is better than the Google alternative for this system:
+
+| Retained | Why |
 |---|---|
-| §4 Tech stack | §4, §5, §7, §12, §13 |
-| §5 High-level architecture | §3, §4, §6 |
-| §6 Database entities | [`DATABASE.md`](./DATABASE.md) |
-| §7–§12 Customer nav, pages, home, product, location, cart/checkout | §11.4, §12.2, [`ROUTES.md`](./ROUTES.md) |
-| §13 Order state machine | §11.5, [`DATABASE.md` §7](./DATABASE.md) |
-| §14–§17 Vendor, driver, admin dashboards | §12.2, [`ROUTES.md`](./ROUTES.md), [`API_SPEC.md`](./API_SPEC.md) |
-| §18–§19 Marketing, CMS | §11.6 |
-| §20 SEO | §11.6, [`ROUTES.md`](./ROUTES.md) |
-| §21 Notifications | §11.3 |
-| §22 Payments | §11.2 |
-| §23 Security | [`SECURITY.md`](./SECURITY.md) |
-| §24–§26 Design system, UX states, a11y | §12 |
-| §27–§28 SOP, Kiro rules | [`DEVELOPMENT_PLAN.md`](./DEVELOPMENT_PLAN.md) |
-| §29 Testing | §13 |
-| §30 Observability | §11.8 |
-| §31 Backup/migration | [`DEVELOPMENT_PLAN.md` §8](./DEVELOPMENT_PLAN.md), D-31 |
-| §32–§33 Deployment, environments | §4.3, §15 |
-| §34–§35 Admin settings, support | [`DATABASE.md`](./DATABASE.md), [`ROUTES.md`](./ROUTES.md) |
-| §36 Analytics events | §11.7 |
-| §37–§38 Performance, PWA | §12.3, §12.4 |
-| §39 Route security | [`ROUTES.md`](./ROUTES.md), [`SECURITY.md`](./SECURITY.md) |
-| §40–§41 DoD, build order | [`DEVELOPMENT_PLAN.md`](./DEVELOPMENT_PLAN.md) |
-| §42 Future modules | §1 non-goals, D-11/D-32 |
-| §44 First execution plan | [`DEVELOPMENT_PLAN.md` §3](./DEVELOPMENT_PLAN.md) |
+| **Cloudflare Workers + OpenNext** | Application delivery already designed and approved (D-04). Cloud Run would be a full re-architecture with no benefit |
+| **PostgreSQL + Hyperdrive** | Relational integrity is core to orders, money and stock. Firestore is the wrong data model for this; Cloud SQL would lose the Hyperdrive edge-pooling path |
+| **Cloudflare R2** | Zero egress fees and already integrated with Workers. GCS offers no concrete advantage here, and moving would add cross-cloud egress cost |
+| **Cloudflare Queues / Cron Triggers** | Colocated with the runtime. Pub/Sub would add cross-cloud latency and auth complexity |
+| **Razorpay** | Google is not a payment gateway for this market. Business requirement |
+| **Upstash (D-03a)** | Workers cannot open arbitrary TCP; Memorystore is unreachable from Workers without a proxy |
+| **Cloudflare Turnstile (D-35)** | Free with the existing edge; used where Firebase does not mandate reCAPTCHA |
+
+This follows the instruction not to adopt Google services merely for consistency where the existing architecture is stronger.

@@ -1,6 +1,6 @@
 # Parthik — Security Architecture
 
-**Status:** **APPROVED** design · **Version:** 1.0 · **Approved:** 2026-08-14
+**Status:** **APPROVED** design · **Version:** 1.1 · **Revised:** 2026-08-14 (Google-first services)
 **Depends on:** [`ARCHITECTURE.md`](./ARCHITECTURE.md) · [`API_SPEC.md`](./API_SPEC.md) · [`DATABASE.md`](./DATABASE.md)
 
 > Governing rule from the master spec (§23): **roles must never be trusted from client-side state, and authorization is always server-side.** Every control below exists to make that true in practice rather than in principle.
@@ -13,7 +13,7 @@ What we are actually defending against, in rough priority order for a hyperlocal
 
 | # | Threat | Primary controls |
 |---|---|---|
-| T1 | **OTP/SMS abuse** — attackers pumping SMS to burn credit or brute-force codes | Per-phone/per-IP rate limits, attempt caps, hashed codes, short expiry, Turnstile escalation, spend alerts (§6) |
+| T1 | **OTP/SMS abuse** — pumping SMS to burn credit or brute-force codes. **Now partly outside our control**: Firebase bills per verification, so abuse costs money at Google | Firebase quotas + mandatory reCAPTCHA verifier, **Firebase App Check**, our own limits on `/auth/session`, **Google Cloud billing alerts on Identity Platform spend**, per-IP limits at the Cloudflare edge (§6) |
 | T2 | **Payment tampering** — forged success, replayed webhooks, price manipulation | Server-side repricing, webhook HMAC + replay guard, idempotency, reconciliation (§8) |
 | T3 | **Horizontal privilege escalation** — customer A reading customer B's order; vendor A seeing vendor B's data; driver reading arbitrary customer PII | Ownership checks in the service layer, tenancy scoping in repositories, session-derived scope only (§4, §5) |
 | T4 | **Vertical privilege escalation** — customer reaching admin capability | Permission-based RBAC, deny-by-default, no role from client input (§5) |
@@ -22,6 +22,8 @@ What we are actually defending against, in rough priority order for a hyperlocal
 | T7 | **Document/proof exposure** — KYC, licences, delivery photos becoming public URLs | Private bucket, no public read, short-lived signed URLs after permission check (§9.3) |
 | T8 | **Account takeover** | Session revocation, device list, lockout, notification on security events (§3) |
 | T9 | **Inventory/order-race exploitation** — double-spend of last stock, duplicate orders | Row locks, idempotency, transactional state transitions (§8.3) |
+| **T15** | **Firebase token forgery or replay** — a token from another project, an expired token, or an `alg` downgrade | Exhaustive verification in §2.2: signature, `iss`, `aud`, `exp`, provider, RS256-only |
+| **T16** | **Firebase service-account key compromise** — the key can act on any user account | Worker secret only, never in source or client bundle, minimum IAM roles, documented rotation, Cloud Audit Logs on service-account use |
 | T10 | **Injection / XSS / CSRF** | Parameterized queries only, no `dangerouslySetInnerHTML` on untrusted input, sanitized CMS HTML, same-site cookies + origin checks (§7) |
 | T11 | **Scraping / bot pressure** on catalog and search | Cloudflare bot management, edge rate limits, no bulk-export endpoints for public data |
 | T12 | **Insider / admin misuse** | Granular permissions, audit log on every admin action, elevated permission for sensitive settings, PII reveal auditing (§11) |
@@ -34,41 +36,57 @@ What we are actually defending against, in rough priority order for a hyperlocal
 
 ### 2.1 Supported methods
 
-**D-09 approved: phone OTP is the primary method and passwords are NOT used in V1.**
+**D-08/D-24: Firebase Authentication is the identity provider. D-09: no passwords.**
 
 | Method | Flow | Status |
 |---|---|---|
-| Phone OTP | Request → 6-digit code by SMS → verify → session | **Primary** |
-| Email OTP | Request → code by email → verify → session | Optional fallback |
+| **Firebase Phone Auth** | Firebase JS SDK → OTP SMS → ID token → exchanged for a Parthik session | **Primary and only method in V1** |
+| Email OTP | — | 🔴 **Unavailable** — requires email delivery, blocked by D-25 |
 | Email + password | — | **Not implemented.** No `password_hash`, no reset flow, no password endpoints |
 
-Removing passwords eliminates an entire threat class outright: credential stuffing, password reuse, weak-password enrolment, reset-token interception and hash-cracking after a database leak all become inapplicable. The trade-off is a hard dependency on SMS deliverability, which raises the importance of the T1 controls below and of the email-OTP fallback.
+**Security consequences of moving OTP to Firebase — both directions, honestly:**
 
-### 2.2 OTP rules
-
-| Control | Value |
+| Improved | Worsened |
 |---|---|
-| Code length | 6 digits, cryptographically random (`crypto.getRandomValues`, not `Math.random`) |
-| Storage | **Hashed** in `otp_verifications`. Never stored or logged in plaintext |
-| Expiry | 5 minutes |
-| Verification attempts | Max 5 per code, then the code is invalidated |
-| Resend cooldown | 60 seconds |
-| Requests per phone | 3 per 10 minutes, 8 per day |
-| Requests per IP | 10 per hour |
-| Single use | `consumed_at` set inside the verifying transaction |
-| Enumeration | OTP request **always** returns a generic success; the response never reveals whether the number exists |
-| Escalation | Turnstile challenge after repeated requests from an IP/device |
-| Response to abuse | Progressive delay, then temporary block, plus a `system_events` alert |
+| We no longer store, transmit or log OTP codes at all — an entire class of leak becomes impossible | **We lose visibility.** Firebase's OTP attempt counts, per-number abuse signals and blocked attempts are not in our logs, so our detection surface shrinks to the token-exchange step |
+| Google operates SMS delivery, brute-force protection and quota enforcement at a scale we could not | **We lose control** of sender ID, message wording and language — the OTP SMS will not be reliably Hindi despite D-33 |
+| No DLT registration for OTP, and no SMS provider credentials to protect | **A new highly privileged secret exists**: the Firebase service-account key, which can act on any user account |
+| reCAPTCHA/App Check protection is built into the flow | Firebase Phone Auth **SMS is billed per verification**, so abuse has a direct cash cost we cannot throttle at the source |
 
-### 2.3 Passwords — not applicable
+### 2.2 Firebase token verification — the critical control
 
-**No passwords exist in V1 (D-09).** No hashing choice, no reset flow, no lockout-on-password, no breach-list check is required.
+`POST /auth/session` is the entire front door. The Firebase **Admin SDK cannot run on Workers**, so verification is implemented manually with Web Crypto and must be treated as security-critical code with its own dedicated tests.
 
-If passwords are ever reintroduced — most likely triggered by a legacy migration under **D-31** that carries existing hashes — the requirement is argon2id (scrypt as the Workers-compatible fallback), parameters in config so they can be raised, transparent rehash on login, uniform failure messaging, and single-use hashed reset tokens that revoke all sessions on use. **This is documented for that contingency only, not built.**
+| Check | Requirement |
+|---|---|
+| Signature | RS256 against Google's current x509 signing certs for `securetoken@system.gserviceaccount.com`, fetched over HTTPS, cached per `Cache-Control`, refreshed on key rotation. **Never skipped on cache miss** |
+| `iss` | Exactly `https://securetoken.google.com/<projectId>` |
+| `aud` | Exactly `<projectId>` — stops a token minted for a different Firebase project being replayed at us |
+| `exp` / `iat` / `auth_time` | Not expired, not future-dated, `auth_time` present |
+| `sub` | Non-empty; becomes `firebase_uid` |
+| `firebase.sign_in_provider` | Must be `phone` in V1 — rejects any provider we have not deliberately enabled |
+| `phone_number` | Must be present |
+| Identity source | **Phone and email come from token claims only.** A client-supplied phone in the request body is ignored entirely |
+| Account state | `SUSPENDED`/`BANNED` rejected **before** a session is created |
+
+**Algorithm confusion is explicitly guarded:** the verifier accepts `RS256` only and rejects `alg: none` or any HMAC variant, rather than trusting the token header. Failures return `401` with no indication of which check failed, and are logged as security events; a burst is treated as an attack signal.
+
+### 2.3 OTP rules — now split by purpose
+
+| OTP type | Owner | Controls |
+|---|---|---|
+| **Login OTP** | **Firebase** | Google's quotas, mandatory reCAPTCHA verifier, per-number throttling. We add our own limits on `/auth/session` |
+| **Delivery OTP** (D-20) | **Parthik** | Still entirely ours — rules below |
+
+Delivery OTP: 6 digits from `crypto.getRandomValues`, **hashed** in `otp_verifications`, never logged, maximum 5 verification attempts, expiry tied to the delivery window, single use via `consumed_at` set inside the verifying transaction.
+
+### 2.3b Passwords — not applicable
+
+**No passwords exist in V1 (D-09), and Firebase now owns credentials entirely.** If passwords were ever reintroduced they would be Firebase's email/password provider rather than our own hashing, which removes the argon2id/scrypt decision from our scope altogether. Documented for contingency only, not built.
 
 ### 2.4 Account lockout
 
-Applies to OTP verification rather than password attempts. 10 failed attempts per identifier in 15 minutes → 15-minute lock with a clear message. Lockout is tracked per identifier **and** per IP so an attacker cannot lock out a legitimate user cheaply, and legitimate users are not punished for someone else's IP. Every lock writes `login_attempts` and a `system_events` row.
+**Scope narrowed by Firebase.** Login OTP attempt lockout is Firebase's responsibility and is not visible to us. What we lock is the **token-exchange endpoint**: 20 failed `/auth/session` attempts per IP in an hour → block and alert; 10 failed attempts per identifier in 15 minutes → 15-minute lock with a clear message. Lockout is tracked per identifier **and** per IP so an attacker cannot lock out a legitimate user cheaply, and legitimate users are not punished for someone else's IP. Every lock writes `login_attempts` and a `system_events` row.
 
 ---
 
@@ -76,13 +94,14 @@ Applies to OTP verification rather than password attempts. 10 failed attempts pe
 
 | Property | Decision |
 |---|---|
+| Provider | **Firebase Authentication** verifies identity; **Parthik issues and owns the session** (D-10) |
 | Storage | Server-side `sessions` row, cached for read performance |
 | Cookie | `HttpOnly`, `Secure`, `SameSite=Lax`, `Path=/`, host-only, `__Host-` prefixed |
 | Cookie contents | Opaque session id + signed claims (`userId`, `roles`, `sessionId`, `exp`) used **only** for middleware routing |
 | Token storage | Only a **hash** of the session token is persisted, so a database leak does not yield usable sessions |
 | Lifetime | **Approved (D-10):** customer 30 days rolling · vendor/driver 14 days · **admin 8 hours with a 30-minute idle timeout** |
-| Rotation | New token issued on privilege change and on OTP re-verification |
-| Revocation | Individual, all-sessions, and forced on password change, role change, suspension or ban |
+| Rotation | New token issued on privilege change and on re-authentication |
+| Revocation | Individual and all-sessions; forced on role change, suspension or ban. **`logout-all` also revokes Firebase refresh tokens** via Identity Platform REST (D-36) — revoking only our session would let the client mint a fresh ID token and immediately re-establish one |
 | Visibility | `/account/security` lists active sessions/devices with last-seen and allows revocation |
 
 **Why claims live in the cookie at all:** the OpenNext Cloudflare adapter does not yet support Node middleware, so `middleware.ts` cannot query the database ([`ARCHITECTURE.md` §4.2](./ARCHITECTURE.md)). The signed claims let middleware make a cheap routing decision. They are explicitly **not** an authorization decision: a stale claim can get a request to a page shell, never to data, because the service layer revalidates the session against the store on every call. A revoked session therefore loses data access immediately, even if its cookie still parses.
@@ -258,6 +277,8 @@ Cash is the one value in the system that leaves the database entirely, so the co
 ## 9. Data protection
 
 ### 9.1 Secrets
+**`FIREBASE_SERVICE_ACCOUNT_PRIVATE_KEY` is now the most sensitive secret in the system** — it signs JWTs for the Identity Platform REST API and can therefore act on any user account. Minimum IAM roles, Worker secret only, excluded from all logs, documented rotation schedule, and its use monitored through Cloud Audit Logs. The Google Maps **server** key and **browser** key are separate, restricted by IP and HTTP referrer respectively, so a leaked browser key cannot drive billable Geocoding/Routes calls.
+
 Environment variables only; Cloudflare Worker secrets in production, GitHub Actions secrets in CI. Never in source, never in client bundles, never in logs, never in error messages. Only `NEXT_PUBLIC_*` reaches the browser and must contain nothing sensitive. A secret-scanning check runs on every PR and blocks merge on a hit. Rotation procedure documented per provider; rotation is rehearsed, not theoretical.
 
 ### 9.2 Encryption
@@ -296,9 +317,23 @@ Applied in middleware to every response:
 Strict-Transport-Security: max-age=63072000; includeSubDomains; preload
 Content-Security-Policy: default-src 'self'; frame-ancestors 'none'; object-src 'none';
                          base-uri 'self'; form-action 'self';
-                         img-src 'self' data: <asset+images host>;
-                         script-src 'self' <payment sdk> <analytics> 'nonce-…';
-                         connect-src 'self' <providers>;
+                         img-src 'self' data: <asset+images host>
+                                 https://*.googleapis.com https://*.gstatic.com;
+                         script-src 'self' 'nonce-…'
+                                 https://checkout.razorpay.com
+                                 https://www.google.com https://www.gstatic.com
+                                 https://apis.google.com
+                                 https://*.googletagmanager.com;
+                         connect-src 'self'
+                                 https://identitytoolkit.googleapis.com
+                                 https://securetoken.googleapis.com
+                                 https://fcmregistrations.googleapis.com
+                                 https://*.google-analytics.com
+                                 https://*.googleapis.com
+                                 https://api.razorpay.com;
+                         frame-src https://www.google.com
+                                 https://<project>.firebaseapp.com
+                                 https://api.razorpay.com;
                          upgrade-insecure-requests
 X-Content-Type-Options: nosniff
 Referrer-Policy: strict-origin-when-cross-origin
@@ -307,7 +342,9 @@ Permissions-Policy: geolocation=(self), camera=(self), microphone=(), payment=(s
 Cross-Origin-Opener-Policy: same-origin
 ```
 
-CSP is rolled out report-only first, then enforced — a CSP that breaks checkout is worse than no CSP. Nonce-based script policy; `unsafe-inline` for scripts is not acceptable in the final state. `geolocation` and `camera` are allowed because location detection and delivery-proof capture need them.
+**Honest cost of this strategy:** `frame-ancestors 'none'` is retained, but Firebase's reCAPTCHA verifier, the Firebase auth handler domain and the Razorpay checkout all need `frame-src` and `script-src` allowances. The resulting CSP is materially wider than it would be with fewer third-party SDKs.
+
+CSP is rolled out report-only first, then enforced — a CSP that breaks sign-in or checkout is worse than no CSP. Nonce-based script policy; `unsafe-inline` for scripts is not acceptable in the final state. `geolocation` and `camera` are allowed because location detection and delivery-proof capture need them.
 
 ### 9.6 Row-Level Security
 
@@ -318,7 +355,7 @@ Not used in V1. Tenancy is enforced in the repository layer plus service-level o
 ## 10. Privacy and compliance
 
 - **Data minimisation:** collect only what an order needs. Date of birth and gender are optional and must have a stated purpose before being added to any form.
-- **Consent:** analytics/marketing consent banner scope is required by PostHog (D-28) and must be defined before launch; transactional messaging does not require consent, marketing does.
+- **Consent:** **GA4/Firebase Analytics set cookies and collect identifiers, so a consent banner is required** (D-28) and its scope must be defined before launch. Transactional messaging does not require consent; marketing does. Google Consent Mode should be configured so analytics respects the choice rather than being bolted on afterwards.
 - **Right to deletion:** implemented as anonymise-in-place — PII scrubbed, financial and order records retained for statutory purposes, with an audit entry.
 - **Driver location** is the most privacy-sensitive stream in the system. Approved handling (D-29 + clarification C-1) splits it in two:
 
@@ -345,8 +382,9 @@ Mandatory audit events: login/logout/failed login, every admin mutation, order/p
 | Signal | Threshold |
 |---|---|
 | Webhook signature failures | Any burst → immediate alert |
-| Failed login / OTP spike | Anomaly vs baseline |
-| SMS spend | Daily budget alert |
+| Failed `/auth/session` exchanges | Anomaly vs baseline — **our primary auth signal now that Firebase owns OTP** |
+| **Identity Platform SMS spend** | **Google Cloud billing alert — mandatory.** Phone Auth bills per verification, so this is the direct financial exposure |
+| Firebase service-account key use | Cloud Audit Logs anomaly |
 | Payment failure rate | Sustained rise vs baseline |
 | Orders stuck in `PENDING_PAYMENT` | Age > threshold (reconciliation gap) |
 | 5xx rate, DLQ depth, DB latency/pool saturation | Standard thresholds |
@@ -380,6 +418,12 @@ Blocking gate before the DNS cutover (master spec §41 Phase 9, §46):
 - [ ] Audit log verified populated for a full admin action sample
 - [ ] Log redaction verified — no OTP, token or full-PII in any log sink
 - [ ] Dependency audit clean of known high/critical vulnerabilities
+- [ ] Firebase token verification tested: valid, expired, wrong `aud`, wrong `iss`, wrong provider, `alg: none`, HMAC downgrade, tampered payload
+- [ ] Firebase service-account key confirmed absent from source, client bundle and logs; IAM roles minimal
+- [ ] Google Cloud **billing alert on Identity Platform SMS spend** active
+- [ ] Firebase App Check enabled and enforced on auth
+- [ ] Maps browser key referrer-restricted; server key IP-restricted and never shipped to the client
+- [ ] `logout-all` verified to revoke **Firebase refresh tokens** as well as Parthik sessions
 - [ ] COD: cash ledger idempotency verified under retry; driver cash limit blocks dispatch
 - [ ] COD: deposit declare/verify separation verified; a driver cannot self-verify
 - [ ] Delivery OTP mandatory path verified; exception path audited
@@ -404,8 +448,11 @@ Blocking gate before the DNS cutover (master spec §41 Phase 9, §46):
 | **D-13** | Razorpay webhook HMAC verification and replay guard per §8.2 |
 | **D-20** | Delivery OTP mandatory — closes the T14 bypass; exception use is audited |
 | **D-23** | Google Maps called **server-side only**; key never reaches the browser |
-| **D-25** | Resend with SPF/DKIM/DMARC |
-| **D-27/D-28** | Sentry and PostHog — both must respect the log-redaction allowlist; no PII to either |
+| **D-08/D-24** | **Firebase Authentication.** OTP codes never touch our systems; verification per §2.2 |
+| **D-36** | Identity Platform REST with a service-account-signed JWT; Admin SDK unusable on Workers |
+| **D-26** | FCM — registration tokens are per-device and pruned when invalid |
+| **D-27/D-28** | Cloud Logging/Monitoring and GA4/Firebase Analytics — both must respect the log-redaction allowlist; **no PII to either** |
+| **D-35** | reCAPTCHA on Firebase auth (mandated) + Turnstile on other public forms |
 | **D-29** | Two-class location model above; no long-term driver movement history |
 | **D-31** | **No legacy PII enters the system yet**, which removes migration-inherited data risk from V1 |
 | **D-33** | Hindi templates must be DLT-registered separately; translated content is sanitized on save identically to English |
@@ -414,7 +461,8 @@ Blocking gate before the DNS cutover (master spec §41 Phase 9, §46):
 
 | Decision | Security consequence |
 |---|---|
-| **D-08 auth library** | Blocks TASK 003. With D-09 removing OAuth and passwords, in-house sessions are now recommended — but whichever is chosen, the §2 and §3 controls are the acceptance criteria, and OTP/session logic must be covered by the concurrency and abuse tests before launch |
+| **D-25 email** | 🔴 No email channel. **Password reset, email verification and email-based account recovery do not exist**, which removes those attack surfaces but also removes every account-recovery path other than the phone number. **A user who loses their phone number loses the account** — confirm this is acceptable |
+| **D-34 non-OTP SMS** | 🔴 No SMS channel for order events. Security notifications (new device sign-in, role change) can only reach users via push/in-app |
 | **D-14 GST/tax** | No invoices are generated, so no invoice-tampering or tax-misstatement surface exists yet. When unblocked, invoice generation and access control need their own review |
 
 ### Still requires external confirmation
@@ -422,4 +470,5 @@ Blocking gate before the DNS cutover (master spec §41 Phase 9, §46):
 | Item | Why |
 |---|---|
 | Payment-data localisation obligations under Indian regulation | Must be confirmed with Razorpay and counsel. **Not something I should assume**, and it may constrain the D-01a region choice |
-| DLT registration (D-24a) | Compliance prerequisite for transactional SMS, now needed in **both English and Hindi**. Gates all authentication |
+| ~~DLT registration~~ | ✅ **No longer required for OTP** — Firebase operates that path. It returns only if D-34 is unblocked |
+| Firebase project region / data residency | Confirm where Identity Platform stores user data, alongside the payment-localisation question |
