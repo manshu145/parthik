@@ -1,0 +1,53 @@
+{
+  "common": {
+    "appName": "Parthik",
+    "tagline": "Everyday essentials, delivered fast",
+    "loading": "Loading…",
+    "retry": "Try again",
+    "cancel": "Cancel",
+    "close": "Close",
+    "back": "Go back",
+    "goHome": "Go to home",
+    "search": "Search",
+    "language": "Language",
+    "changeLanguage": "Change language"
+  },
+  "states": {
+    "loading": {
+      "label": "Loading content"
+    },
+    "empty": {
+      "title": "Nothing here yet",
+      "description": "There is nothing to show right now."
+    },
+    "error": {
+      "title": "Something went wrong",
+      "description": "We could not load this. Please try again.",
+      "referenceLabel": "Reference"
+    },
+    "notFound": {
+      "title": "Page not found",
+      "description": "The page you are looking for does not exist or has moved."
+    },
+    "unauthorized": {
+      "title": "You do not have access",
+      "description": "Your account does not have permission to view this page."
+    },
+    "offline": {
+      "title": "You are offline",
+      "description": "Check your connection and try again. Browsing works offline, but placing orders needs a connection."
+    },
+    "maintenance": {
+      "title": "Back shortly",
+      "description": "Parthik is briefly unavailable for maintenance."
+    }
+  },
+  "foundation": {
+    "title": "Parthik foundation",
+    "status": "Application foundation is running",
+    "description": "This is the TASK 001 scaffold. Customer, vendor, driver and admin features are not implemented yet.",
+    "environmentLabel": "Environment",
+    "localeLabel": "Active locale",
+    "docsHint": "Architecture and decisions live in the docs directory."
+  }
+}

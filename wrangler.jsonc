@@ -1,0 +1,57 @@
+{
+  "name": "parthik",
+  "main": ".open-next/worker.js",
+
+  // Keep this pinned and bump it deliberately; it controls Workers runtime
+  // behaviour. nodejs_compat is required by the OpenNext adapter, which runs
+  // Next.js's Node.js runtime (docs/ARCHITECTURE.md §4.1).
+  "compatibility_date": "2026-08-01",
+  "compatibility_flags": ["nodejs_compat"],
+
+  "assets": {
+    "directory": ".open-next/assets",
+    "binding": "ASSETS",
+  },
+
+  "observability": {
+    "enabled": true,
+  },
+
+  // No secrets here. Secrets are set with `wrangler secret put` (or the
+  // dashboard) and are never committed — docs/SECURITY.md §9.1.
+  "vars": {
+    "APP_ENV": "development",
+  },
+
+  // ---------------------------------------------------------------------------
+  // Bindings below are intentionally commented out for TASK 001 because they
+  // reference Cloudflare resources that have not been provisioned yet. Each is
+  // enabled by the task that first needs it. Uncommenting one without creating
+  // the resource fails the deploy, not the build.
+  // ---------------------------------------------------------------------------
+  //
+  // PostgreSQL via Hyperdrive (D-01). Needed by TASK 002.
+  // "hyperdrive": [
+  //   { "binding": "HYPERDRIVE", "id": "<hyperdrive-config-id>" }
+  // ],
+  //
+  // R2 buckets (D-07). Public assets and private documents are separate
+  // buckets by design — docs/ARCHITECTURE.md §9.
+  // "r2_buckets": [
+  //   { "binding": "R2_PUBLIC", "bucket_name": "parthik-public" },
+  //   { "binding": "R2_PRIVATE", "bucket_name": "parthik-private" },
+  //   { "binding": "NEXT_INC_CACHE_R2_BUCKET", "bucket_name": "parthik-next-cache" }
+  // ],
+  //
+  // Background jobs (D-05). Needed by TASK 010.
+  // "queues": {
+  //   "producers": [{ "binding": "QUEUE", "queue": "parthik-jobs" }],
+  //   "consumers": [{ "queue": "parthik-jobs", "dead_letter_queue": "parthik-jobs-dlq" }]
+  // },
+  //
+  // Scheduled work (D-05): coupon expiry, stock checks, retention purges.
+  // "triggers": { "crons": ["*/5 * * * *"] },
+  //
+  // Log shipping to Google Cloud Logging (D-27) runs as a tail consumer Worker.
+  // "tail_consumers": [{ "service": "parthik-log-shipper" }]
+}
