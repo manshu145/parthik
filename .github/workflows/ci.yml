@@ -1,0 +1,107 @@
+name: CI
+
+on:
+  pull_request:
+    branches: [main, develop]
+  push:
+    branches: [main, develop]
+
+# Cancel superseded runs on the same ref to keep feedback fast.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  NODE_VERSION: '22'
+
+jobs:
+  quality:
+    name: Typecheck, lint, test, build
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v5
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      # ---- Static analysis -------------------------------------------------
+      - name: Typecheck
+        run: pnpm typecheck
+
+      - name: Lint
+        run: pnpm lint
+
+      - name: Format check
+        run: pnpm format:check
+
+      # ---- Tests -----------------------------------------------------------
+      # Unit tests need no services. Integration tests arrive with TASK 002 and
+      # will add an ephemeral Postgres service plus the Firebase Auth Emulator
+      # (docs/ARCHITECTURE.md §13.1).
+      - name: Unit tests
+        run: pnpm test
+
+      # ---- Build -----------------------------------------------------------
+      - name: Production build
+        run: pnpm build
+        env:
+          APP_ENV: preview
+
+      # Verifies the app compiles for the Cloudflare Workers target, which can
+      # fail even when `next build` succeeds (bundling and runtime constraints).
+      - name: Cloudflare Workers build
+        run: pnpm cf:build
+        env:
+          APP_ENV: preview
+
+  guardrails:
+    name: Secrets and dependency audit
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v5
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      # Blocks a merge if a real .env or a credential-shaped file is committed.
+      - name: Check for committed secrets
+        run: bash scripts/check-secrets.sh
+
+      - name: Dependency audit
+        run: pnpm audit --audit-level high
+        continue-on-error: true
+
+  # ---- Not enabled yet --------------------------------------------------------
+  # E2E runs against a Cloudflare preview deployment and needs the Firebase Auth
+  # Emulator for authenticated journeys. Enabled with TASK 003 once sign-in
+  # exists; running it now would only re-test the smoke suite.
+  #
+  # e2e:
+  #   name: Playwright E2E
+  #   needs: quality

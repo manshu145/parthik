@@ -1,0 +1,10 @@
+.next/
+.open-next/
+.wrangler/
+node_modules/
+coverage/
+playwright-report/
+test-results/
+pnpm-lock.yaml
+next-env.d.ts
+types/cloudflare-env.d.ts

@@ -1,4 +1,5 @@
 # PARTHIK — Full-Stack Rebuild Master Blueprint
+
 ## Product, UX, Architecture, Navigation, Dashboards, SOPs & Kiro AI Development Specification
 
 > **Document purpose:** This is the master product/engineering blueprint for rebuilding **Parthik** from the current custom implementation into a scalable, modern Next.js application developed through GitHub + Kiro AI and deployed through Cloudflare.

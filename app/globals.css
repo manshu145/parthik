@@ -1,0 +1,126 @@
+@import 'tailwindcss';
+
+/**
+ * Design tokens (master spec §24, docs/ARCHITECTURE.md §12.1).
+ *
+ * Single source of truth for colour, typography, radius, shadow, spacing,
+ * z-index and motion. Components consume these; they must never hardcode hex
+ * values or magic spacing — that is what stops the UI drifting page by page.
+ *
+ * Visual direction: modern Indian hyperlocal commerce — clean, trustworthy,
+ * fast, premium but accessible.
+ *
+ * NOTE: the palette below is a neutral, accessible STARTING POINT. Brand colours,
+ * logo and typography are still pending from the product owner, so these values
+ * are expected to change once brand direction arrives. Nothing outside this file
+ * needs to change when they do.
+ */
+
+@theme {
+  /* ---- Colour: brand ---- */
+  --color-brand-50: oklch(97% 0.02 150);
+  --color-brand-100: oklch(94% 0.04 150);
+  --color-brand-200: oklch(88% 0.08 150);
+  --color-brand-300: oklch(80% 0.12 150);
+  --color-brand-400: oklch(72% 0.15 150);
+  --color-brand-500: oklch(64% 0.17 150);
+  --color-brand-600: oklch(55% 0.16 150);
+  --color-brand-700: oklch(45% 0.13 150);
+  --color-brand-800: oklch(37% 0.1 150);
+  --color-brand-900: oklch(30% 0.08 150);
+
+  /* ---- Colour: semantic ---- */
+  --color-background: oklch(100% 0 0);
+  --color-foreground: oklch(20% 0.01 260);
+  --color-muted: oklch(96% 0.005 260);
+  --color-muted-foreground: oklch(50% 0.01 260);
+  --color-border: oklch(91% 0.005 260);
+  --color-input: oklch(91% 0.005 260);
+  --color-ring: var(--color-brand-500);
+
+  --color-primary: var(--color-brand-600);
+  --color-primary-foreground: oklch(99% 0 0);
+
+  --color-secondary: oklch(96% 0.005 260);
+  --color-secondary-foreground: oklch(25% 0.01 260);
+
+  /* Price/discount semantics — used for savings, not decoration. */
+  --color-success: oklch(60% 0.15 150);
+  --color-success-foreground: oklch(99% 0 0);
+  --color-warning: oklch(75% 0.15 75);
+  --color-warning-foreground: oklch(25% 0.05 75);
+  --color-danger: oklch(58% 0.2 25);
+  --color-danger-foreground: oklch(99% 0 0);
+
+  /* ---- Typography ---- */
+  --font-sans:
+    var(--font-inter), ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto,
+    'Noto Sans Devanagari', sans-serif;
+
+  /* ---- Radius ---- */
+  --radius-card: 0.75rem;
+  --radius-control: 0.5rem;
+  --radius-pill: 9999px;
+
+  /* ---- Shadow ---- */
+  --shadow-card: 0 1px 2px 0 oklch(20% 0.01 260 / 0.06), 0 1px 3px 0 oklch(20% 0.01 260 / 0.1);
+  --shadow-raised: 0 4px 12px -2px oklch(20% 0.01 260 / 0.12);
+
+  /* ---- Motion ---- */
+  --ease-out-soft: cubic-bezier(0.22, 1, 0.36, 1);
+  --duration-fast: 120ms;
+  --duration-base: 200ms;
+}
+
+/* ---- Z-index scale ----
+   Declared as plain custom properties so layering is decided once, centrally,
+   instead of by ad-hoc z-50 guesses scattered across components. */
+:root {
+  --z-dropdown: 1000;
+  --z-sticky: 1100;
+  --z-drawer: 1200;
+  --z-modal: 1300;
+  --z-toast: 1400;
+
+  /* Minimum touch target (master spec §24, §26). */
+  --size-tap-target: 44px;
+}
+
+@layer base {
+  * {
+    border-color: var(--color-border);
+  }
+
+  html {
+    -webkit-text-size-adjust: 100%;
+  }
+
+  body {
+    background-color: var(--color-background);
+    color: var(--color-foreground);
+    font-family: var(--font-sans);
+    /* Devanagari benefits from slightly looser leading than Latin. */
+    line-height: 1.6;
+  }
+
+  html[lang='hi'] body {
+    line-height: 1.75;
+  }
+
+  /* Accessibility: focus must always be visible (master spec §26). */
+  :focus-visible {
+    outline: 2px solid var(--color-ring);
+    outline-offset: 2px;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+      scroll-behavior: auto !important;
+    }
+  }
+}
