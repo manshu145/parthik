@@ -1230,6 +1230,14 @@ export class DrizzleCatalogRepository implements CatalogRepository {
     if (filters.categoryIds && filters.categoryIds.length > 0) {
       conditions.push(inArray(products.categoryId, [...filters.categoryIds]));
     }
+    if (filters.productIds) {
+      // An empty list must match nothing rather than being ignored: silently
+      // dropping the filter would turn "no search results" into "the whole
+      // catalogue".
+      conditions.push(
+        filters.productIds.length > 0 ? inArray(products.id, [...filters.productIds]) : sql`false`
+      );
+    }
     if (filters.brandId) conditions.push(eq(products.brandId, filters.brandId));
 
     // Previously declared but never applied — an admin filtering by status silently

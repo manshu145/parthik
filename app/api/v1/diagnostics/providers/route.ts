@@ -4,6 +4,7 @@ import { resolveMapsProvider } from '@/lib/maps/provider-factory';
 import { describeMockFixtures } from '@/lib/maps/mock-provider';
 import { describeLocationBackend } from '@/modules/location';
 import { describeCatalogBackend } from '@/modules/catalog';
+import { describeSearchBackend } from '@/modules/search';
 
 /**
  * GET /api/v1/diagnostics/providers — DEVELOPMENT ONLY.
@@ -36,6 +37,7 @@ export async function GET(request: Request) {
   const maps = resolveMapsProvider();
   const location = describeLocationBackend();
   const catalog = describeCatalogBackend();
+  const search = describeSearchBackend();
 
   return apiSuccess(
     {
@@ -60,6 +62,10 @@ export async function GET(request: Request) {
         databaseConfigured: catalog.databaseConfigured,
         ...(catalog.categorySlugs ? { categorySlugs: catalog.categorySlugs } : {}),
         ...(catalog.productSlugs ? { productSlugs: catalog.productSlugs } : {}),
+      },
+      search: {
+        backend: search.backend,
+        databaseConfigured: search.databaseConfigured,
       },
       notes: [
         'Development diagnostics. This endpoint returns 404 in production.',

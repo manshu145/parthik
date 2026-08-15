@@ -73,10 +73,10 @@ test.describe('responsive navigation', () => {
 
   test('search is reachable at both breakpoints', async ({ page }) => {
     await gotoWithViewport(page, '/', MOBILE);
-    await expect(page.getByRole('searchbox').first()).toBeVisible();
+    await expect(page.getByRole('combobox').first()).toBeVisible();
 
     await gotoWithViewport(page, '/', DESKTOP);
-    await expect(page.getByRole('searchbox').first()).toBeVisible();
+    await expect(page.getByRole('combobox').first()).toBeVisible();
   });
 });
 
@@ -117,8 +117,8 @@ test.describe('navigation between real routes', () => {
   test('search submits to the search route', async ({ page }) => {
     await gotoWithViewport(page, '/', DESKTOP);
 
-    await page.getByRole('searchbox').first().fill('atta');
-    await page.getByRole('searchbox').first().press('Enter');
+    await page.getByRole('combobox').first().fill('atta');
+    await page.getByRole('combobox').first().press('Enter');
 
     await expect(page).toHaveURL(/\/search\?q=atta/);
     await expect(page.getByRole('heading', { level: 1 })).toBeVisible();

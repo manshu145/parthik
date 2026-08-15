@@ -145,9 +145,9 @@ fi
 grep -E "^  (products|product_variants|inventory|product_translations)" /tmp/parthik-seed-demo.log || true
 echo "✅ Demo catalogue seeded."
 
-echo "Executing catalog queries…"
+echo "Executing catalog and search queries…"
 if ! pnpm --silent tsx scripts/check-catalog-queries.ts; then
-  echo "❌ Catalog query check failed."
+  echo "❌ Query check failed."
   exit 1
 fi
 
