@@ -142,12 +142,23 @@ export function calculatePricing(input: PricingInput): PricingResult {
   // ---- Coupon ----
   if (discount) assertAmount(discount.amountPaise, 'discount.amountPaise');
 
-  // Capped at the item value: a coupon must never make items negative, and must
-  // never eat into the delivery fee (a FREE_DELIVERY coupon waives that instead).
-  const couponDiscountPaise = paise(Math.min(discount?.amountPaise ?? 0, afterItemDiscount));
+  // A scoped coupon may only be allocated across the lines it actually covers.
+  // Null means the whole cart.
+  const eligibleIds = discount?.eligibleLineIds ? new Set(discount.eligibleLineIds) : null;
 
   const lineValues = priced.map((entry) => entry.gross - entry.itemDiscount);
-  const couponShares = allocateDiscount(lineValues, couponDiscountPaise);
+  // Ineligible lines are given a zero weight, so they receive no share.
+  const allocatableValues = priced.map((entry, index) =>
+    eligibleIds && !eligibleIds.has(entry.line.id) ? 0 : lineValues[index]!
+  );
+  const allocatableTotal = allocatableValues.reduce((sum, value) => sum + value, 0);
+
+  // Capped at the value it may apply to: a coupon must never make items negative,
+  // must never eat into the delivery fee (a FREE_DELIVERY coupon waives that
+  // instead), and a scoped coupon must never exceed the lines it covers.
+  const couponDiscountPaise = paise(Math.min(discount?.amountPaise ?? 0, allocatableTotal));
+
+  const couponShares = allocateDiscount(allocatableValues, couponDiscountPaise);
 
   const lines: PricedLine[] = priced.map((entry, index) => ({
     id: entry.line.id,

@@ -187,7 +187,11 @@ export const FOOTER_SECTIONS: readonly FooterSection[] = [
  * declared `activePrefixes`. Prefix matching is boundary-aware: `/categories`
  * must not light up for `/categories-archive`.
  */
-export function isNavItemActive(pathname: string, item: NavItem): boolean {
+export function isNavItemActive(
+  pathname: string,
+  // Only the path fields are read, so already-translated nav shapes work too.
+  item: Pick<NavItem, 'href' | 'activePrefixes'>
+): boolean {
   const path = normalisePath(pathname);
 
   // Home is only active on the exact root, or it would match everything.

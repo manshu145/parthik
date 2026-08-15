@@ -11,7 +11,9 @@ import { ProductImage } from '@/components/catalog/product-image';
 import { ProductPrice } from '@/components/catalog/product-price';
 import { AddToCartButton } from '@/components/cart/add-to-cart-button';
 import { JsonLd } from '@/components/seo/json-ld';
-import { absoluteUrl, breadcrumbJsonLd, productJsonLd } from '@/lib/seo/json-ld';
+import { breadcrumbJsonLd, productJsonLd } from '@/lib/seo/json-ld';
+import { canonicalUrl, publicPageMetadata, siteName } from '@/lib/seo/metadata';
+import { redirectIfRenamed } from '@/lib/seo/managed-redirect';
 import { imageUrlForKey } from '@/lib/catalog/image';
 import { logger } from '@/lib/logger';
 import { getCatalogService } from '@/modules/catalog';
@@ -55,11 +57,17 @@ export async function generateMetadata({
   // indexed. Tracked as a known issue rather than papered over.
   if (!result) notFound();
 
-  return {
+  return publicPageMetadata({
     title: result.seo.title,
-    ...(result.seo.description ? { description: result.seo.description } : {}),
-    alternates: { canonical: absoluteUrl(`/products/${slug}`, locale) },
-  };
+    description: result.seo.description ?? result.product.name,
+    path: `/products/${slug}`,
+    locale,
+    siteName: await siteName(locale),
+    // A product share should show the product, not the generic site card. Null when
+    // the product has no image, which falls back to the site card rather than
+    // emitting a broken image URL.
+    imageUrl: imageUrlForKey(result.product.primaryImageKey),
+  });
 }
 
 export default async function ProductPage({
@@ -96,7 +104,12 @@ export default async function ProductPage({
     );
   }
 
-  if (!page) notFound();
+  // A renamed product must keep its inbound links and rankings, so the managed
+  // `redirects` table is consulted before this becomes a 404 (docs/ROUTES.md §11).
+  if (!page) {
+    await redirectIfRenamed(`/products/${slug}`);
+    notFound();
+  }
 
   const { product, related } = page;
   const defaultVariant =
@@ -131,18 +144,18 @@ export default async function ProductPage({
       <JsonLd
         data={[
           breadcrumbJsonLd([
-            { name: tCatalog('breadcrumbHome'), url: absoluteUrl('/', locale) },
-            { name: tCatalog('allCategories'), url: absoluteUrl('/categories', locale) },
+            { name: tCatalog('breadcrumbHome'), url: canonicalUrl('/', locale) },
+            { name: tCatalog('allCategories'), url: canonicalUrl('/categories', locale) },
             {
               name: product.categoryName,
-              url: absoluteUrl(`/category/${product.categorySlug}`, locale),
+              url: canonicalUrl(`/category/${product.categorySlug}`, locale),
             },
             { name: product.name },
           ]),
           productJsonLd({
             name: product.name,
             description: product.description ?? product.shortDescription,
-            url: absoluteUrl(`/products/${product.slug}`, locale),
+            url: canonicalUrl(`/products/${product.slug}`, locale),
             locale,
             sku: defaultVariant?.sku ?? null,
             brandName: product.brandName,

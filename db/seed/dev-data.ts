@@ -180,13 +180,24 @@ export const DEV_PRODUCTS: Array<{
   },
 ];
 
+/**
+ * Demo coupons.
+ *
+ * Chosen to cover every coupon TYPE and the scoping mechanism, so the offers page,
+ * the apply flow and the in-memory repository all exercise real rule paths rather
+ * than one happy case. These are DEMO VALUES, not approved promotions — the amounts
+ * carry no product authority.
+ */
 export const DEV_COUPONS: Array<{
   code: string;
   couponType: 'FLAT' | 'PERCENTAGE' | 'FREE_DELIVERY';
+  /** Paise for FLAT, whole percent for PERCENTAGE, ignored for FREE_DELIVERY. */
   discountValue: number;
   minCartPaise: number;
   maxDiscountPaise?: number;
   firstOrderOnly: boolean;
+  /** Restricts the discount to these categories. Empty means the whole cart. */
+  categorySlugs?: string[];
   translations: Record<Locale, { name: string; description: string }>;
 }> = [
   {
@@ -209,6 +220,32 @@ export const DEV_COUPONS: Array<{
     translations: {
       en: { name: 'Free delivery', description: 'On orders above ₹99' },
       hi: { name: 'मुफ़्त डिलीवरी', description: '₹99 से ऊपर के ऑर्डर पर' },
+    },
+  },
+  {
+    // Percentage with a cap, so the max-discount rule is actually reachable.
+    code: 'DEMOSAVE10',
+    couponType: 'PERCENTAGE',
+    discountValue: 10,
+    minCartPaise: 29_900,
+    maxDiscountPaise: 7_500,
+    firstOrderOnly: false,
+    translations: {
+      en: { name: '10% off, up to ₹75', description: 'On orders above ₹299' },
+      hi: { name: '10% छूट, ₹75 तक', description: '₹299 से ऊपर के ऑर्डर पर' },
+    },
+  },
+  {
+    // Category-scoped, so the discount is computed on part of the cart only.
+    code: 'DEMOSTAPLES15',
+    couponType: 'PERCENTAGE',
+    discountValue: 15,
+    minCartPaise: 19_900,
+    firstOrderOnly: false,
+    categorySlugs: ['staples'],
+    translations: {
+      en: { name: '15% off staples', description: 'Atta, dal and rice' },
+      hi: { name: 'स्टेपल्स पर 15% छूट', description: 'आटा, दाल और चावल' },
     },
   },
 ];

@@ -3,10 +3,12 @@ import { BusinessRuleError, NotFoundError } from '@/lib/errors';
 import type { CatalogService } from '@/modules/catalog/catalog.service';
 import type { PurchasableVariant } from '@/modules/catalog/catalog.repository.types';
 import type { LocationService } from '@/modules/location/location.service';
-import { calculatePricing, type AppliedDiscount } from '@/modules/pricing';
+import { CouponService, toAppliedDiscount, type CouponCartLine } from '@/modules/coupons';
+import { calculatePricing, type AppliedDiscount, type PricingResult } from '@/modules/pricing';
 import { estimateDeliveryWindow, type ZoneFeeConfig } from '@/modules/location/delivery-fee';
 import {
   MAX_QUANTITY_PER_LINE,
+  type CartCouponState,
   type CartIntent,
   type CartIssue,
   type CartLine,
@@ -33,12 +35,18 @@ export interface CartServiceDeps {
   catalog: CatalogService;
   /** Optional: without a chosen location there is no zone, so no fee can be quoted. */
   location: LocationService;
+  coupons: CouponService;
 }
 
 export interface CartContext {
   locale: Locale;
   /** Pincode of the chosen delivery location, when the customer has picked one. */
   pincode?: string | null;
+  /**
+   * Null for a guest. User-scoped coupon rules cannot be satisfied without it, so
+   * a first-order coupon is refused rather than granted on trust.
+   */
+  userId?: string | null;
 }
 
 export class CartService {
@@ -189,6 +197,7 @@ export class CartService {
 
     const lines: CartLine[] = [];
     const pricingLines = [];
+    const couponLineSeeds: Array<Omit<CouponCartLine, 'lineTotalPaise'>> = [];
 
     for (const { line, variant } of resolved) {
       // A variant that has vanished entirely cannot be shown or priced. Dropping it
@@ -212,6 +221,8 @@ export class CartService {
         id: variant.variantId,
         variantId: variant.variantId,
         productId: variant.productId,
+        categoryId: variant.categoryId,
+        vendorId: variant.vendorId,
         productSlug: variant.productSlug,
         productName: variant.productName,
         variantLabel: variant.variantLabel,
@@ -237,6 +248,16 @@ export class CartService {
         mrpPaise: variant.mrpPaise,
         categoryId: variant.categoryId,
       });
+
+      // Scoping facts for the coupon engine. `lineTotalPaise` is filled in from the
+      // pricing result below, because that value is pricing's to define.
+      couponLineSeeds.push({
+        id: variant.variantId,
+        variantId: variant.variantId,
+        productId: variant.productId,
+        categoryId: variant.categoryId,
+        vendorId: variant.vendorId,
+      });
     }
 
     // ---- Zone, for fees and ETA ----
@@ -255,11 +276,27 @@ export class CartService {
           }
         : null;
 
-    // Coupons are TASK 012. Until then no discount is ever applied, rather than a
-    // placeholder that would quietly become wrong.
-    const discount: AppliedDiscount | null = null;
+    // ---- Coupon ----
+    //
+    // Priced TWICE on purpose. The coupon engine needs each line's value after item
+    // discounts, and that value is the pricing engine's to define — so pricing runs
+    // once with no discount to establish line values, the coupon is evaluated
+    // against them, then pricing runs again with the approved amount. Duplicating
+    // "what is a line worth" here instead would be a second implementation of the
+    // one rule the pricing engine exists to own. The engine is pure and cheap, so
+    // the cost is arithmetic, not I/O.
+    const provisional = calculatePricing({ lines: pricingLines, zone, discount: null });
 
-    const totals = calculatePricing({ lines: pricingLines, zone, discount });
+    const { coupon, discount } = await this.resolveCoupon(intent.couponCode, {
+      seeds: couponLineSeeds,
+      provisional,
+      zoneId: serviceability?.zone?.id ?? null,
+      context,
+    });
+
+    const totals = discount
+      ? calculatePricing({ lines: pricingLines, zone, discount })
+      : provisional;
 
     // Attach the priced figures back to the display lines.
     const pricedById = new Map(totals.lines.map((priced) => [priced.id, priced]));
@@ -302,12 +339,115 @@ export class CartService {
       // The store name needs a store read; not required by any current surface, so
       // it is left null rather than fetched speculatively.
       storeName: null,
-      appliedCouponCode: intent.couponCode,
+      coupon,
       issues,
       hasLineIssues: lines.some((line) => line.issues.length > 0),
       etaMinMinutes: window?.minMinutes ?? null,
       etaMaxMinutes: window?.maxMinutes ?? null,
     };
+  }
+
+  /**
+   * Re-evaluates the cart's coupon against the CURRENT cart.
+   *
+   * Never throws. A coupon that has expired, been exhausted, or no longer clears the
+   * minimum must not break the cart page — the cart renders with the discount
+   * dropped and the reason reported, so the UI can explain itself. Throwing belongs
+   * to `POST /api/v1/cart/coupon`, where the customer just asked a direct question.
+   */
+  private async resolveCoupon(
+    code: string | null,
+    input: {
+      seeds: readonly Omit<CouponCartLine, 'lineTotalPaise'>[];
+      provisional: PricingResult;
+      zoneId: string | null;
+      context: CartContext;
+    }
+  ): Promise<{ coupon: CartCouponState | null; discount: AppliedDiscount | null }> {
+    if (!code) return { coupon: null, discount: null };
+
+    const valueById = new Map(
+      input.provisional.lines.map((line) => [line.id, line.lineTotalPaise as number])
+    );
+
+    const lines: CouponCartLine[] = input.seeds.map((seed) => ({
+      ...seed,
+      lineTotalPaise: valueById.get(seed.id) ?? 0,
+    }));
+
+    const evaluation = await this.deps.coupons.evaluate({
+      code,
+      lines,
+      userId: input.context.userId ?? null,
+      zoneId: input.zoneId,
+      locale: input.context.locale,
+    });
+
+    if (!evaluation.isApplicable) {
+      return {
+        coupon: {
+          code: evaluation.code,
+          isApplied: false,
+          reason: evaluation.reason,
+          discountPaise: 0,
+          waivesDeliveryFee: false,
+        },
+        discount: null,
+      };
+    }
+
+    return {
+      coupon: {
+        code: evaluation.code,
+        isApplied: true,
+        discountPaise: evaluation.discountPaise,
+        waivesDeliveryFee: evaluation.waivesDeliveryFee,
+      },
+      discount: toAppliedDiscount(evaluation),
+    };
+  }
+
+  /**
+   * Records a coupon on the cart intent AFTER verifying it applies.
+   *
+   * Throws the documented coupon error when it does not, so a rejected code is never
+   * persisted — a cart carrying a code that can never work would show a refusal
+   * banner on every page load.
+   */
+  async applyCoupon(intent: CartIntent, code: string, context: CartContext): Promise<CartIntent> {
+    // Priced through the normal read path, so the coupon is judged against exactly
+    // the cart the customer is looking at.
+    const view = await this.view({ ...intent, couponCode: null }, context);
+
+    if (view.lines.length === 0) {
+      throw new BusinessRuleError('CART_EMPTY', 'Your cart is empty.');
+    }
+
+    const zoneId = context.pincode
+      ? ((await this.deps.location.checkServiceability(context.pincode)).zone?.id ?? null)
+      : null;
+
+    // Throws on rejection — that is the point of `apply` over `evaluate`.
+    await this.deps.coupons.apply({
+      code,
+      lines: view.lines.map((line) => ({
+        id: line.id,
+        variantId: line.variantId,
+        productId: line.productId,
+        categoryId: line.categoryId,
+        vendorId: line.vendorId,
+        lineTotalPaise: line.lineTotalPaise,
+      })),
+      userId: context.userId ?? null,
+      zoneId,
+      locale: context.locale,
+    });
+
+    return { ...intent, couponCode: CouponService.normaliseCode(code) };
+  }
+
+  removeCoupon(intent: CartIntent): CartIntent {
+    return { ...intent, couponCode: null };
   }
 
   /** Convenience for the header badge: units in the cart, no pricing work. */

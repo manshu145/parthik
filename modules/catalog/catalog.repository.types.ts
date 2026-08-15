@@ -294,6 +294,40 @@ export interface PublicCatalogReader {
     locale: LocaleScope,
     limit?: number
   ): Promise<LocalisedProduct[]>;
+
+  /**
+   * Every publicly indexable slug, for the sitemap.
+   *
+   * Locale-independent and translation-free on purpose: a sitemap needs slugs and
+   * timestamps, not names, and joining the translation tables for a full-catalogue
+   * scan would cost far more than it returns.
+   *
+   * `limit` is a hard cap. A sitemap file may hold 50,000 URLs, and every entry here
+   * is emitted once per locale, so the real ceiling is half of that.
+   */
+  listSitemapEntries(limit?: number): Promise<SitemapEntries>;
+}
+
+/**
+ * Per-entity cap for one sitemap.
+ *
+ * The XML sitemap limit is 50,000 URLs per file. Each entry is emitted once with
+ * per-locale alternates, and there are two entity types plus static routes, so
+ * 20,000 each leaves comfortable room before a sitemap index becomes necessary.
+ */
+export const SITEMAP_MAX_ENTRIES = 20_000;
+
+/** Slugs and last-modified timestamps for the sitemap. */
+export interface SitemapEntry {
+  slug: string;
+  updatedAt: Date;
+}
+
+export interface SitemapEntries {
+  categories: SitemapEntry[];
+  products: SitemapEntry[];
+  /** True when the cap was hit, so the caller can report an incomplete sitemap. */
+  isTruncated: boolean;
 }
 
 /**

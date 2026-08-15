@@ -62,6 +62,18 @@ export interface AppliedDiscount {
   amountPaise: number;
   /** True for FREE_DELIVERY coupons, which waive the fee instead. */
   waivesDeliveryFee: boolean;
+  /**
+   * The lines the discount may be allocated across, by `PricingLineInput.id`.
+   *
+   * Set by a SCOPED coupon — one restricted to a category, product or vendor.
+   * Without it, a "15% off staples" coupon would spread its discount over the milk
+   * in the same cart, showing the customer a saving on a line the coupon never
+   * covered. The cart total would still be right, so the error would only ever be
+   * visible per line, which is exactly the kind of thing that goes unnoticed.
+   *
+   * Omit or leave null for a whole-cart coupon.
+   */
+  eligibleLineIds?: readonly string[] | null;
 }
 
 export interface PricingInput {

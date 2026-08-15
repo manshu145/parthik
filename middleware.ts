@@ -55,7 +55,7 @@ export function middleware(request: NextRequest): NextResponse {
   const locale = detectLocale(pathname, response);
 
   // 2. Coarse auth gate — presence only, never a permission decision.
-  if (requiresSession(pathname)) {
+  if (requiresSession(pathname) && !isUnauthenticatedPreview(pathname)) {
     const hasSession = request.cookies.has(SESSION_COOKIE_NAME);
 
     if (!hasSession) {
@@ -111,6 +111,33 @@ function decorate(
  */
 function isIndexableDeployment(): boolean {
   return process.env.APP_ENV === 'production';
+}
+
+/**
+ * Lets the vendor, driver and admin SHELLS be reviewed before authentication
+ * exists.
+ *
+ * ⚠️ THIS IS A TEMPORARY, SELF-DISABLING SWITCH. Both conditions must hold:
+ *
+ *   1. NOT production. A production deployment always enforces the gate.
+ *   2. Firebase is NOT configured — meaning sign-in is impossible, so no session
+ *      cookie can ever be issued and the gate would redirect every visitor to a
+ *      login page that cannot work.
+ *
+ * The moment Firebase credentials are added (TASK 003), condition 2 fails and the
+ * gate returns with no code change. That is the point: this cannot be forgotten
+ * and left open, because configuring auth is exactly what closes it.
+ *
+ * What it exposes is genuinely nothing: these routes render static shells with no
+ * database reads and no customer data. Only `/account`-style CUSTOMER routes stay
+ * gated, because those are per-user surfaces where a shell would be misleading.
+ */
+function isUnauthenticatedPreview(pathname: string): boolean {
+  if (process.env.APP_ENV === 'production') return false;
+  if (process.env.FIREBASE_PROJECT_ID) return false;
+
+  const surface = classifySurface(pathname);
+  return surface === 'vendor' || surface === 'driver' || surface === 'admin';
 }
 
 function detectLocale(pathname: string, response: NextResponse): string {

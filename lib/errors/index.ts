@@ -70,6 +70,15 @@ export type ErrorCode =
 export interface AppErrorOptions {
   publicMessage?: string;
   context?: Record<string, unknown>;
+  /**
+   * Machine-readable facts the CLIENT needs, returned in the response
+   * (docs/API_SPEC.md §1.3).
+   *
+   * Distinct from `context` on purpose, and the distinction is the point:
+   * `context` is for logs and may hold anything, `details` crosses the network.
+   * Put a shortfall amount here; never an internal id, query or provider payload.
+   */
+  details?: Record<string, unknown>;
   cause?: unknown;
 }
 
@@ -80,6 +89,8 @@ export abstract class AppError extends Error {
   /** Safe to show a user. Subclasses provide a sensible default. */
   readonly publicMessage: string;
   readonly context: Record<string, unknown> | undefined;
+  /** Safe to return to the caller. See `AppErrorOptions.details`. */
+  readonly details: Record<string, unknown> | undefined;
 
   /**
    * Expected errors (validation, permission, business rules) are logged at
@@ -92,11 +103,17 @@ export abstract class AppError extends Error {
     this.name = new.target.name;
     this.publicMessage = options.publicMessage ?? message;
     this.context = options.context;
+    this.details = options.details;
   }
 
   /** Client-facing shape. Deliberately excludes `message` and `context`. */
-  toJSON(): { code: ErrorCode; message: string } {
-    return { code: this.code, message: this.publicMessage };
+  toJSON(): { code: ErrorCode; message: string; details?: Record<string, unknown> } {
+    return {
+      code: this.code,
+      message: this.publicMessage,
+      // Omitted entirely when absent, so the envelope stays clean.
+      ...(this.details ? { details: this.details } : {}),
+    };
   }
 }
 

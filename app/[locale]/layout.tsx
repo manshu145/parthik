@@ -4,8 +4,9 @@ import { NextIntlClientProvider, hasLocale } from 'next-intl';
 import { getTranslations, setRequestLocale } from 'next-intl/server';
 import { notFound } from 'next/navigation';
 import type { ReactNode } from 'react';
-import { localeTags, routing, type Locale } from '@/i18n/routing';
+import { defaultLocale, isLocale, localeTags, routing, type Locale } from '@/i18n/routing';
 import { isIndexableEnvironment } from '@/lib/config/env';
+import { alternatesFor, metadataBase, socialMetadata } from '@/lib/seo/metadata';
 import '../globals.css';
 
 /**
@@ -35,8 +36,12 @@ export async function generateMetadata({
 }): Promise<Metadata> {
   const { locale } = await params;
   const t = await getTranslations({ locale, namespace: 'common' });
+  const resolved: Locale = isLocale(locale) ? locale : defaultLocale;
 
   return {
+    // Resolves every relative URL in child metadata. Without it Next resolves them
+    // against localhost in production and warns at build time.
+    metadataBase: metadataBase(),
     title: {
       default: t('appName'),
       template: `%s · ${t('appName')}`,
@@ -48,6 +53,17 @@ export async function generateMetadata({
       ? { index: true, follow: true }
       : { index: false, follow: false },
     formatDetection: { telephone: false },
+    // Home-page canonical and hreflang. Child pages override with their own path;
+    // having it here means a page that forgets still emits a correct language map
+    // rather than none at all.
+    alternates: alternatesFor('/', resolved),
+    ...socialMetadata({
+      title: t('appName'),
+      description: t('tagline'),
+      path: '/',
+      locale: resolved,
+      siteName: t('appName'),
+    }),
   };
 }
 
