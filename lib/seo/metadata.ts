@@ -1,0 +1,160 @@
+import type { Metadata } from 'next';
+import { defaultLocale, locales, localeTags, type Locale } from '@/i18n/routing';
+import { getPublicAppUrl } from '@/lib/config/public-config';
+
+/**
+ * Metadata helpers (docs/ROUTES.md §11, master spec §20).
+ *
+ * ONE place builds canonicals, `hreflang` and Open Graph. Every page that
+ * hand-rolled its own would eventually disagree, and the failure mode is invisible
+ * in the browser: a wrong canonical or a missing `hreflang` costs rankings silently,
+ * with nothing on screen to show for it.
+ *
+ * THE RULE (docs/ROUTES.md §11): one canonical per page per locale, every locale
+ * cross-referencing every other, plus `x-default`.
+ */
+
+/** Base URL with any trailing slash removed, so joins never double up. */
+export function siteUrl(): string {
+  return getPublicAppUrl().replace(/\/+$/, '');
+}
+
+/**
+ * `metadataBase` for the whole app.
+ *
+ * Without it, Next resolves relative Open Graph and canonical URLs against
+ * `localhost` in production and warns at build time. Every absolute URL below is
+ * built explicitly anyway, so this is the safety net rather than the mechanism.
+ */
+export function metadataBase(): URL {
+  return new URL(siteUrl());
+}
+
+/**
+ * A locale-correct path.
+ *
+ * English is unprefixed (D-33a), Hindi is `/hi/...`. The root is the awkward case:
+ * English root must be `/` and the Hindi root `/hi` with NO trailing slash, because
+ * that is what the router actually serves — emitting `/hi/` here would make the
+ * canonical disagree with the URL the visitor is on.
+ */
+export function localePath(path: string, locale: Locale): string {
+  const prefix = locale === defaultLocale ? '' : `/${locale}`;
+  const normalised = path === '/' ? '' : path.startsWith('/') ? path : `/${path}`;
+
+  return `${prefix}${normalised}` || '/';
+}
+
+/** Fully-qualified URL for a path in a locale. */
+export function canonicalUrl(path: string, locale: Locale): string {
+  return `${siteUrl()}${localePath(path, locale)}`;
+}
+
+/**
+ * Canonical plus `hreflang` for one logical page.
+ *
+ * `x-default` points at the DEFAULT locale, which is what Google expects for
+ * "no language preference" — omitting it is the single most common hreflang mistake,
+ * and it makes Google guess.
+ *
+ * Keys use full BCP-47 tags (`en-IN`, `hi-IN`) rather than bare language codes: this
+ * is an India-only service, and the region signal is accurate rather than aspirational.
+ */
+export function alternatesFor(path: string, locale: Locale): Metadata['alternates'] {
+  const languages: Record<string, string> = {};
+
+  for (const candidate of locales) {
+    languages[localeTags[candidate]] = canonicalUrl(path, candidate);
+  }
+  languages['x-default'] = canonicalUrl(path, defaultLocale);
+
+  return { canonical: canonicalUrl(path, locale), languages };
+}
+
+export interface SocialMetadataInput {
+  title: string;
+  description: string;
+  /** Locale-independent path, e.g. `/offers`. */
+  path: string;
+  locale: Locale;
+  siteName: string;
+  /** `article` for blog posts; everything else is a website or product page. */
+  type?: 'website' | 'article';
+  /** Absolute image URL. Falls back to the site-wide generated image. */
+  imageUrl?: string | null;
+}
+
+/**
+ * Open Graph and Twitter card metadata.
+ *
+ * Both are built from the same inputs so a page cannot end up with one title on
+ * Facebook and a different one on X.
+ *
+ * `alternateLocale` is included so a share of the Hindi page is understood as the
+ * same content in another language rather than as a duplicate.
+ */
+export function socialMetadata(input: SocialMetadataInput): Metadata {
+  const url = canonicalUrl(input.path, input.locale);
+  const image = input.imageUrl ?? `${siteUrl()}/opengraph-image.png`;
+
+  return {
+    openGraph: {
+      type: input.type ?? 'website',
+      title: input.title,
+      description: input.description,
+      url,
+      siteName: input.siteName,
+      locale: localeTags[input.locale].replace('-', '_'),
+      alternateLocale: locales
+        .filter((candidate) => candidate !== input.locale)
+        .map((candidate) => localeTags[candidate].replace('-', '_')),
+      images: [{ url: image, width: 1200, height: 630, alt: input.title }],
+    },
+    twitter: {
+      // Large image: a grocery product with a small thumbnail converts badly.
+      card: 'summary_large_image',
+      title: input.title,
+      description: input.description,
+      images: [image],
+    },
+  };
+}
+
+/**
+ * Everything a public page needs: canonical, hreflang, Open Graph and Twitter.
+ *
+ * Pages call this rather than assembling the three separately, because the failure
+ * mode of forgetting one is silent.
+ */
+export function publicPageMetadata(input: SocialMetadataInput): Metadata {
+  return {
+    title: input.title,
+    description: input.description,
+    alternates: alternatesFor(input.path, input.locale),
+    ...socialMetadata(input),
+  };
+}
+
+/**
+ * Metadata for a page that must never be indexed.
+ *
+ * No canonical and no hreflang: pointing search engines at a page you are also
+ * telling them to ignore is a contradiction, and a canonical on a noindex page can
+ * transfer the noindex to the target.
+ */
+export function privatePageMetadata(title: string): Metadata {
+  return { title, robots: { index: false, follow: false } };
+}
+
+/**
+ * The translated site name, for Open Graph `siteName`.
+ *
+ * Server-only (it reads request-scoped translations), and it exists so twelve pages
+ * do not each fetch the `common` namespace just to name the site.
+ */
+export async function siteName(locale: Locale): Promise<string> {
+  const { getTranslations } = await import('next-intl/server');
+  const t = await getTranslations({ locale, namespace: 'common' });
+
+  return t('appName');
+}

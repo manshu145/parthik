@@ -17,6 +17,7 @@ import {
 } from '@/lib/db/repository';
 import {
   PRODUCT_SORT_KEYS,
+  SITEMAP_MAX_ENTRIES,
   type CatalogRepository,
   type CategoryDetail,
   type CategoryTreeNode,
@@ -29,6 +30,7 @@ import {
   type ProductListFilters,
   type ProductSortKey,
   type PurchasableVariant,
+  type SitemapEntries,
   type TranslationCompleteness,
   type VendorProduct,
 } from './catalog.repository.types';
@@ -125,6 +127,15 @@ interface MemoryProduct {
  * ordered by them, so wall-clock values would make tests non-reproducible.
  */
 const FIXTURE_EPOCH = Date.UTC(2026, 0, 1, 0, 0, 0);
+
+/**
+ * Last-modified stamp for fixture categories.
+ *
+ * Fixed rather than `new Date()`: a sitemap whose `lastmod` changed on every request
+ * tells crawlers everything changed constantly, which is both untrue and a good way
+ * to waste crawl budget.
+ */
+const FIXTURE_UPDATED_AT = new Date(FIXTURE_EPOCH);
 
 const STORE_ID = fixtureId('store', DEV_STORE.slug);
 const VENDOR_ID = fixtureId('vendor', DEV_VENDOR.slug);
@@ -565,6 +576,29 @@ export class InMemoryCatalogRepository implements CatalogRepository {
       .sort((a, b) => b.soldCount - a.soldCount || (a.id < b.id ? 1 : -1))
       .slice(0, resolveLimit(limit))
       .map((candidate) => this.toLocalisedProduct(candidate, locale.locale));
+  }
+
+  listSitemapEntries(limit = SITEMAP_MAX_ENTRIES): Promise<SitemapEntries> {
+    const cap = Math.max(1, limit);
+
+    const categoryEntries = this.categories
+      .filter((category) => category.isActive)
+      .map((category) => ({ slug: category.slug, updatedAt: FIXTURE_UPDATED_AT }))
+      // Same ordering as the SQL, so the two cannot produce different sitemaps.
+      .sort((a, b) => a.slug.localeCompare(b.slug));
+
+    const productEntries = this.products
+      .filter((product) => this.isPubliclyVisible(product))
+      .map((product) => ({ slug: product.slug, updatedAt: product.createdAt }))
+      .sort(
+        (a, b) => b.updatedAt.getTime() - a.updatedAt.getTime() || a.slug.localeCompare(b.slug)
+      );
+
+    return Promise.resolve({
+      categories: categoryEntries.slice(0, cap),
+      products: productEntries.slice(0, cap),
+      isTruncated: categoryEntries.length > cap || productEntries.length > cap,
+    });
   }
 
   // -------------------------------------------------------------------------

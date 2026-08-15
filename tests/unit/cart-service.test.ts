@@ -4,6 +4,8 @@ import { InMemoryCatalogRepository } from '@/modules/catalog/catalog-memory.repo
 import { LocationService } from '@/modules/location/location.service';
 import { InMemoryLocationRepository } from '@/modules/location/location-memory.repository';
 import { mockMapsProvider } from '@/lib/maps/mock-provider';
+import { CouponService } from '@/modules/coupons/coupon.service';
+import { InMemoryCouponRepository } from '@/modules/coupons/coupon-memory.repository';
 import { CartService } from '@/modules/cart/cart.service';
 import { MAX_QUANTITY_PER_LINE, type CartIntent } from '@/modules/cart/cart.types';
 import { AppError } from '@/lib/errors';
@@ -23,7 +25,9 @@ function service() {
     maps: mockMapsProvider,
   });
 
-  return new CartService({ catalog, location });
+  const coupons = new CouponService({ repository: new InMemoryCouponRepository() });
+
+  return new CartService({ catalog, location, coupons });
 }
 
 const EMPTY: CartIntent = { storeId: null, lines: [], couponCode: null };

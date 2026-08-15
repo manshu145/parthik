@@ -6,8 +6,10 @@ import { EmptyState, ErrorState } from '@/components/feedback/states';
 import { CategoryGrid } from '@/components/catalog/category-card';
 import { ProductGrid } from '@/components/catalog/product-grid';
 import { Link } from '@/i18n/navigation';
-import { isLocale } from '@/i18n/routing';
-import { absoluteUrl } from '@/lib/seo/json-ld';
+import { defaultLocale, isLocale } from '@/i18n/routing';
+import { JsonLd } from '@/components/seo/json-ld';
+import { organizationJsonLd, websiteJsonLd } from '@/lib/seo/json-ld';
+import { publicPageMetadata } from '@/lib/seo/metadata';
 import { logger } from '@/lib/logger';
 import { getCatalogService } from '@/modules/catalog';
 
@@ -31,12 +33,15 @@ export async function generateMetadata({
   const { locale } = await params;
   const t = await getTranslations({ locale, namespace: 'pages.home' });
   const tCommon = await getTranslations({ locale, namespace: 'common' });
+  const resolved = isLocale(locale) ? locale : defaultLocale;
 
-  return {
+  return publicPageMetadata({
     title: t('title'),
     description: tCommon('tagline'),
-    alternates: { canonical: isLocale(locale) ? absoluteUrl('/', locale) : undefined },
-  };
+    path: '/',
+    locale: resolved,
+    siteName: tCommon('appName'),
+  });
 }
 
 export default async function HomePage({ params }: { params: Promise<{ locale: string }> }) {
@@ -46,6 +51,7 @@ export default async function HomePage({ params }: { params: Promise<{ locale: s
 
   const t = await getTranslations('pages.home');
   const tCatalog = await getTranslations('catalog');
+  const tCommon = await getTranslations('common');
 
   let categories;
   let popular;
@@ -79,6 +85,25 @@ export default async function HomePage({ params }: { params: Promise<{ locale: s
 
   return (
     <PageShell title={t('heading')}>
+      {/*
+        Site-level structured data belongs on the home page only — repeating
+        Organization on every page gives crawlers the same entity dozens of times.
+
+        Organization and WebSite are emitted because every field is real. LocalBusiness
+        is NOT: it requires a verifiable street address and postal code, and no public
+        store read exposes one yet (that arrives with the vendor store profile). Asserting
+        an address we cannot stand behind invites a manual action, so the node is omitted
+        rather than filled with plausible values.
+      */}
+      <JsonLd
+        data={organizationJsonLd({
+          name: tCommon('appName'),
+          description: tCommon('tagline'),
+          locale,
+        })}
+      />
+      <JsonLd data={websiteJsonLd({ name: tCommon('appName'), locale })} />
+
       <div className="flex flex-col gap-8">
         {!hasContent && (
           <EmptyState

@@ -46,6 +46,7 @@ import {
 } from '@/lib/db/repository';
 import {
   PRODUCT_SORT_KEYS,
+  SITEMAP_MAX_ENTRIES,
   type CatalogRepository,
   type CategoryDetail,
   type CategoryTreeNode,
@@ -58,6 +59,7 @@ import {
   type ProductListFilters,
   type ProductSortKey,
   type PurchasableVariant,
+  type SitemapEntries,
   type TranslationCompleteness,
   type VendorProduct,
 } from './catalog.repository.types';
@@ -800,6 +802,35 @@ export class DrizzleCatalogRepository implements CatalogRepository {
       inStock: (row.sellableVariants ?? 0) > 0,
       usedFallbackLocale: row.usedFallbackLocale,
     }));
+  }
+
+  async listSitemapEntries(limit = SITEMAP_MAX_ENTRIES): Promise<SitemapEntries> {
+    const cap = Math.max(1, limit);
+
+    // One extra row is requested so a full page can be distinguished from a page
+    // that merely happens to be exactly at the cap.
+    const [categoryRows, productRows] = await Promise.all([
+      this.ctx.db
+        .select({ slug: categories.slug, updatedAt: categories.updatedAt })
+        .from(categories)
+        .where(and(eq(categories.isActive, true), isNull(categories.deletedAt)))
+        .orderBy(categories.slug)
+        .limit(cap + 1),
+      this.ctx.db
+        .select({ slug: products.slug, updatedAt: products.updatedAt })
+        .from(products)
+        .where(and(eq(products.status, 'ACTIVE'), isNull(products.deletedAt)))
+        // Most recently changed first: if the cap ever truncates, the freshest
+        // content is the part that survives.
+        .orderBy(desc(products.updatedAt), products.slug)
+        .limit(cap + 1),
+    ]);
+
+    return {
+      categories: categoryRows.slice(0, cap),
+      products: productRows.slice(0, cap),
+      isTruncated: categoryRows.length > cap || productRows.length > cap,
+    };
   }
 
   // -------------------------------------------------------------------------

@@ -1,4 +1,5 @@
 import { getCatalogService } from '@/modules/catalog';
+import { getCouponService } from '@/modules/coupons';
 import { getLocationService } from '@/modules/location';
 import { CartService } from './cart.service';
 
@@ -16,14 +17,20 @@ import { CartService } from './cart.service';
  */
 
 export async function getCartService(): Promise<CartService> {
-  const [catalog, location] = await Promise.all([getCatalogService(), getLocationService()]);
+  const [catalog, location, coupons] = await Promise.all([
+    getCatalogService(),
+    getLocationService(),
+    getCouponService(),
+  ]);
 
-  return new CartService({ catalog, location });
+  return new CartService({ catalog, location, coupons });
 }
 
 export { CartService, createCartService } from './cart.service';
+export type { CartContext, CartServiceDeps } from './cart.service';
 export { MAX_QUANTITY_PER_LINE } from './cart.types';
 export type {
+  CartCouponState,
   CartIntent,
   CartIntentLine,
   CartIssue,

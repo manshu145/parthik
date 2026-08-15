@@ -8,7 +8,9 @@ import { EmptyState, ErrorState } from '@/components/feedback/states';
 import { ProductGrid } from '@/components/catalog/product-grid';
 import { CategoryGrid } from '@/components/catalog/category-card';
 import { JsonLd } from '@/components/seo/json-ld';
-import { absoluteUrl, breadcrumbJsonLd, collectionPageJsonLd } from '@/lib/seo/json-ld';
+import { breadcrumbJsonLd, collectionPageJsonLd } from '@/lib/seo/json-ld';
+import { canonicalUrl, publicPageMetadata, siteName } from '@/lib/seo/metadata';
+import { redirectIfRenamed } from '@/lib/seo/managed-redirect';
 import { buildCatalogHref, buildSortOptions, firstValue } from '@/lib/catalog/query';
 import { logger } from '@/lib/logger';
 import { getCatalogService } from '@/modules/catalog';
@@ -70,11 +72,13 @@ export async function generateMetadata({
   // Same known 200-status limitation as the product page; see the note there.
   if (!result) notFound();
 
-  return {
+  return publicPageMetadata({
     title: result.seo.title,
-    ...(result.seo.description ? { description: result.seo.description } : {}),
-    alternates: { canonical: absoluteUrl(`/category/${slug}`, locale) },
-  };
+    description: result.seo.description ?? result.category.name,
+    path: `/category/${slug}`,
+    locale,
+    siteName: await siteName(locale),
+  });
 }
 
 export default async function CategoryPage({
@@ -106,7 +110,11 @@ export default async function CategoryPage({
     );
   }
 
-  if (!result) notFound();
+  // Same reasoning as the product page: a renamed category keeps its links.
+  if (!result) {
+    await redirectIfRenamed(`/category/${slug}`);
+    notFound();
+  }
 
   const { category, products } = result;
   const basePath = `/category/${slug}`;
@@ -138,18 +146,18 @@ export default async function CategoryPage({
       <JsonLd
         data={[
           breadcrumbJsonLd([
-            { name: tCatalog('breadcrumbHome'), url: absoluteUrl('/', locale) },
-            { name: tCatalog('allCategories'), url: absoluteUrl('/categories', locale) },
+            { name: tCatalog('breadcrumbHome'), url: canonicalUrl('/', locale) },
+            { name: tCatalog('allCategories'), url: canonicalUrl('/categories', locale) },
             ...category.ancestors.map((ancestor) => ({
               name: ancestor.name,
-              url: absoluteUrl(`/category/${ancestor.slug}`, locale),
+              url: canonicalUrl(`/category/${ancestor.slug}`, locale),
             })),
             { name: category.name },
           ]),
           collectionPageJsonLd({
             name: category.name,
             description: category.description,
-            url: absoluteUrl(basePath, locale),
+            url: canonicalUrl(basePath, locale),
             locale,
             itemCount: products.items.length,
           }),

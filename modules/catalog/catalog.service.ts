@@ -9,6 +9,7 @@ import type {
   LocalisedProductDetail,
   ProductAvailability,
   PurchasableVariant,
+  SitemapEntries,
 } from './catalog.repository.types';
 import type { ProductListQuery } from './catalog.schema';
 
@@ -176,6 +177,17 @@ export class CatalogService {
     if (!product) return null;
 
     return this.deps.repository.getProductAvailability(product.id);
+  }
+
+  /**
+   * Indexable slugs for the sitemap.
+   *
+   * Pass-through, but it exists so `app/sitemap.ts` goes through the service like
+   * every other caller instead of reaching for a repository directly — the
+   * app/ → repository import boundary is enforced by ESLint.
+   */
+  async getSitemapEntries(limit?: number): Promise<SitemapEntries> {
+    return this.deps.repository.listSitemapEntries(limit);
   }
 
   async getRelatedProducts(

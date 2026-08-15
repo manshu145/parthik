@@ -1,3 +1,4 @@
+import type { CouponRejectionCode } from '@/modules/coupons';
 import type { PricingResult } from '@/modules/pricing';
 
 /**
@@ -39,6 +40,9 @@ export interface CartLine {
   id: string;
   variantId: string;
   productId: string;
+  /** Carried so coupon scoping can be evaluated without re-reading the variant. */
+  categoryId: string;
+  vendorId: string;
   productSlug: string;
   productName: string;
   variantLabel: string | null;
@@ -64,6 +68,28 @@ export type CartIssue =
   | { code: 'LOCATION_REQUIRED' }
   | { code: 'NOT_SERVICEABLE'; pincode: string };
 
+/**
+ * The coupon the cart is carrying, and whether it actually counted.
+ *
+ * A coupon is re-evaluated on EVERY cart read, so this can flip to `isApplied:
+ * false` without the customer touching anything — removing an item can drop the
+ * cart below the minimum, and a coupon can expire while the tab is open. Reporting
+ * that state is why this is not just a string: silently dropping the discount would
+ * look like a pricing bug, and silently keeping it would overstate the saving.
+ *
+ * Deliberately NOT a `CartIssue`: a coupon that no longer applies must not block
+ * checkout, it just does not discount.
+ */
+export interface CartCouponState {
+  code: string;
+  isApplied: boolean;
+  /** Set only when `isApplied` is false. */
+  reason?: CouponRejectionCode;
+  /** Discount against items. Zero for a free-delivery coupon. */
+  discountPaise: number;
+  waivesDeliveryFee: boolean;
+}
+
 export interface CartView {
   lines: CartLine[];
   /** Server-computed. The client never derives a total. */
@@ -71,7 +97,8 @@ export interface CartView {
   /** Store the cart is locked to, for display and D-11 enforcement. */
   storeId: string | null;
   storeName: string | null;
-  appliedCouponCode: string | null;
+  /** Null when no coupon is on the cart at all. */
+  coupon: CartCouponState | null;
   /** Must be empty before checkout may proceed. */
   issues: CartIssue[];
   /** Convenience roll-up: any line has a blocking issue. */

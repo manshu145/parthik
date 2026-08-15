@@ -539,3 +539,142 @@ describe('determinism', () => {
     }
   });
 });
+
+describe('scoped coupon allocation', () => {
+  const SCOPED_LINES = [
+    line({ id: 'staple', unitPricePaise: 20_000, mrpPaise: 20_000 }),
+    line({ id: 'milk', unitPricePaise: 8_000, mrpPaise: 8_000 }),
+  ];
+
+  it('gives an ineligible line no share of the discount', () => {
+    // A "15% off staples" coupon must not show a saving on the milk in the same
+    // cart. The cart total would still be correct, so this error would only ever be
+    // visible per line — which is exactly how it would survive review.
+    const result = calculatePricing({
+      lines: SCOPED_LINES,
+      zone: ZONE,
+      discount: {
+        couponId: 'c',
+        code: 'STAPLES15',
+        amountPaise: 3_000,
+        waivesDeliveryFee: false,
+        eligibleLineIds: ['staple'],
+      },
+    });
+
+    const byId = new Map(result.lines.map((l) => [l.id, l]));
+    expect(byId.get('staple')?.couponDiscountPaise).toBe(3_000);
+    expect(byId.get('milk')?.couponDiscountPaise).toBe(0);
+    expect(result.couponDiscountPaise).toBe(3_000);
+  });
+
+  it('caps a scoped discount at the eligible lines, not the whole cart', () => {
+    const result = calculatePricing({
+      lines: SCOPED_LINES,
+      zone: ZONE,
+      discount: {
+        couponId: 'c',
+        code: 'BIG',
+        // More than the milk line is worth, and more than the eligible line too.
+        amountPaise: 50_000,
+        waivesDeliveryFee: false,
+        eligibleLineIds: ['milk'],
+      },
+    });
+
+    expect(result.couponDiscountPaise).toBe(8_000);
+    expect(result.taxableAmountPaise).toBe(20_000);
+  });
+
+  it('spreads across every line when no scope is given', () => {
+    const result = calculatePricing({
+      lines: SCOPED_LINES,
+      zone: ZONE,
+      discount: { couponId: 'c', code: 'CART', amountPaise: 2_800, waivesDeliveryFee: false },
+    });
+
+    const shares = result.lines.map((l) => l.couponDiscountPaise);
+    // Proportional: 20000:8000 of 2800 → 2000:800.
+    expect(shares).toEqual([2_000, 800]);
+  });
+
+  it('treats an explicit list of every line as an unscoped coupon', () => {
+    const scoped = calculatePricing({
+      lines: SCOPED_LINES,
+      zone: ZONE,
+      discount: {
+        couponId: 'c',
+        code: 'CART',
+        amountPaise: 2_800,
+        waivesDeliveryFee: false,
+        eligibleLineIds: ['staple', 'milk'],
+      },
+    });
+    const unscoped = calculatePricing({
+      lines: SCOPED_LINES,
+      zone: ZONE,
+      discount: { couponId: 'c', code: 'CART', amountPaise: 2_800, waivesDeliveryFee: false },
+    });
+
+    // The coupon service always sends the list, so these two must agree exactly.
+    expect(scoped).toEqual(unscoped);
+  });
+
+  it('keeps line shares summing to the cart discount when scoped', () => {
+    const result = calculatePricing({
+      lines: [
+        line({ id: 'a', unitPricePaise: 3_333 }),
+        line({ id: 'b', unitPricePaise: 6_667 }),
+        line({ id: 'c', unitPricePaise: 5_000 }),
+      ],
+      zone: ZONE,
+      discount: {
+        couponId: 'x',
+        code: 'X',
+        amountPaise: 1_111,
+        waivesDeliveryFee: false,
+        eligibleLineIds: ['a', 'b'],
+      },
+    });
+
+    const allocated = result.lines.reduce((sum, l) => sum + l.couponDiscountPaise, 0);
+    expect(allocated).toBe(result.couponDiscountPaise);
+    expect(result.lines.find((l) => l.id === 'c')?.couponDiscountPaise).toBe(0);
+  });
+
+  it('applies nothing when the scope matches no line in the cart', () => {
+    // Defensive: the coupon engine should never produce this, but pricing must not
+    // fall back to discounting the whole cart if it ever did.
+    const result = calculatePricing({
+      lines: SCOPED_LINES,
+      zone: ZONE,
+      discount: {
+        couponId: 'c',
+        code: 'GONE',
+        amountPaise: 3_000,
+        waivesDeliveryFee: false,
+        eligibleLineIds: ['removed-line'],
+      },
+    });
+
+    expect(result.couponDiscountPaise).toBe(0);
+    expect(result.taxableAmountPaise).toBe(28_000);
+  });
+
+  it('still waives delivery for a scoped free-delivery coupon', () => {
+    const result = calculatePricing({
+      lines: [line({ unitPricePaise: 12_000 })],
+      zone: ZONE,
+      discount: {
+        couponId: 'c',
+        code: 'FREEDEL',
+        amountPaise: 0,
+        waivesDeliveryFee: true,
+        eligibleLineIds: ['line-1'],
+      },
+    });
+
+    expect(result.deliveryFeePaise).toBe(0);
+    expect(result.deliveryWaivedBy).toBe('coupon');
+  });
+});

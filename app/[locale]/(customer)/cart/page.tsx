@@ -9,6 +9,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { ProductImage } from '@/components/catalog/product-image';
 import { CartLineControls } from '@/components/cart/cart-line-controls';
+import { CartCoupon } from '@/components/cart/cart-coupon';
 import { getCartView } from '@/lib/shell/current-cart';
 import { formatPaise, paise } from '@/lib/money';
 import { MAX_QUANTITY_PER_LINE } from '@/modules/cart';
@@ -169,13 +170,29 @@ export default async function CartPage({ params }: { params: Promise<{ locale: s
               <dd>{formatPaise(paise(totals.taxableAmountPaise), locale)}</dd>
             </div>
 
+            {/* Shown only when a coupon actually reduced the items. A free-delivery
+                coupon discounts nothing here — it shows up as a waived fee below. */}
+            {totals.couponDiscountPaise > 0 && (
+              <div className="flex justify-between gap-2" data-testid="cart-coupon-discount">
+                <dt className="text-muted-foreground">
+                  {view.coupon ? t('couponDiscountWithCode', { code: view.coupon.code }) : ''}
+                </dt>
+                <dd className="text-success">
+                  −{formatPaise(paise(totals.couponDiscountPaise), locale)}
+                </dd>
+              </div>
+            )}
+
             {/* Rendered only once a location makes the fee knowable. */}
             {!totals.isQuoteIncomplete && (
               <div className="flex justify-between gap-2">
                 <dt className="text-muted-foreground">{t('deliveryFee')}</dt>
                 <dd>
                   {totals.isDeliveryFree ? (
-                    <span className="text-success font-medium">{t('free')}</span>
+                    <span className="text-success font-medium">
+                      {/* Says WHY it is free, so a coupon's effect is visible. */}
+                      {totals.deliveryWaivedBy === 'coupon' ? t('freeByCoupon') : t('free')}
+                    </span>
                   ) : (
                     formatPaise(paise(totals.deliveryFeePaise), locale)
                   )}
@@ -195,6 +212,8 @@ export default async function CartPage({ params }: { params: Promise<{ locale: s
               </dd>
             </div>
           </dl>
+
+          <CartCoupon coupon={view.coupon} locale={locale} />
 
           {totals.totalSavingsPaise > 0 && (
             <p className="text-success mt-2 text-xs" data-testid="cart-savings">

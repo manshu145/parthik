@@ -1,13 +1,14 @@
 import type { Metadata } from 'next';
 import { getTranslations, setRequestLocale } from 'next-intl/server';
 import { Link } from '@/i18n/navigation';
-import { isLocale } from '@/i18n/routing';
+import { defaultLocale, isLocale } from '@/i18n/routing';
 import { notFound } from 'next/navigation';
 import { PageShell } from '@/components/layout/page-shell';
 import { EmptyState, ErrorState } from '@/components/feedback/states';
 import { CategoryGrid } from '@/components/catalog/category-card';
 import { JsonLd } from '@/components/seo/json-ld';
-import { breadcrumbJsonLd, absoluteUrl } from '@/lib/seo/json-ld';
+import { breadcrumbJsonLd } from '@/lib/seo/json-ld';
+import { canonicalUrl, publicPageMetadata, siteName } from '@/lib/seo/metadata';
 import { getCatalogService } from '@/modules/catalog';
 import { logger } from '@/lib/logger';
 
@@ -26,10 +27,15 @@ export async function generateMetadata({
   const { locale } = await params;
   const t = await getTranslations({ locale, namespace: 'pages.categories' });
 
-  return {
+  const resolved = isLocale(locale) ? locale : defaultLocale;
+
+  return publicPageMetadata({
     title: t('title'),
-    alternates: { canonical: isLocale(locale) ? absoluteUrl('/categories', locale) : undefined },
-  };
+    description: t('heading'),
+    path: '/categories',
+    locale: resolved,
+    siteName: await siteName(resolved),
+  });
 }
 
 export default async function CategoriesPage({ params }: { params: Promise<{ locale: string }> }) {
@@ -73,7 +79,7 @@ export default async function CategoriesPage({ params }: { params: Promise<{ loc
     <PageShell title={t('heading')}>
       <JsonLd
         data={breadcrumbJsonLd([
-          { name: tCatalog('breadcrumbHome'), url: absoluteUrl('/', locale) },
+          { name: tCatalog('breadcrumbHome'), url: canonicalUrl('/', locale) },
           { name: t('heading') },
         ])}
       />

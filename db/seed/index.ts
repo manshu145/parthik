@@ -15,7 +15,7 @@ import {
   ROLE_PERMISSIONS,
   SUPPORTED_LOCALES,
 } from './reference-data';
-import { DEV_PRODUCTS, DEV_STORE, DEV_USERS, DEV_VENDOR } from './dev-data';
+import { DEV_COUPONS, DEV_PRODUCTS, DEV_STORE, DEV_USERS, DEV_VENDOR } from './dev-data';
 
 /**
  * Seed runner.
@@ -524,6 +524,89 @@ async function seedDemoData(db: Database): Promise<SeedSummary> {
   inserted.product_translations = translationCount;
   inserted.product_variants = variantCount;
   inserted.inventory = inventoryCount;
+
+  // ---- Demo coupons ----
+  let couponCount = 0;
+  let couponTranslationCount = 0;
+  let restrictionCount = 0;
+
+  for (const fixture of DEV_COUPONS) {
+    const [coupon] = await db
+      .insert(schema.coupons)
+      .values({
+        code: fixture.code,
+        couponType: fixture.couponType,
+        discountValue: fixture.discountValue,
+        minCartPaise: fixture.minCartPaise,
+        ...(fixture.maxDiscountPaise === undefined
+          ? {}
+          : { maxDiscountPaise: fixture.maxDiscountPaise }),
+        // A category-scoped coupon records its scope on the row as well as in
+        // `coupon_restrictions`, so the two cannot disagree.
+        scope: fixture.categorySlugs?.length ? 'CATEGORY' : 'CART',
+        firstOrderOnly: fixture.firstOrderOnly,
+        isActive: true,
+      })
+      .onConflictDoUpdate({
+        target: schema.coupons.code,
+        set: {
+          couponType: fixture.couponType,
+          discountValue: fixture.discountValue,
+          minCartPaise: fixture.minCartPaise,
+          maxDiscountPaise: fixture.maxDiscountPaise ?? null,
+          firstOrderOnly: fixture.firstOrderOnly,
+          isActive: true,
+        },
+      })
+      .returning({ id: schema.coupons.id });
+
+    if (!coupon) continue;
+    couponCount += 1;
+
+    for (const [locale, content] of Object.entries(fixture.translations)) {
+      await db
+        .insert(schema.couponTranslations)
+        .values({
+          couponId: coupon.id,
+          locale: locale as 'en' | 'hi',
+          name: content.name,
+          description: content.description,
+        })
+        .onConflictDoUpdate({
+          target: [schema.couponTranslations.couponId, schema.couponTranslations.locale],
+          set: { name: content.name, description: content.description },
+        });
+      couponTranslationCount += 1;
+    }
+
+    for (const categorySlug of fixture.categorySlugs ?? []) {
+      const [category] = await db
+        .select({ id: schema.categories.id })
+        .from(schema.categories)
+        .where(eq(schema.categories.slug, categorySlug))
+        .limit(1);
+
+      if (!category) {
+        throw new Error(
+          `Demo coupon "${fixture.code}" references category "${categorySlug}", which reference data does not define.`
+        );
+      }
+
+      await db
+        .insert(schema.couponRestrictions)
+        .values({
+          couponId: coupon.id,
+          restrictionType: 'CATEGORY',
+          restrictionId: category.id,
+        })
+        .onConflictDoNothing();
+      restrictionCount += 1;
+    }
+  }
+
+  inserted.coupons = couponCount;
+  inserted.coupon_translations = couponTranslationCount;
+  inserted.coupon_restrictions = restrictionCount;
 
   return { inserted, skipped: [] };
 }
