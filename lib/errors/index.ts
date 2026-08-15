@@ -31,6 +31,35 @@ export type ErrorCode =
   | 'INVALID_STATUS_TRANSITION'
   // business rules
   | 'BUSINESS_RULE_VIOLATED'
+  /**
+   * Cart and commerce codes (docs/API_SPEC.md §5).
+   *
+   * Named individually rather than collapsed into BUSINESS_RULE_VIOLATED because
+   * the client must react differently to each: "only 3 left" needs a quantity
+   * adjustment, "items from another store" needs a choice, and a price change needs
+   * a confirmation. One generic code would force the UI to parse messages.
+   */
+  | 'CART_EMPTY'
+  | 'PRODUCT_UNAVAILABLE'
+  | 'INSUFFICIENT_STOCK'
+  | 'QUANTITY_INVALID'
+  | 'QUANTITY_LIMIT_EXCEEDED'
+  | 'MIXED_VENDOR_CART'
+  | 'PRICE_CHANGED'
+  | 'STOCK_RESERVATION_FAILED'
+  | 'STORE_NOT_ACCEPTING_ORDERS'
+  | 'MIN_ORDER_NOT_MET'
+  | 'NOT_SERVICEABLE'
+  // coupons (docs/API_SPEC.md §5, master spec §18)
+  | 'COUPON_NOT_FOUND'
+  | 'COUPON_EXPIRED'
+  | 'COUPON_INACTIVE'
+  | 'COUPON_MIN_CART_NOT_MET'
+  | 'COUPON_USAGE_LIMIT_REACHED'
+  | 'COUPON_USER_LIMIT_REACHED'
+  | 'COUPON_NOT_APPLICABLE'
+  | 'COUPON_FIRST_ORDER_ONLY'
+  | 'COUPON_ZONE_RESTRICTED'
   // infrastructure
   | 'RATE_LIMITED'
   | 'PROVIDER_UNAVAILABLE'

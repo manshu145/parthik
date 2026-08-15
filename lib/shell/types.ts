@@ -23,12 +23,26 @@
  * only formats these; it never adds them up.
  */
 export interface CartSummary {
-  /** Total item count across lines, for the badge. */
+  /** Total units, not lines. */
   itemCount: number;
-  /** Server-computed total. The shell must not derive this. */
+  /**
+   * Items after discounts, BEFORE delivery and any other fee.
+   *
+   * Separate from `totalAmountPaise` because the drawer labels this "subtotal", and
+   * showing a grand total under that label would misstate what the customer pays.
+   */
+  subtotalPaise: number;
+  deliveryFeePaise: number;
+  /** The single number the customer pays. */
   totalAmountPaise: number;
-  /** Server-computed gap to free delivery, or null when already free/unknown. */
+  /** Null when there is no threshold, or it is already met. */
   freeDeliveryGapPaise: number | null;
+  isDeliveryFree: boolean;
+  /**
+   * True when no serviceable location is chosen, so fees are UNKNOWN rather than
+   * zero. The UI must not present an incomplete quote as a final total.
+   */
+  isQuoteIncomplete: boolean;
   lines: readonly CartSummaryLine[];
 }
 
@@ -45,8 +59,12 @@ export interface CartSummaryLine {
 
 export const EMPTY_CART_SUMMARY: CartSummary = {
   itemCount: 0,
+  subtotalPaise: 0,
+  deliveryFeePaise: 0,
   totalAmountPaise: 0,
   freeDeliveryGapPaise: null,
+  isDeliveryFree: false,
+  isQuoteIncomplete: true,
   lines: [],
 };
 

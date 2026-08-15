@@ -12,13 +12,16 @@ import { formatPaise, paise } from '@/lib/money';
 import { cn } from '@/lib/utils';
 
 /**
- * Cart mini-drawer — SHELL ONLY (master spec §7 "Cart mini-drawer").
+ * Cart mini-drawer (master spec §7).
  *
  * Renders whatever `CartSummary` it is given and formats money with the shared
- * paise helpers. It performs NO arithmetic: totals, discounts, delivery fees and
- * the free-delivery gap are computed server-side by the `pricing` module (TASK
- * 008). Deriving a total here would duplicate the one piece of logic that must
- * exist exactly once.
+ * paise helpers. It performs NO arithmetic: every figure comes from the pricing
+ * engine server-side. Deriving a total here would duplicate the one piece of logic
+ * that must exist exactly once.
+ *
+ * The subtotal, delivery fee and grand total are shown as SEPARATE lines. Labelling
+ * a grand total "subtotal" — or hiding the delivery fee until checkout — is how a
+ * customer is surprised at the last step.
  */
 
 export function CartTrigger({ className }: { className?: string }) {
@@ -61,12 +64,47 @@ export function CartDrawer() {
         footer={
           isEmpty ? null : (
             <div className="flex flex-col gap-3">
-              <div className="flex items-baseline justify-between">
-                <span className="text-muted-foreground text-sm">{t('subtotal')}</span>
-                {/* Server-computed value, formatted only. */}
-                <span className="text-base font-semibold">
-                  {formatPaise(paise(cart.totalAmountPaise))}
-                </span>
+              <div className="flex flex-col gap-1">
+                <div className="flex items-baseline justify-between">
+                  <span className="text-muted-foreground text-sm">{t('itemsSubtotal')}</span>
+                  <span className="text-sm">{formatPaise(paise(cart.subtotalPaise))}</span>
+                </div>
+
+                {/* Only shown once a location makes the fee knowable. Rendering ₹0
+                    for an unknown fee would be a promise we have not made. */}
+                {!cart.isQuoteIncomplete && (
+                  <div className="flex items-baseline justify-between">
+                    <span className="text-muted-foreground text-sm">{t('deliveryFee')}</span>
+                    <span className="text-sm">
+                      {cart.isDeliveryFree ? (
+                        <span className="text-success font-medium">{t('free')}</span>
+                      ) : (
+                        formatPaise(paise(cart.deliveryFeePaise))
+                      )}
+                    </span>
+                  </div>
+                )}
+
+                <div className="border-border mt-1 flex items-baseline justify-between border-t pt-2">
+                  <span className="text-sm font-medium">{t('grandTotal')}</span>
+                  <span className="text-base font-semibold" data-testid="cart-total">
+                    {formatPaise(paise(cart.totalAmountPaise))}
+                  </span>
+                </div>
+
+                {cart.isQuoteIncomplete && (
+                  <p className="text-muted-foreground text-xs" data-testid="cart-quote-incomplete">
+                    {t('quoteIncomplete')}
+                  </p>
+                )}
+
+                {cart.freeDeliveryGapPaise !== null && (
+                  <p className="text-primary text-xs" data-testid="cart-free-delivery-gap">
+                    {t('freeDeliveryGap', {
+                      amount: formatPaise(paise(cart.freeDeliveryGapPaise)),
+                    })}
+                  </p>
+                )}
               </div>
               <SheetClose asChild>
                 <Button asChild block>

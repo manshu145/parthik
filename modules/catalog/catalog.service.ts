@@ -8,6 +8,7 @@ import type {
   LocalisedProduct,
   LocalisedProductDetail,
   ProductAvailability,
+  PurchasableVariant,
 } from './catalog.repository.types';
 import type { ProductListQuery } from './catalog.schema';
 
@@ -217,6 +218,19 @@ export class CatalogService {
     return ids
       .map((id) => byId.get(id))
       .filter((item): item is LocalisedProduct => item !== undefined);
+  }
+
+  /**
+   * Authoritative variant read for the cart.
+   *
+   * Exposed on the service so the cart module depends on a service, not on another
+   * module's repository — the import boundary the ESLint config enforces.
+   */
+  async getPurchasableVariant(
+    variantId: string,
+    locale: Locale
+  ): Promise<PurchasableVariant | null> {
+    return this.deps.repository.findPurchasableVariant(variantId, { locale });
   }
 
   /** Popular products for the home page. */

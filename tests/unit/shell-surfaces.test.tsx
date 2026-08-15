@@ -213,9 +213,13 @@ describe('CartDrawer', () => {
       {
         itemCount: 2,
         // Deliberately NOT the sum of the lines: the shell must display the
-        // server's total verbatim rather than deriving one.
+        // server's figures verbatim rather than deriving them.
+        subtotalPaise: 43_300,
+        deliveryFeePaise: 1_100,
         totalAmountPaise: 44_400,
         freeDeliveryGapPaise: null,
+        isDeliveryFree: false,
+        isQuoteIncomplete: false,
         lines: [
           {
             id: 'line-1',

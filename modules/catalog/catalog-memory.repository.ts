@@ -28,6 +28,7 @@ import {
   type ProductImageRecord,
   type ProductListFilters,
   type ProductSortKey,
+  type PurchasableVariant,
   type TranslationCompleteness,
   type VendorProduct,
 } from './catalog.repository.types';
@@ -505,6 +506,44 @@ export class InMemoryCatalogRepository implements CatalogRepository {
       isPublished,
       inStock: isPublished && variants.some((variant) => variant.inStock),
       variants,
+    };
+  }
+
+  async findPurchasableVariant(
+    variantId: string,
+    locale: LocaleScope
+  ): Promise<PurchasableVariant | null> {
+    const product = this.products.find((candidate) =>
+      candidate.variants.some((variant) => variant.id === variantId)
+    );
+    if (!product) return null;
+
+    const variant = product.variants.find((candidate) => candidate.id === variantId);
+    if (!variant) return null;
+
+    const localised = this.toLocalisedProduct(product, locale.locale);
+    const variantTranslation = resolveTranslation(variant.translations, locale.locale).value;
+
+    return {
+      variantId: variant.id,
+      productId: product.id,
+      productSlug: product.slug,
+      storeId: product.storeId,
+      vendorId: product.vendorId,
+      categoryId: product.categoryId,
+      productName: localised.name,
+      variantLabel: variantTranslation?.variantLabel ?? null,
+      unitLabel: variant.unitLabel ?? product.unitLabel,
+      imageKey: localised.primaryImageKey,
+      pricePaise: variant.pricePaise,
+      mrpPaise: variant.mrpPaise,
+      isPurchasable: this.isPubliclyVisible(product) && variant.isActive,
+      quantityAvailable: variant.quantityAvailable,
+      trackInventory: variant.trackInventory,
+      inStock: variantInStock(variant),
+      // DEV_STORE is seeded OPEN and accepting orders.
+      storeAcceptingOrders: DEV_STORE.status === 'OPEN',
+      storeMinOrderPaise: DEV_STORE.minOrderPaise,
     };
   }
 
