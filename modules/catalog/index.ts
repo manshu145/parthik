@@ -111,6 +111,7 @@ export type {
   ProductImageRecord,
   ProductListFilters,
   ProductStoreSummary,
+  PurchasableVariant,
   VariantAvailability,
   VendorProduct,
 } from './catalog.repository.types';

@@ -57,6 +57,7 @@ import {
   type ProductImageRecord,
   type ProductListFilters,
   type ProductSortKey,
+  type PurchasableVariant,
   type TranslationCompleteness,
   type VendorProduct,
 } from './catalog.repository.types';
@@ -614,6 +615,116 @@ export class DrizzleCatalogRepository implements CatalogRepository {
       // An unpublished product is never purchasable, whatever its stock says.
       inStock: isPublished && variants.some((variant) => variant.inStock),
       variants,
+    };
+  }
+
+  async findPurchasableVariant(
+    variantId: string,
+    locale: LocaleScope
+  ): Promise<PurchasableVariant | null> {
+    const translationRequested = alias(productTranslations, 'pt_req');
+    const translationFallback = alias(productTranslations, 'pt_fb');
+    const variantRequested = alias(productVariantTranslations, 'vt_req');
+    const variantFallback = alias(productVariantTranslations, 'vt_fb');
+
+    const rows = await this.ctx.db
+      .select({
+        variantId: productVariants.id,
+        productId: products.id,
+        productSlug: products.slug,
+        storeId: products.storeId,
+        vendorId: products.vendorId,
+        categoryId: products.categoryId,
+        productName: sql<string>`coalesce(${translationRequested.name}, ${translationFallback.name})`,
+        variantLabel: sql<
+          string | null
+        >`coalesce(${variantRequested.variantLabel}, ${variantFallback.variantLabel})`,
+        unitLabel: sql<
+          string | null
+        >`coalesce(${productVariants.unitLabel}, ${products.unitLabel})`,
+        imageKey: productImages.storageKey,
+        // Variant price wins over the product price: the variant is what is sold.
+        pricePaise: productVariants.pricePaise,
+        mrpPaise: productVariants.mrpPaise,
+        productStatus: products.status,
+        productDeletedAt: products.deletedAt,
+        variantActive: productVariants.isActive,
+        variantDeletedAt: productVariants.deletedAt,
+        quantityAvailable: inventory.quantityAvailable,
+        trackInventory: inventory.trackInventory,
+        storeAcceptingOrders: stores.isAcceptingOrders,
+        storeStatus: stores.status,
+        storeMinOrderPaise: stores.minOrderPaise,
+      })
+      .from(productVariants)
+      .innerJoin(products, eq(products.id, productVariants.productId))
+      .innerJoin(stores, eq(stores.id, products.storeId))
+      .leftJoin(
+        translationRequested,
+        and(
+          eq(translationRequested.productId, products.id),
+          eq(translationRequested.locale, locale.locale)
+        )
+      )
+      .leftJoin(
+        translationFallback,
+        and(
+          eq(translationFallback.productId, products.id),
+          eq(translationFallback.locale, defaultLocale)
+        )
+      )
+      .leftJoin(
+        variantRequested,
+        and(
+          eq(variantRequested.variantId, productVariants.id),
+          eq(variantRequested.locale, locale.locale)
+        )
+      )
+      .leftJoin(
+        variantFallback,
+        and(
+          eq(variantFallback.variantId, productVariants.id),
+          eq(variantFallback.locale, defaultLocale)
+        )
+      )
+      .leftJoin(
+        productImages,
+        and(eq(productImages.productId, products.id), eq(productImages.isPrimary, true))
+      )
+      .leftJoin(inventory, eq(inventory.variantId, productVariants.id))
+      .where(eq(productVariants.id, variantId))
+      .limit(1);
+
+    const row = rows[0];
+    if (!row) return null;
+
+    const isPurchasable =
+      row.productStatus === 'ACTIVE' &&
+      row.productDeletedAt === null &&
+      row.variantActive &&
+      row.variantDeletedAt === null;
+
+    return {
+      variantId: row.variantId,
+      productId: row.productId,
+      productSlug: row.productSlug,
+      storeId: row.storeId,
+      vendorId: row.vendorId,
+      categoryId: row.categoryId,
+      productName: row.productName,
+      variantLabel: row.variantLabel,
+      unitLabel: row.unitLabel,
+      imageKey: row.imageKey,
+      pricePaise: row.pricePaise,
+      mrpPaise: row.mrpPaise,
+      isPurchasable,
+      quantityAvailable: row.quantityAvailable,
+      trackInventory: row.trackInventory ?? false,
+      inStock: variantInStock(row.quantityAvailable, row.trackInventory),
+      // A store that is closed or not accepting orders blocks the sale even when
+      // the product itself is fine.
+      storeAcceptingOrders: row.storeAcceptingOrders && row.storeStatus === 'OPEN',
+      storeMinOrderPaise: row.storeMinOrderPaise,
     };
   }
 

@@ -176,6 +176,39 @@ export interface ProductAvailability {
   variants: VariantAvailability[];
 }
 
+/**
+ * Everything the cart needs to add a variant, read authoritatively from the
+ * database.
+ *
+ * The cart NEVER trusts a client-supplied price, name or stock figure. This is the
+ * single read that establishes what a variant actually costs and whether it can be
+ * sold — at add-to-cart, at quote, and again at order creation
+ * (docs/ARCHITECTURE.md §11.4).
+ */
+export interface PurchasableVariant {
+  variantId: string;
+  productId: string;
+  productSlug: string;
+  storeId: string;
+  vendorId: string;
+  categoryId: string;
+  /** Resolved for the requested locale with English fallback. */
+  productName: string;
+  variantLabel: string | null;
+  unitLabel: string | null;
+  imageKey: string | null;
+  pricePaise: number;
+  mrpPaise: number;
+  /** False when the product or variant is not publicly sellable. */
+  isPurchasable: boolean;
+  quantityAvailable: number | null;
+  trackInventory: boolean;
+  inStock: boolean;
+  /** Store-level gate: a closed store cannot take orders. */
+  storeAcceptingOrders: boolean;
+  storeMinOrderPaise: number | null;
+}
+
 export interface ProductListFilters {
   categoryId?: string | undefined;
   /**
@@ -242,6 +275,18 @@ export interface PublicCatalogReader {
 
   /** Live price and stock. Deliberately uncached by the caller. */
   getProductAvailability(productId: string): Promise<ProductAvailability | null>;
+
+  /**
+   * Authoritative variant read for the cart.
+   *
+   * Returns null when the variant does not exist. Returns a row with
+   * `isPurchasable: false` when it exists but cannot be sold, so the caller can
+   * explain WHY rather than showing a bare "not found".
+   */
+  findPurchasableVariant(
+    variantId: string,
+    locale: LocaleScope
+  ): Promise<PurchasableVariant | null>;
 
   /** Same-category products, excluding the product itself. */
   listRelatedProducts(

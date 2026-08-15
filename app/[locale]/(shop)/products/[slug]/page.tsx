@@ -9,6 +9,7 @@ import { Badge } from '@/components/ui/badge';
 import { ProductGrid } from '@/components/catalog/product-grid';
 import { ProductImage } from '@/components/catalog/product-image';
 import { ProductPrice } from '@/components/catalog/product-price';
+import { AddToCartButton } from '@/components/cart/add-to-cart-button';
 import { JsonLd } from '@/components/seo/json-ld';
 import { absoluteUrl, breadcrumbJsonLd, productJsonLd } from '@/lib/seo/json-ld';
 import { imageUrlForKey } from '@/lib/catalog/image';
@@ -232,6 +233,12 @@ export default async function ProductPage({
                 {inStock ? tCatalog('inStock') : tCatalog('outOfStock')}
               </Badge>
             </p>
+
+            {/* Disabled rather than hidden when out of stock, so the control's
+                position is stable and the reason is visible right above it. */}
+            {defaultVariant && (
+              <AddToCartButton variantId={defaultVariant.id} disabled={!inStock} block />
+            )}
 
             <dl className="border-border flex flex-col gap-1 border-t pt-4 text-sm">
               <div className="flex justify-between gap-2">

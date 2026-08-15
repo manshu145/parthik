@@ -3,7 +3,7 @@
 import type { ReactNode } from 'react';
 import { useTranslations } from 'next-intl';
 import { ShellProvider } from '@/components/providers/shell-provider';
-import type { SelectedLocation } from '@/lib/shell/types';
+import type { CartSummary, SelectedLocation } from '@/lib/shell/types';
 import { Toaster } from '@/components/providers/toaster';
 import { ServiceWorkerRegistration } from '@/components/providers/service-worker-registration';
 import { SiteHeader } from './site-header';
@@ -34,15 +34,18 @@ import { SkipLink } from './skip-link';
 export function ShopShell({
   children,
   initialLocation,
+  initialCart,
 }: {
   children: ReactNode;
   /** Resolved from the location cookie by the server layout. */
   initialLocation?: SelectedLocation;
+  /** Priced server-side so the badge and drawer are right on first paint. */
+  initialCart?: CartSummary;
 }) {
   const t = useTranslations('nav');
 
   return (
-    <ShellProvider initialLocation={initialLocation}>
+    <ShellProvider initialLocation={initialLocation} initialCart={initialCart}>
       <SkipLink label={t('skipToContent')} />
       <OfflineBanner />
 
