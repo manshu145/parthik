@@ -183,6 +183,15 @@ export interface ProductListFilters {
    * include the products of child categories or a parent page looks empty.
    */
   categoryIds?: readonly string[] | undefined;
+  /**
+   * Restricts to specific products.
+   *
+   * Used by search, which resolves relevance in the search provider and then
+   * hydrates through this repository — so locale fallback, stock derivation and
+   * discount rules keep a single implementation. An EMPTY array matches nothing,
+   * which is the honest reading of "these products" when there are none.
+   */
+  productIds?: readonly string[] | undefined;
   brandId?: string | undefined;
   status?: string | undefined;
   /** Restricts to products with sellable stock. */

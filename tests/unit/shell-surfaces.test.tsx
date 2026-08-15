@@ -476,21 +476,65 @@ describe('LocationSheet', () => {
 });
 
 describe('SearchBar', () => {
+  /**
+   * The input is a `combobox`, not a `searchbox`: it now drives a typeahead
+   * listbox, and the ARIA combobox pattern is what makes that announceable.
+   *
+   * Suggestions are stubbed to empty. These tests are about SUBMISSION, and a real
+   * fetch would leave a debounce timer running past the end of the test.
+   */
+  function stubNoSuggestions() {
+    const fetchMock = vi.fn(() =>
+      Promise.resolve(
+        new Response(JSON.stringify({ success: true, data: { suggestions: [] }, meta: {} }), {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' },
+        })
+      )
+    );
+    vi.stubGlobal('fetch', fetchMock);
+    return fetchMock;
+  }
+
   it('navigates to the search route with the query', async () => {
     const user = userEvent.setup();
+    stubNoSuggestions();
     renderWithIntl(<SearchBar />);
 
-    await user.type(screen.getByRole('searchbox', { name: 'Search products' }), 'atta{Enter}');
+    await user.type(screen.getByRole('combobox', { name: 'Search products' }), 'atta{Enter}');
 
     expect(mockPush).toHaveBeenCalledWith({ pathname: '/search', query: { q: 'atta' } });
   });
 
   it('ignores an empty or whitespace-only submission', async () => {
     const user = userEvent.setup();
+    stubNoSuggestions();
     renderWithIntl(<SearchBar />);
 
-    await user.type(screen.getByRole('searchbox', { name: 'Search products' }), '   {Enter}');
+    await user.type(screen.getByRole('combobox', { name: 'Search products' }), '   {Enter}');
     expect(mockPush).not.toHaveBeenCalled();
+  });
+
+  it('does not request suggestions for a term below the minimum length', async () => {
+    const user = userEvent.setup();
+    const fetchMock = stubNoSuggestions();
+    renderWithIntl(<SearchBar />);
+
+    await user.type(screen.getByRole('combobox', { name: 'Search products' }), 'a');
+    // Past the debounce window.
+    await new Promise((resolve) => setTimeout(resolve, 400));
+
+    // One character matches most of the catalogue; asking the server is pure cost.
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it('exposes combobox semantics for the typeahead', async () => {
+    stubNoSuggestions();
+    renderWithIntl(<SearchBar />);
+
+    const input = screen.getByRole('combobox', { name: 'Search products' });
+    expect(input.getAttribute('aria-expanded')).toBe('false');
+    expect(input.getAttribute('aria-autocomplete')).toBe('list');
   });
 });
 

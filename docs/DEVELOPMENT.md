@@ -69,6 +69,27 @@ Only `FIREBASE_PROJECT_ID` is needed to **verify** ID tokens. The service accoun
 
 > `FIREBASE_SERVICE_ACCOUNT_PRIVATE_KEY` is the most sensitive secret in the system — it can act on any user account. Never commit it, never log it, and use minimum IAM roles.
 
+### Search (D-21)
+
+Search sits behind a swappable provider, because the Hindi stemming limitation (C-2) may force a move to Typesense or Meilisearch later.
+
+| Backend    | When                                |
+| ---------- | ----------------------------------- |
+| `postgres` | a database connection is configured |
+| `memory`   | otherwise, outside production       |
+
+The provider returns **ranked ids only**; the catalog module hydrates them. That keeps locale fallback, stock derivation, discount rules and image resolution in one place, so a future engine never reproduces them. `/api/v1/diagnostics/providers` reports which backend answered.
+
+Per-locale text search is implemented literally as C-2 requires, choosing the configuration **per translation row**:
+
+```sql
+(case when pt.locale = 'en' then 'english' else 'simple' end)::regconfig
+```
+
+English rows are stemmed; everything else uses `simple` plus `pg_trgm` trigram matching. A Hindi request also searches English rows, so a product with no Hindi translation is still findable rather than silently missing.
+
+`websearch_to_tsquery` is used rather than `to_tsquery`: it cannot raise a syntax error on arbitrary input, which matters for a public search box. `bash scripts/db-integration-check.sh` asserts that with deliberately hostile terms.
+
 ### Google Maps
 
 Two keys with different restrictions, deliberately not interchangeable:

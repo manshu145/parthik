@@ -188,6 +188,37 @@ export class CatalogService {
     return this.deps.repository.listRelatedProducts(product.id, { locale }, limit);
   }
 
+  /**
+   * Hydrates specific products, PRESERVING THE GIVEN ORDER.
+   *
+   * This is how search renders results: the search provider decides relevance and
+   * returns ids, then this fills in names, prices, stock and images. Keeping
+   * hydration here means locale fallback, discount rules and stock derivation have
+   * one implementation, and a future search engine (D-21) never reproduces them.
+   *
+   * Order preservation is the whole point — the repository returns rows in its own
+   * order, and re-sorting by relevance is impossible once the scores are gone.
+   */
+  async getProductsByIds(ids: readonly string[], locale: Locale): Promise<LocalisedProduct[]> {
+    if (ids.length === 0) return [];
+
+    const result = await this.deps.repository.listProducts(
+      { productIds: ids },
+      { locale },
+      // The id list is already bounded by the caller's page size; asking for its
+      // exact length avoids a second page being silently dropped.
+      { limit: ids.length }
+    );
+
+    const byId = new Map(result.items.map((item) => [item.id, item]));
+
+    // Missing ids are skipped rather than throwing: a product can be unpublished
+    // between the search and the hydration, and one stale id must not fail the page.
+    return ids
+      .map((id) => byId.get(id))
+      .filter((item): item is LocalisedProduct => item !== undefined);
+  }
+
   /** Popular products for the home page. */
   async getPopularProducts(locale: Locale, limit = 8): Promise<LocalisedProduct[]> {
     const result = await this.deps.repository.listProducts(

@@ -2,6 +2,7 @@ import { CATEGORIES } from '@/db/seed/reference-data';
 import { DEV_PRODUCTS, DEV_STORE, DEV_VENDOR } from '@/db/seed/dev-data';
 import { defaultLocale, type Locale } from '@/i18n/routing';
 import { decodeCursor, encodeCursor } from '@/lib/db/cursor';
+import { fixtureId } from '@/lib/db/fixture-id';
 import {
   resolveLimit,
   resolveOffsetPage,
@@ -51,34 +52,6 @@ import {
  *
  * Refused in production by `modules/catalog/index.ts`.
  */
-
-// ---------------------------------------------------------------------------
-// Deterministic ids
-// ---------------------------------------------------------------------------
-
-/** FNV-1a. Small, dependency-free and stable across runs and processes. */
-function fnv1a(input: string, seed = 0x811c9dc5): number {
-  let hash = seed;
-  for (let index = 0; index < input.length; index += 1) {
-    hash ^= input.charCodeAt(index);
-    hash = Math.imul(hash, 0x01000193) >>> 0;
-  }
-  return hash >>> 0;
-}
-
-/**
- * A stable, UUID-shaped id derived from a namespace and key.
- *
- * Shaped like a UUID so nothing downstream has to special-case the format, and
- * derived from the slug so ids never change between requests, processes or
- * deploys — these ids end up in URLs, cart rows and cache keys.
- */
-function fixtureId(namespace: string, key: string): string {
-  const a = fnv1a(`${namespace}:${key}`).toString(16).padStart(8, '0');
-  const b = fnv1a(`${namespace}:${key}`, 0x9e3779b1).toString(16).padStart(8, '0');
-
-  return `${a}-${b.slice(0, 4)}-4${b.slice(4, 7)}-8${a.slice(0, 3)}-${b}${a.slice(0, 4)}`;
-}
 
 // ---------------------------------------------------------------------------
 // Fixture shapes
@@ -707,6 +680,8 @@ export class InMemoryCatalogRepository implements CatalogRepository {
     if (filters.categoryIds && filters.categoryIds.length > 0) {
       if (!filters.categoryIds.includes(product.categoryId)) return false;
     }
+    // An empty list matches nothing, mirroring the SQL.
+    if (filters.productIds && !filters.productIds.includes(product.id)) return false;
     if (filters.brandId) return false;
     if (filters.status && product.status !== filters.status) return false;
     if (filters.minPricePaise !== undefined && product.pricePaise < filters.minPricePaise) {

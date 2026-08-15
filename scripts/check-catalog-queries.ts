@@ -2,9 +2,10 @@
 import { closeDb, getDb } from '@/lib/db/client';
 import { ADMIN_SCOPE } from '@/lib/db/repository';
 import { createCatalogRepository } from '@/modules/catalog/catalog.repository';
+import { createSearchProvider } from '@/modules/search/search.repository';
 
 /**
- * Executes every public catalog query against a REAL PostgreSQL database.
+ * Executes every public catalog and search query against a REAL PostgreSQL database.
  *
  * WHY THIS EXISTS: the unit suite runs against the in-memory repository, which
  * proves the semantics but never compiles a line of SQL. Drizzle type-checks the
@@ -175,7 +176,103 @@ async function main(): Promise<void> {
     );
   }
 
-  console.log(`\n${checks - failures.length}/${checks} catalog queries executed successfully.`);
+  // -------------------------------------------------------------------------
+  // Search (decision D-21).
+  //
+  // These statements are raw SQL with a per-row `regconfig` cast, `ts_rank`,
+  // `similarity()` and a UNION — none of which Drizzle can typecheck. This is the
+  // only place PostgreSQL ever compiles them.
+  // -------------------------------------------------------------------------
+  console.log('\nSearch queries against real PostgreSQL:\n');
+
+  const search = createSearchProvider({ db });
+
+  // Both locales, because the text-search configuration is chosen PER ROW:
+  // 'english' for en rows, 'simple' for everything else (clarification C-2).
+  for (const locale of ['en', 'hi'] as const) {
+    await check(`searchProducts(${locale}, plain term)`, () =>
+      search.searchProducts({ term: 'atta', locale })
+    );
+    await check(`searchProducts(${locale}, multi-word)`, () =>
+      search.searchProducts({ term: 'whole wheat', locale })
+    );
+    await check(`searchCategories(${locale})`, () => search.searchCategories('fresh', locale));
+    await check(`suggest(${locale})`, () => search.suggest('de', locale));
+  }
+
+  // Devanagari, through the 'simple' configuration plus pg_trgm.
+  await check('searchProducts(hi, devanagari)', () =>
+    search.searchProducts({ term: 'टमाटर', locale: 'hi' })
+  );
+  await check('suggest(hi, devanagari)', () => search.suggest('डेमो', 'hi'));
+
+  // websearch_to_tsquery must not raise on hostile input. That is exactly why it was
+  // chosen over to_tsquery for a public search box.
+  const hostileTerms = ['"unclosed quote', 'a & b | c', '-only', ':::', "o'brien", 'a\\b'];
+  for (const term of hostileTerms) {
+    await check(`searchProducts(hostile input: ${term})`, () =>
+      search.searchProducts({ term, locale: 'en' })
+    );
+  }
+
+  for (const sort of [
+    'relevance',
+    'pricePaise:asc',
+    'pricePaise:desc',
+    'createdAt:desc',
+  ] as const) {
+    await check(`searchProducts(sort=${sort})`, () =>
+      search.searchProducts({ term: 'demo', locale: 'en', sort })
+    );
+  }
+
+  await check('searchProducts(inStockOnly)', () =>
+    search.searchProducts({ term: 'demo', locale: 'en', inStockOnly: true })
+  );
+  await check('searchProducts(price range)', () =>
+    search.searchProducts({
+      term: 'demo',
+      locale: 'en',
+      minPricePaise: 5_000,
+      maxPricePaise: 30_000,
+    })
+  );
+
+  if (category) {
+    await check('searchProducts(categoryIds)', () =>
+      search.searchProducts({ term: 'demo', locale: 'en', categoryIds: [category.id] })
+    );
+  }
+
+  await check('searchProducts(pagination offset)', () =>
+    search.searchProducts({ term: 'demo', locale: 'en', limit: 2, offset: 2 })
+  );
+
+  // A term matching nothing must return an empty set, not an error.
+  const empty = (await check('searchProducts(no matches)', () =>
+    search.searchProducts({ term: 'zzzznotathing', locale: 'en' })
+  )) as { hits: unknown[]; total: number } | undefined;
+
+  if (empty && (empty.hits.length !== 0 || empty.total !== 0)) {
+    failures.push('searchProducts(no matches): expected an empty result set');
+    console.log('  âŒ searchProducts(no matches) returned rows');
+  }
+
+  // Ranking must be meaningful, not merely non-erroring.
+  const ranked = (await check('searchProducts(ranking is ordered)', () =>
+    search.searchProducts({ term: 'Demo Tomatoes', locale: 'en' })
+  )) as { hits: Array<{ score: number }> } | undefined;
+
+  if (ranked && ranked.hits.length > 1) {
+    const scores = ranked.hits.map((hit) => hit.score);
+    const ordered = scores.every((score, index) => index === 0 || scores[index - 1]! >= score);
+    if (!ordered) {
+      failures.push('searchProducts: hits were not ordered by descending score');
+      console.log('  âŒ search hits were not ordered by descending score');
+    }
+  }
+
+  console.log(`\n${checks - failures.length}/${checks} queries executed successfully.`);
 
   if (tree) {
     console.log(`Categories in database: ${tree.length} roots.`);
@@ -188,11 +285,11 @@ async function main(): Promise<void> {
     process.exit(1);
   }
 
-  console.log('\n✅ All catalog SQL executes against PostgreSQL.\n');
+  console.log('\n✅ All catalog and search SQL executes against PostgreSQL.\n');
 }
 
 main().catch(async (error: unknown) => {
-  console.error('\n❌ Catalog query check failed:', error instanceof Error ? error.message : error);
+  console.error('\n❌ Query check failed:', error instanceof Error ? error.message : error);
   await closeDb().catch(() => undefined);
   process.exit(1);
 });
