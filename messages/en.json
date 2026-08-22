@@ -16,6 +16,45 @@
     "check": "Check",
     "continue": "Continue"
   },
+  "auth": {
+    "title": "Sign in to Parthik",
+    "subtitle": "We'll send a one-time code to your phone",
+    "phoneLabel": "Mobile number",
+    "phoneHint": "10-digit Indian mobile number",
+    "phonePrefix": "+91",
+    "sendCode": "Send code",
+    "sending": "Sending…",
+    "otpTitle": "Enter the code",
+    "otpSubtitle": "We sent a 6-digit code to {phone}",
+    "otpLabel": "Verification code",
+    "verify": "Verify and continue",
+    "verifying": "Verifying…",
+    "changeNumber": "Change number",
+    "resend": "Resend code",
+    "resendIn": "Resend in {seconds}s",
+    "signingIn": "Signing you in…",
+    "welcome": "Welcome to Parthik",
+    "signOut": "Sign out",
+    "signOutEverywhere": "Sign out on all devices",
+    "termsNotice": "By continuing you agree to our Terms and Privacy Policy.",
+    "unavailable": {
+      "title": "Sign-in is unavailable",
+      "description": "This environment is not configured for sign-in. Missing configuration: {missing}."
+    },
+    "errors": {
+      "invalidPhone": "Enter a valid 10-digit mobile number.",
+      "invalidOtp": "Enter the 6-digit code from your SMS.",
+      "otpIncorrect": "That code is not correct. Please check and try again.",
+      "otpExpired": "That code has expired. Request a new one.",
+      "tooManyRequests": "Too many attempts. Please wait a few minutes and try again.",
+      "sendFailed": "We could not send the code. Please try again.",
+      "verifyFailed": "We could not verify the code. Please try again.",
+      "sessionFailed": "We verified your number but could not complete sign-in. Please try again.",
+      "accountSuspended": "This account cannot be used to sign in. Please contact support.",
+      "network": "Check your connection and try again.",
+      "recaptcha": "Verification could not start. Reload the page and try again."
+    }
+  },
   "nav": {
     "primary": "Primary navigation",
     "secondary": "Secondary navigation",
@@ -291,7 +330,7 @@
     "backToStore": "Back to store",
     "pendingLabel": "Screen not built yet",
     "pendingDescription": "This route, its navigation and its access rules are live. The data and controls arrive with the task that owns this screen.",
-    "previewNotice": "Preview access: authentication is not configured yet, so dashboard shells are viewable. This closes automatically once Firebase is set up."
+    "previewNotice": "Development sign-in is enabled, so this session may belong to a seeded demo user. This endpoint is unavailable in production."
   },
   "vendorNav": {
     "surface": "Vendor",

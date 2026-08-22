@@ -22,6 +22,15 @@ export interface StateShellProps {
   /** Politeness for assistive tech. Errors assert; loading is polite. */
   live?: 'polite' | 'assertive' | 'off';
   role?: 'status' | 'alert';
+  /**
+   * Stable hook for tests, e.g. `state-unauthorized`.
+   *
+   * Needed because asserting on rendered COPY is unreliable here: next-intl inlines the
+   * whole message catalogue into every page's HTML, so a text search finds "You do not
+   * have access" on pages that render nothing of the kind. A testid is the only
+   * dependable signal for which state is actually mounted.
+   */
+  testId?: string;
 }
 
 export function StateShell({
@@ -33,10 +42,12 @@ export function StateShell({
   className,
   live = 'off',
   role,
+  testId,
 }: StateShellProps) {
   return (
     <div
       {...(role ? { role } : {})}
+      {...(testId ? { 'data-testid': testId } : {})}
       {...(live !== 'off' ? { 'aria-live': live } : {})}
       className={cn(
         'flex flex-col items-center justify-center gap-3 px-6 py-12 text-center',

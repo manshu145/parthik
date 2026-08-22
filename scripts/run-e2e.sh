@@ -20,7 +20,20 @@ if [ ! -d .next ]; then
 fi
 
 echo "Starting server on port ${PORT}…"
-APP_ENV=development node_modules/.bin/next start --port "$PORT" > "$LOG" 2>&1 &
+#
+# DEV_AUTH_ENABLED and AUTH_SECRET are required for the authenticated journeys
+# (tests/e2e/helpers/auth.ts). Privileged routes are gated in every environment, so
+# without a way to obtain a real session the dashboard suite could only ever assert
+# redirects to the login page.
+#
+# The secret is throwaway and local to this process. It is never a default anywhere in
+# the application: lib/config/env.ts deliberately has no fallback, precisely so a
+# development value cannot reach production.
+#
+APP_ENV=development \
+DEV_AUTH_ENABLED=true \
+AUTH_SECRET="${AUTH_SECRET:-e2e-only-throwaway-secret-not-used-in-any-deployment}" \
+  node_modules/.bin/next start --port "$PORT" > "$LOG" 2>&1 &
 server_pid=$!
 
 cleanup() {

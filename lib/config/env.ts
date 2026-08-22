@@ -42,6 +42,39 @@ const serverSchema = z.object({
   CACHE_REST_URL: z.string().url().optional(),
   CACHE_REST_TOKEN: nonEmpty.optional(),
 
+  /**
+   * Enables `POST /api/v1/auth/dev-session`, which mints a session for a seeded demo
+   * user so dashboards can be reviewed and E2E tests can authenticate without SMS.
+   *
+   * REQUIRES AN EXPLICIT OPT-IN and is ignored in production. It replaces the former
+   * `isUnauthenticatedPreview` switch, which left every vendor, driver and admin
+   * route open to anonymous visitors outside production. The difference matters: this
+   * issues a REAL session for a REAL user and every permission check still runs, so
+   * the authorization path being exercised is the production one.
+   */
+  DEV_AUTH_ENABLED: z
+    .enum(['true', 'false'])
+    .default('false')
+    .transform((value) => value === 'true'),
+
+  /**
+   * Signing key for Parthik session cookies (D-10).
+   *
+   * OPTIONAL at the schema level but REQUIRED in practice for sign-in: a missing
+   * secret makes `requireAuthSecret()` throw a typed ConfigurationError so the
+   * environment degrades to "sign-in unavailable" rather than crashing at boot or,
+   * far worse, signing sessions with a guessable fallback. There is deliberately
+   * no default — a hardcoded development secret is exactly the value that reaches
+   * production by accident.
+   *
+   * 32 bytes minimum because it keys HMAC-SHA256.
+   */
+  AUTH_SECRET: z
+    .string()
+    .trim()
+    .min(32, 'must be at least 32 characters; generate with `openssl rand -base64 32`')
+    .optional(),
+
   // ---- Firebase server-side (D-08, D-36) ----
   FIREBASE_PROJECT_ID: nonEmpty.optional(),
   FIREBASE_SERVICE_ACCOUNT_EMAIL: z.string().email().optional(),
@@ -205,6 +238,14 @@ export function resetEnvCacheForTests(): void {
 
 export const isProduction = (): boolean => getServerEnv().APP_ENV === 'production';
 export const isDevelopment = (): boolean => getServerEnv().APP_ENV === 'development';
+
+/**
+ * True when Parthik can issue its own sessions.
+ *
+ * Reported separately from Firebase configuration because the two fail for
+ * different reasons and the sign-in UI needs to say which is missing.
+ */
+export const isAuthSecretConfigured = (): boolean => getServerEnv().AUTH_SECRET !== undefined;
 
 /**
  * True when the deployment must never be indexed by search engines

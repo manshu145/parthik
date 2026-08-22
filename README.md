@@ -4,22 +4,27 @@ Hyperlocal commerce and delivery platform — customer PWA, vendor dashboard, dr
 
 ## Status
 
-**Application foundation (TASK 001) implemented. No business features yet.**
+**Foundation, catalog, cart and authentication implemented. Checkout onwards not started.**
 
-That is deliberate. The architecture gate is complete (32 of 36 decisions approved) and this repository now contains a working, verified scaffold. Commerce, vendor, driver and admin features are separate, sequenced tasks.
+The architecture gate is complete (32 of 36 decisions approved). Customer browsing works end to end, and **TASK 003 (authentication + RBAC) is now in place**, so every privileged route is genuinely gated. The transactional path — checkout, orders, payments, delivery — is still ahead.
 
-|                                 |                                                                                                    |
-| ------------------------------- | -------------------------------------------------------------------------------------------------- |
-| Documentation                   | **Approved** — see [`docs/`](./docs/README.md)                                                     |
-| Decisions                       | **32 of 36 approved** — see [approved decisions](./docs/ARCHITECTURE.md#16-approved-decisions)     |
-| Blocked                         | **D-14** GST/tax · **D-25** transactional email · **D-34** order-status SMS · **D-32** multi-store |
-| Application foundation          | **Implemented** (TASK 001)                                                                         |
-| Database schema                 | **Implemented** (TASK 002)                                                                         |
-| Database migrations             | **Not generated** — withheld by instruction                                                        |
-| Auth flow (sign-in UI)          | **Not implemented** — TASK 003                                                                     |
-| Commerce, vendor, driver, admin | Not implemented                                                                                    |
-| Legacy data migration           | Deferred (D-31)                                                                                    |
-| Production / DNS                | Untouched                                                                                          |
+|                                  |                                                                                                    |
+| -------------------------------- | -------------------------------------------------------------------------------------------------- |
+| Documentation                    | **Approved** — see [`docs/`](./docs/README.md)                                                     |
+| Decisions                        | **32 of 36 approved** — see [approved decisions](./docs/ARCHITECTURE.md#16-approved-decisions)     |
+| Blocked                          | **D-14** GST/tax · **D-25** transactional email · **D-34** order-status SMS · **D-32** multi-store |
+| Application foundation           | **Implemented** (TASK 001)                                                                         |
+| Database schema                  | **Implemented** (TASK 002) — 86 tables                                                             |
+| Database migrations              | **Not generated** — withheld by instruction, so the schema cannot yet be materialised              |
+| Authentication + RBAC            | **Implemented** (TASK 003) — Firebase phone sign-in, sessions, 59-permission engine                |
+| Customer shell, location         | **Implemented** (TASK 004, 005)                                                                    |
+| Catalog, search, cart            | **Implemented** (TASK 006, 007, 008) — cart is cookie-backed; `carts` tables not wired yet         |
+| Dashboards (vendor/driver/admin) | **Routes and navigation only** — 83 gated placeholder screens awaiting TASK 013–015                |
+| Checkout, orders, payments       | Not started                                                                                        |
+| Delivery, dispatch, COD cash     | Not started                                                                                        |
+| Notifications                    | Not started                                                                                        |
+| Legacy data migration            | Deferred (D-31)                                                                                    |
+| Production / DNS                 | Untouched                                                                                          |
 
 ## Documentation
 

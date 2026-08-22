@@ -144,7 +144,7 @@ export async function verifyFirebaseIdToken(idToken: string): Promise<VerifiedFi
     if (getServerEnv().APP_ENV === 'production') {
       reject('emulator_in_production');
     }
-    return verifyEmulatorToken(idToken, issuer);
+    return verifyEmulatorToken(idToken, issuer, projectId);
   }
 
   if (header.alg !== ALLOWED_ALGORITHM) {
@@ -192,8 +192,18 @@ export async function verifyFirebaseIdToken(idToken: string): Promise<VerifiedFi
 /**
  * Emulator tokens carry no signature, so only the claim set is validated.
  * Reached only when FIREBASE_AUTH_EMULATOR_HOST is set outside production.
+ *
+ * `aud` is checked HERE explicitly. On the signed path `jwtVerify` enforces it, but
+ * this branch never calls `jwtVerify`, so without this check a token minted for a
+ * different Firebase project was accepted. That matters even though the branch is
+ * emulator-only: CI's entire E2E suite authenticates through it, so a cross-project
+ * token would have passed the tests that exist to catch exactly this.
  */
-function verifyEmulatorToken(idToken: string, issuer: string): VerifiedFirebaseToken {
+function verifyEmulatorToken(
+  idToken: string,
+  issuer: string,
+  projectId: string
+): VerifiedFirebaseToken {
   let payload: Record<string, unknown>;
   try {
     payload = decodeJwt(idToken) as Record<string, unknown>;
@@ -203,6 +213,16 @@ function verifyEmulatorToken(idToken: string, issuer: string): VerifiedFirebaseT
 
   if (payload.iss !== issuer) {
     reject('issuer_mismatch');
+  }
+
+  // `aud` may be a string or an array of strings per RFC 7519.
+  const audience = payload.aud;
+  const audienceMatches = Array.isArray(audience)
+    ? audience.includes(projectId)
+    : audience === projectId;
+
+  if (!audienceMatches) {
+    reject('audience_mismatch');
   }
 
   logger.debug('Verifying Firebase token via Auth Emulator', { issuer });
