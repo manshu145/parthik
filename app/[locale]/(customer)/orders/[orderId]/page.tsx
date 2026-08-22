@@ -61,6 +61,15 @@ export default async function OrderDetailPage({
   const isActive = service.isActive(detail.order.status);
   const canCancel = service.canCustomerCancel(detail.order);
 
+  /**
+   * PAYMENT_FAILED is included on purpose: a declined card is the most common reason a customer
+   * returns to this page, and the recovery path is a fresh intent on the same order rather than
+   * starting the cart again (docs/API_SPEC.md §6).
+   */
+  const needsPayment =
+    !detail.order.isCod &&
+    (detail.order.status === 'PENDING_PAYMENT' || detail.order.status === 'PAYMENT_FAILED');
+
   return (
     <PageShell
       title={t('detail.title', { number: detail.order.orderNumber })}
@@ -73,10 +82,24 @@ export default async function OrderDetailPage({
         </div>
 
         <aside className="flex flex-col gap-3">
+          {/*
+            An unpaid prepaid order gets the payment CTA FIRST.
+            Nothing else on this page matters to a customer whose order is waiting on money —
+            and without this, a closed gateway sheet or a failed card would be a dead end that
+            only support could resolve.
+          */}
+          {needsPayment && (
+            <Button asChild data-testid="order-complete-payment">
+              <Link href={`/checkout/payment/${detail.order.id}`}>
+                {t('detail.completePayment')}
+              </Link>
+            </Button>
+          )}
+
           {/* Live tracking only while the order can still move. A "track" button on a
               delivered order leads to a page that will never change. */}
           {isActive && (
-            <Button asChild>
+            <Button asChild variant={needsPayment ? 'secondary' : 'primary'}>
               <Link href={`/orders/${detail.order.id}/track`}>{t('detail.track')}</Link>
             </Button>
           )}

@@ -39,6 +39,14 @@ export function isOrderingAvailable(): boolean {
 export { OrderService, createOrderService } from './order.service';
 export type { OrderServiceDeps, PlaceOrderInput, PlaceOrderResult } from './order.service';
 export { DrizzleOrderRepository, createOrderRepository } from './order.repository';
+/**
+ * Low-level transition primitive, for a module that must move an order inside ITS OWN
+ * transaction (the payment webhook, which has to confirm an order and mark its payment paid
+ * atomically). Re-exported here because a repository may not import another module's
+ * repository. Anything that does not need to share a transaction uses `OrderService.transition`,
+ * which validates the move as well as performing it.
+ */
+export { applyOrderTransitionInTx } from './order.repository';
 export {
   ACTIVE_STATUSES,
   allowedTransitionsFor,

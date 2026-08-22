@@ -154,6 +154,12 @@ jobs:
       - name: Order placement end to end
         run: bash scripts/check-order-flow.sh 3260
 
+      # Signed, forged, replayed, short and late webhooks against a real database. Every one of
+      # those looks like an ordinary successful request, so this is the only place they are
+      # actually proven to be handled.
+      - name: Payment webhooks end to end
+        run: bash scripts/check-payment-flow.sh 3270
+
       # Guards the forward-only rule (docs/DATABASE.md §13): a schema edit without a
       # matching generated migration would otherwise reach production as drift.
       - name: Fail if the schema has uncommitted migration drift

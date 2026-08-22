@@ -11,6 +11,7 @@ import {
 import type { Database } from '@/lib/db/client';
 import type { RepositoryContext } from '@/lib/db/repository';
 import { ConflictError } from '@/lib/errors';
+import { logger } from '@/lib/logger';
 import type {
   CreateOrderInput,
   OrderDetail,
@@ -363,97 +364,7 @@ export class DrizzleOrderRepository implements OrderRepository {
   }
 
   async applyTransition(input: TransitionInput): Promise<OrderRecord> {
-    return this.db.transaction(async (tx) => {
-      /**
-       * Re-read the order under a row lock and CHECK THE STATUS AGAIN.
-       *
-       * The service already validated the transition, but it read the order outside this
-       * transaction. Two vendors clicking "accept" simultaneously would both pass that check;
-       * only one may pass this one. Without it the second write would silently overwrite the
-       * first and the history would show an impossible sequence.
-       */
-      const [current] = await tx
-        .select({ id: orders.id, status: orders.status, isCod: orders.isCod })
-        .from(orders)
-        .where(eq(orders.id, input.orderId))
-        .for('update')
-        .limit(1);
-
-      if (!current) throw new ConflictError('That order no longer exists.');
-
-      if (current.status !== input.from) {
-        throw new ConflictError(
-          `This order has already moved to ${current.status}. Please reload and try again.`
-        );
-      }
-
-      const now = new Date();
-      const timestampColumn = STATUS_TIMESTAMP_COLUMN[input.to];
-
-      const [updated] = await tx
-        .update(orders)
-        .set({
-          status: input.to,
-          ...(timestampColumn ? { [timestampColumn]: now } : {}),
-          ...(input.to === 'CANCELLED'
-            ? { cancellationReason: input.reason, cancelledByRole: input.actor }
-            : {}),
-          // COD becomes PAID only here, in the same transaction as the cash ledger entry.
-          ...(input.effects.includes('COLLECT_COD') && current.isCod
-            ? { paymentStatus: 'PAID' as const }
-            : {}),
-          version: sql`${orders.version} + 1`,
-          updatedAt: now,
-        })
-        .where(eq(orders.id, input.orderId))
-        .returning(orderColumns);
-
-      if (!updated) throw new ConflictError('Could not update the order.');
-
-      // Every transition, without exception (master spec §13).
-      await tx.insert(orderStatusHistory).values({
-        orderId: input.orderId,
-        fromStatus: input.from,
-        toStatus: input.to,
-        changedByUserId: input.actorUserId,
-        changedByRole: input.actor,
-        reason: input.reason,
-      });
-
-      // ---- Stock effects ----
-      const lines = await tx
-        .select({ variantId: orderItems.variantId, quantity: orderItems.quantity })
-        .from(orderItems)
-        .where(eq(orderItems.orderId, input.orderId));
-
-      const storeId = await storeIdOf(tx, input.orderId);
-
-      if (input.effects.includes('RELEASE_STOCK')) {
-        await releaseStock(tx, { orderId: input.orderId, storeId, lines });
-      }
-
-      if (input.effects.includes('CONSUME_STOCK')) {
-        await consumeStock(tx, { orderId: input.orderId, storeId, lines });
-      }
-
-      // ---- COD payment ----
-      if (input.effects.includes('COLLECT_COD') && current.isCod) {
-        await tx
-          .update(payments)
-          .set({ status: 'PAID', paidAt: now })
-          .where(and(eq(payments.orderId, input.orderId), eq(payments.method, 'COD')));
-      }
-
-      // ---- Coupon release ----
-      //
-      // Deleting the redemption is what returns the coupon to the customer's allowance. The
-      // unique index means a re-order can then record it again.
-      if (input.effects.includes('RELEASE_COUPON')) {
-        await tx.delete(couponUsages).where(eq(couponUsages.orderId, input.orderId));
-      }
-
-      return mapOrder(updated);
-    });
+    return this.db.transaction((tx) => applyOrderTransitionInTx(tx, input));
   }
 
   async listExpiredPendingPayment(before: Date, limit: number): Promise<OrderRecord[]> {
@@ -522,6 +433,148 @@ export class DrizzleOrderRepository implements OrderRepository {
       })),
     };
   }
+}
+
+/**
+ * Applies a validated transition INSIDE A CALLER'S TRANSACTION.
+ *
+ * Extracted from `applyTransition` so another module can move an order in the SAME
+ * transaction as its own write. The payment module needs exactly that: a captured webhook has
+ * to mark the payment PAID and confirm the order atomically, because a crash between two
+ * separate transactions would leave a customer charged for an order still sitting in
+ * PENDING_PAYMENT (docs/API_SPEC.md §6.3 step 5).
+ *
+ * Exposed through `modules/order/index.ts` rather than by importing this file, because a
+ * repository must not import another module's repository. Everything that does not need to
+ * share a transaction should use `OrderService.transition()` instead, which also validates the
+ * move against the state machine — this function trusts the effects it is handed.
+ */
+export async function applyOrderTransitionInTx(
+  tx: Tx,
+  input: TransitionInput
+): Promise<OrderRecord> {
+  /**
+   * Re-read the order under a row lock and CHECK THE STATUS AGAIN.
+   *
+   * The service already validated the transition, but it read the order outside this
+   * transaction. Two vendors clicking "accept" simultaneously would both pass that check;
+   * only one may pass this one. Without it the second write would silently overwrite the
+   * first and the history would show an impossible sequence.
+   */
+  const [current] = await tx
+    .select({ id: orders.id, status: orders.status, isCod: orders.isCod })
+    .from(orders)
+    .where(eq(orders.id, input.orderId))
+    .for('update')
+    .limit(1);
+
+  if (!current) throw new ConflictError('That order no longer exists.');
+
+  if (current.status !== input.from) {
+    throw new ConflictError(
+      `This order has already moved to ${current.status}. Please reload and try again.`
+    );
+  }
+
+  const now = new Date();
+  const timestampColumn = STATUS_TIMESTAMP_COLUMN[input.to];
+
+  const [updated] = await tx
+    .update(orders)
+    .set({
+      status: input.to,
+      ...(timestampColumn ? { [timestampColumn]: now } : {}),
+      ...(input.to === 'CANCELLED'
+        ? { cancellationReason: input.reason, cancelledByRole: input.actor }
+        : {}),
+      // COD becomes PAID only here, in the same transaction as the cash ledger entry.
+      ...(input.effects.includes('COLLECT_COD') && current.isCod
+        ? { paymentStatus: 'PAID' as const }
+        : {}),
+      version: sql`${orders.version} + 1`,
+      updatedAt: now,
+    })
+    .where(eq(orders.id, input.orderId))
+    .returning(orderColumns);
+
+  if (!updated) throw new ConflictError('Could not update the order.');
+
+  // Every transition, without exception (master spec §13).
+  await tx.insert(orderStatusHistory).values({
+    orderId: input.orderId,
+    fromStatus: input.from,
+    toStatus: input.to,
+    changedByUserId: input.actorUserId,
+    changedByRole: input.actor,
+    reason: input.reason,
+  });
+
+  // ---- Stock effects ----
+  const lines = await tx
+    .select({ variantId: orderItems.variantId, quantity: orderItems.quantity })
+    .from(orderItems)
+    .where(eq(orderItems.orderId, input.orderId));
+
+  const storeId = await storeIdOf(tx, input.orderId);
+
+  if (input.effects.includes('RELEASE_STOCK')) {
+    await releaseStock(tx, { orderId: input.orderId, storeId, lines });
+  }
+
+  if (input.effects.includes('CONSUME_STOCK')) {
+    await consumeStock(tx, { orderId: input.orderId, storeId, lines });
+  }
+
+  /**
+   * RESERVE_STOCK — failed-payment recovery only.
+   *
+   * The failure released these units, so a retried payment has to take them again.
+   *
+   * Recorded as an ADJUSTMENT, not as a second RESERVE, and that is forced by the schema:
+   * `inventory_transactions_order_movement_key` is unique on
+   * (reference_id, variant_id, txn_type), which is exactly what makes RESERVE and RELEASE
+   * idempotent for an order. A second RESERVE row is therefore impossible — and trying was a
+   * unique-violation that aborted the whole capture. The ADJUSTMENT carries the order
+   * reference and a reason, so stock stays reproducible from the ledger, and the same unique
+   * index makes the re-reservation idempotent in its turn.
+   *
+   * A shortfall does NOT abort the transaction. The money has already been captured by the
+   * time this runs, and throwing here would roll the capture back and leave the provider
+   * retrying forever — so what is available is taken, and the gap is reported at ERROR.
+   */
+  if (input.effects.includes('RESERVE_STOCK')) {
+    const shortfalls = await reReserveStock(tx, {
+      orderId: input.orderId,
+      storeId,
+      lines,
+    });
+
+    if (shortfalls.length > 0) {
+      logger.error('An order was confirmed but its stock could not be fully re-reserved', {
+        orderId: input.orderId,
+        shortfalls,
+        action: 'contact the customer: fulfil short or refund',
+      });
+    }
+  }
+
+  // ---- COD payment ----
+  if (input.effects.includes('COLLECT_COD') && current.isCod) {
+    await tx
+      .update(payments)
+      .set({ status: 'PAID', paidAt: now })
+      .where(and(eq(payments.orderId, input.orderId), eq(payments.method, 'COD')));
+  }
+
+  // ---- Coupon release ----
+  //
+  // Deleting the redemption is what returns the coupon to the customer's allowance. The
+  // unique index means a re-order can then record it again.
+  if (input.effects.includes('RELEASE_COUPON')) {
+    await tx.delete(couponUsages).where(eq(couponUsages.orderId, input.orderId));
+  }
+
+  return mapOrder(updated);
 }
 
 // ---------------------------------------------------------------------------
@@ -737,6 +790,97 @@ async function consumeStock(
       reason: 'Sold on delivery',
     });
   }
+}
+
+/**
+ * Takes a reservation BACK after a payment failure released it.
+ *
+ * IDEMPOTENT on the existence of the ADJUSTMENT row: a replayed transition must not remove the
+ * same units twice. Written as an ADJUSTMENT because the unique index that makes RESERVE
+ * idempotent for an order also makes a second RESERVE row impossible.
+ */
+async function reReserveStock(
+  tx: Tx,
+  input: {
+    orderId: string;
+    storeId: string;
+    lines: Array<{ variantId: string | null; quantity: number }>;
+  }
+): Promise<StockShortfall[]> {
+  const [existing] = await tx
+    .select({ id: inventoryTransactions.id })
+    .from(inventoryTransactions)
+    .where(
+      and(
+        eq(inventoryTransactions.referenceType, 'ORDER'),
+        eq(inventoryTransactions.referenceId, input.orderId),
+        eq(inventoryTransactions.txnType, 'ADJUSTMENT')
+      )
+    )
+    .limit(1);
+
+  if (existing) return [];
+
+  const shortfalls: StockShortfall[] = [];
+  // Same lock order as `reserveStock`, so a recovery and a fresh checkout cannot deadlock.
+  const ordered = [...input.lines]
+    .flatMap((line) =>
+      line.variantId ? [{ variantId: line.variantId, quantity: line.quantity }] : []
+    )
+    .sort((a, b) => a.variantId.localeCompare(b.variantId));
+
+  for (const line of ordered) {
+    const [row] = await tx
+      .select({
+        id: inventory.id,
+        quantityAvailable: inventory.quantityAvailable,
+        trackInventory: inventory.trackInventory,
+        allowBackorder: inventory.allowBackorder,
+      })
+      .from(inventory)
+      .where(eq(inventory.variantId, line.variantId))
+      .for('update')
+      .limit(1);
+
+    if (!row) continue;
+
+    if (row.trackInventory && !row.allowBackorder && row.quantityAvailable < line.quantity) {
+      shortfalls.push({
+        variantId: line.variantId,
+        requested: line.quantity,
+        available: row.quantityAvailable,
+      });
+      continue;
+    }
+
+    if (row.trackInventory) {
+      await tx
+        .update(inventory)
+        .set({
+          quantityAvailable: sql`${inventory.quantityAvailable} - ${line.quantity}`,
+          quantityReserved: sql`${inventory.quantityReserved} + ${line.quantity}`,
+          version: sql`${inventory.version} + 1`,
+          updatedAt: new Date(),
+        })
+        .where(eq(inventory.id, row.id));
+    }
+
+    await tx.insert(inventoryTransactions).values({
+      variantId: line.variantId,
+      storeId: input.storeId,
+      txnType: 'ADJUSTMENT',
+      quantityDelta: -line.quantity,
+      quantityAfter: row.trackInventory
+        ? row.quantityAvailable - line.quantity
+        : row.quantityAvailable,
+      referenceType: 'ORDER',
+      // Attributable immediately: the order already exists by the time a recovery happens.
+      referenceId: input.orderId,
+      reason: 'Re-reserved after failed-payment recovery',
+    });
+  }
+
+  return shortfalls;
 }
 
 async function storeIdOf(tx: Tx, orderId: string): Promise<string> {

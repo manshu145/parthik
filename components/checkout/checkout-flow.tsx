@@ -162,11 +162,15 @@ export function CheckoutFlow({ initialQuote, addresses }: CheckoutFlowProps) {
       }
 
       /**
-       * A prepaid order lands on its own page in PENDING_PAYMENT rather than on an invented
-       * payment screen. The payment step is TASK 011; until it exists, showing the customer an
-       * honest "awaiting payment" order is better than a route that cannot complete.
+       * COD is done — the order is already CONFIRMED, so it goes straight to the order page.
+       * A prepaid order still owes money, so it goes to the gateway handoff (D-12: cash skips
+       * the payment route entirely).
        */
-      router.push(`/orders/${payload.data.order.id}`);
+      router.push(
+        method === 'COD'
+          ? `/orders/${payload.data.order.id}`
+          : `/checkout/payment/${payload.data.order.id}`
+      );
     } catch {
       setError(tCommon('retry'));
     } finally {

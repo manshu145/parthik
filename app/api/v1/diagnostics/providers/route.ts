@@ -5,6 +5,8 @@ import { describeMockFixtures } from '@/lib/maps/mock-provider';
 import { describeLocationBackend } from '@/modules/location';
 import { describeCatalogBackend } from '@/modules/catalog';
 import { describeSearchBackend } from '@/modules/search';
+import { describePaymentBackend } from '@/modules/payment';
+import { describeMockGateway } from '@/lib/payments/mock-provider';
 
 /**
  * GET /api/v1/diagnostics/providers — DEVELOPMENT ONLY.
@@ -38,6 +40,7 @@ export async function GET(request: Request) {
   const location = describeLocationBackend();
   const catalog = describeCatalogBackend();
   const search = describeSearchBackend();
+  const paymentsBackend = describePaymentBackend();
 
   return apiSuccess(
     {
@@ -66,6 +69,17 @@ export async function GET(request: Request) {
       search: {
         backend: search.backend,
         databaseConfigured: search.databaseConfigured,
+      },
+      payments: {
+        configured: env.PAYMENTS_PROVIDER,
+        active: paymentsBackend.provider,
+        usingMockFallback: paymentsBackend.isFallback,
+        // Reported separately because a deployment can have one and not the other, and a key
+        // pair without a webhook secret can take money it will never be able to confirm.
+        keyPairPresent: paymentsBackend.canCreateIntents,
+        webhookSecretPresent: paymentsBackend.canVerifyWebhooks,
+        databaseConfigured: paymentsBackend.databaseConfigured,
+        ...(paymentsBackend.usingMockGateway ? { gateway: describeMockGateway() } : {}),
       },
       notes: [
         'Development diagnostics. This endpoint returns 404 in production.',
