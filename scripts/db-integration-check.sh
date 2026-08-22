@@ -9,7 +9,10 @@
 # typecheck and still fail in Postgres. This is the only check that catches that,
 # and it is also the first thing to execute the schema at all (decision D-01a).
 #
-# It generates NO migration files — `drizzle-kit export` writes SQL to stdout only.
+# It applies the COMMITTED MIGRATIONS, which is the artifact that will actually run
+# against a real database — a stronger check than the previous `drizzle-kit export`,
+# because it validates what deploys rather than a regenerated equivalent.
+#
 # Nothing here touches a shared or production database.
 #
 # Requires docker or podman. Everything happens in one invocation, including
@@ -80,41 +83,36 @@ SERVER_VERSION=$(psql_run -tAc "show server_version_num;" 2>/dev/null | tr -d '[
 echo "PostgreSQL server_version_num: ${SERVER_VERSION:-unknown}"
 
 # ---------------------------------------------------------------------------
-# Extensions and the uuidv7() shim.
+# Bootstrap: extensions and uuidv7().
 #
-# Every primary key defaults to `uuidv7()`, which is NATIVE ONLY IN POSTGRESQL 18+.
-# docs/DATABASE.md and docs/ARCHITECTURE.md both state "PostgreSQL 16+", so the
-# schema and the documented engine floor disagree — a real issue for the D-01a
-# provider choice, not something this script should hide.
+# `uuidv7()` is built in only from PostgreSQL 18, and every primary key defaults to
+# it, so on the documented floor of 16 the migration cannot even apply. db/bootstrap.sql
+# installs a REAL time-sortable implementation when the server lacks one — previously
+# this script substituted gen_random_uuid(), which applies fine and silently throws away
+# the time-sortability the id format was chosen for.
 #
-# On a server below 18 a shim is installed so the rest of the schema can still be
-# validated. The shim is NOT time-sortable and exists only for this throwaway
-# database.
+# The bootstrap is applied by `pnpm db:migrate` itself, so the ordering cannot be got
+# wrong on a real deploy. Here we only PROVE the result, via scripts/check-uuidv7.sql:
+# version nibble, variant bits, embedded timestamp, uniqueness and monotonic ordering.
 # ---------------------------------------------------------------------------
-psql_run -c "create extension if not exists pg_trgm;" >/dev/null
+export DATABASE_URL="postgresql://postgres:${PGPASSWORD_VALUE}@127.0.0.1:${PORT}/${DB_NAME}"
+export APP_ENV=development
 
-if [ -n "$SERVER_VERSION" ] && [ "$SERVER_VERSION" -lt 180000 ]; then
-  echo "⚠️  Server is below 18: installing a non-time-sortable uuidv7() shim for validation only."
-  psql_run -c "create or replace function uuidv7() returns uuid language sql volatile as \$\$ select gen_random_uuid() \$\$;" >/dev/null
-fi
-
-# ---------------------------------------------------------------------------
-# Apply the schema. `drizzle-kit export` prints SQL; it writes no migration files.
-# ---------------------------------------------------------------------------
-echo "Exporting schema SQL (no migration files written)…"
-SCHEMA_SQL=$(pnpm --silent db:export 2>/dev/null)
-
-if [ -z "$SCHEMA_SQL" ]; then
-  echo "❌ Schema export produced no SQL."
+echo "Applying migrations from db/migrations (bootstrap included)…"
+if ! pnpm --silent db:migrate >/tmp/parthik-migrate.log 2>&1; then
+  echo "❌ Migrations failed to apply:"
+  tail -30 /tmp/parthik-migrate.log
   exit 1
 fi
-
-echo "Applying schema…"
-if ! printf '%s\n' "$SCHEMA_SQL" | psql_run >/tmp/parthik-schema-apply.log 2>&1; then
-  echo "❌ Schema failed to apply:"
-  tail -25 /tmp/parthik-schema-apply.log
+grep -oE '(NOTICE|uuidv7\(\)).*' /tmp/parthik-migrate.log | sed 's/^/  /' | head -3 || true
+echo "Verifying uuidv7() correctness…"
+if ! psql_run -f - < scripts/check-uuidv7.sql >/tmp/parthik-uuidv7.log 2>&1; then
+  echo "❌ uuidv7() is not a correct, time-sortable v7:"
+  tail -25 /tmp/parthik-uuidv7.log
   exit 1
 fi
+grep -o 'NOTICE:.*' /tmp/parthik-uuidv7.log | sed 's/^/  /' || true
+echo "✅ uuidv7() verified."
 
 TABLE_COUNT=$(psql_run -tAc "select count(*) from information_schema.tables where table_schema='public';" | tr -d '[:space:]')
 ENUM_COUNT=$(psql_run -tAc "select count(*) from pg_type t join pg_namespace n on n.oid=t.typnamespace where t.typtype='e' and n.nspname='public';" | tr -d '[:space:]')
@@ -125,9 +123,6 @@ echo "✅ Schema applied: ${TABLE_COUNT} tables, ${ENUM_COUNT} enums, ${INDEX_CO
 # ---------------------------------------------------------------------------
 # Seed, then exercise the real SQL.
 # ---------------------------------------------------------------------------
-export DATABASE_URL="postgresql://postgres:${PGPASSWORD_VALUE}@127.0.0.1:${PORT}/${DB_NAME}"
-export APP_ENV=development
-
 echo "Seeding reference data…"
 if ! pnpm --silent seed >/tmp/parthik-seed.log 2>&1; then
   echo "❌ Reference seed failed:"
@@ -160,6 +155,17 @@ fi
 
 PRODUCTS_AFTER=$(psql_run -tAc "select count(*) from products;" | tr -d '[:space:]')
 echo "✅ Seeds are idempotent (products still ${PRODUCTS_AFTER})."
+
+# Re-running migrations must do nothing. If drizzle's journal and the database ever
+# disagree, this replays DDL and fails — which is exactly what we want to hear about
+# locally rather than during a deploy.
+echo "Re-running migrations to confirm they are a no-op…"
+if ! pnpm --silent db:migrate >/tmp/parthik-migrate-again.log 2>&1; then
+  echo "❌ Re-applying migrations failed — the journal and the database disagree:"
+  tail -20 /tmp/parthik-migrate-again.log
+  exit 1
+fi
+echo "✅ Migrations are idempotent."
 
 echo
 echo "✅ Database integration check passed."

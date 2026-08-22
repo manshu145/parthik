@@ -328,7 +328,7 @@ PostgreSQL is the system of record. Object storage is never used as a database (
 
 | Aspect             | Decision                                                                                                                         |
 | ------------------ | -------------------------------------------------------------------------------------------------------------------------------- |
-| Engine             | PostgreSQL 16+                                                                                                                   |
+| Engine             | PostgreSQL 16+, with `db/bootstrap.sql` supplying `uuidv7()` below 18 (see [`DATABASE.md` §1](./DATABASE.md))                    |
 | Connectivity       | Cloudflare **Hyperdrive** binding, pooled; driver is `postgres`/`pg` over the Hyperdrive socket                                  |
 | Access pattern     | Repository layer only                                                                                                            |
 | Migrations         | Generated SQL files, committed, applied by CI. Never `db push` against staging/production (master spec §28.8)                    |

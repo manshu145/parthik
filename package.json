@@ -24,7 +24,7 @@
     "cf:deploy": "opennextjs-cloudflare deploy",
     "cf:typegen": "wrangler types --env-interface CloudflareEnv ./types/cloudflare-env.d.ts",
     "db:generate": "drizzle-kit generate",
-    "db:migrate": "drizzle-kit migrate",
+    "db:migrate": "tsx scripts/db-migrate.mts",
     "verify": "pnpm typecheck && pnpm lint && pnpm format:check && pnpm test && pnpm build",
     "db:check": "drizzle-kit export --sql > /dev/null && echo \"Drizzle schema is valid (no migrations generated)\"",
     "db:export": "drizzle-kit export --sql",
