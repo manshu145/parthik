@@ -142,7 +142,15 @@ echo "✅ Demo catalogue seeded."
 
 echo "Executing catalog and search queries…"
 if ! pnpm --silent tsx scripts/check-catalog-queries.ts; then
-  echo "❌ Query check failed."
+  echo "❌ Catalog query check failed."
+  exit 1
+fi
+
+# Commerce SQL uses raw `sql` templates, INSERT … SELECT, a partial-index upsert target
+# and ON CONFLICT — all of which typecheck and can still be rejected by Postgres.
+echo "Executing commerce queries (cart persistence)…"
+if ! pnpm --silent tsx scripts/check-commerce-queries.ts; then
+  echo "❌ Commerce query check failed."
   exit 1
 fi
 

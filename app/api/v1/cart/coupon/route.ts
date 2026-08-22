@@ -1,8 +1,8 @@
 import { ValidationError } from '@/lib/errors';
 import { apiError, apiSuccess, requestIdFrom } from '@/lib/http/api-response';
-import { setCartCookie } from '@/lib/http/cart-cookie';
 import { noStoreHeaders, resolveRequestLocale } from '@/lib/http/request-locale';
-import { readCartIntent, readCartPincode } from '@/lib/shell/current-cart';
+import { loadCart, persistCart } from '@/lib/shell/cart-session';
+import { readCartPincode } from '@/lib/shell/current-cart';
 import { getCartService } from '@/modules/cart';
 import { applyCouponSchema } from '@/modules/coupons';
 
@@ -47,13 +47,13 @@ export async function POST(request: Request) {
       );
     }
 
-    const [intent, pincode, service] = await Promise.all([
-      readCartIntent(),
+    const [{ intent, owner, userId }, pincode, service] = await Promise.all([
+      loadCart(),
       readCartPincode(),
       getCartService(),
     ]);
 
-    const context = { locale, ...(pincode ? { pincode } : {}) };
+    const context = { locale, ...(pincode ? { pincode } : {}), userId };
 
     // Throws the documented coupon error when it does not apply.
     const next = await service.applyCoupon(intent, parsed.data.code, context);
@@ -64,7 +64,7 @@ export async function POST(request: Request) {
       { meta: { requestId, locale, total: view.totals.itemCount } }
     );
 
-    setCartCookie(response, next);
+    await persistCart(response, owner, next);
     for (const [header, value] of Object.entries(noStoreHeaders(locale))) {
       response.headers.set(header, value);
     }
@@ -80,8 +80,8 @@ export async function DELETE(request: Request) {
   const locale = resolveRequestLocale(request);
 
   try {
-    const [intent, pincode, service] = await Promise.all([
-      readCartIntent(),
+    const [{ intent, owner, userId }, pincode, service] = await Promise.all([
+      loadCart(),
       readCartPincode(),
       getCartService(),
     ]);
@@ -89,14 +89,14 @@ export async function DELETE(request: Request) {
     // Idempotent: removing a coupon from a cart that has none is a success, not a
     // 404. The customer's intent — "no coupon" — is already satisfied.
     const next = service.removeCoupon(intent);
-    const view = await service.view(next, { locale, ...(pincode ? { pincode } : {}) });
+    const view = await service.view(next, { locale, ...(pincode ? { pincode } : {}), userId });
 
     const response = apiSuccess(
       { cart: view },
       { meta: { requestId, locale, total: view.totals.itemCount } }
     );
 
-    setCartCookie(response, next);
+    await persistCart(response, owner, next);
     for (const [header, value] of Object.entries(noStoreHeaders(locale))) {
       response.headers.set(header, value);
     }

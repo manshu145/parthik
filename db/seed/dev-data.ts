@@ -12,52 +12,26 @@
  */
 
 import type { Locale } from '@/i18n/routing';
+import { DEMO_PERSONAS } from '@/modules/identity/demo-personas';
 
 /** Reserved test numbers; never a real subscriber. */
 const TEST_PHONE_PREFIX = '+91555000';
 
-export const DEV_USERS: Array<{
-  ref: string;
-  firebaseUid: string;
-  phone: string;
-  fullName: string;
-  role: string;
-  preferredLocale: Locale;
-}> = [
-  {
-    ref: 'admin',
-    firebaseUid: 'dev-firebase-uid-admin',
-    phone: `${TEST_PHONE_PREFIX}001`,
-    fullName: 'Dev Super Admin',
-    role: 'SUPER_ADMIN',
-    preferredLocale: 'en',
-  },
-  {
-    ref: 'vendor-owner',
-    firebaseUid: 'dev-firebase-uid-vendor',
-    phone: `${TEST_PHONE_PREFIX}002`,
-    fullName: 'Dev Vendor Owner',
-    role: 'VENDOR_OWNER',
-    preferredLocale: 'en',
-  },
-  {
-    ref: 'driver',
-    firebaseUid: 'dev-firebase-uid-driver',
-    phone: `${TEST_PHONE_PREFIX}003`,
-    fullName: 'Dev Driver',
-    role: 'DRIVER',
-    // Hindi by default, so the driver surface is exercised in both locales.
-    preferredLocale: 'hi',
-  },
-  {
-    ref: 'customer',
-    firebaseUid: 'dev-firebase-uid-customer',
-    phone: `${TEST_PHONE_PREFIX}004`,
-    fullName: 'Dev Customer',
-    role: 'CUSTOMER',
-    preferredLocale: 'en',
-  },
-];
+/**
+ * Demo users, DERIVED from `modules/identity/demo-personas.ts`.
+ *
+ * Not declared here, because a second hand-maintained list is what let the seed and the
+ * in-memory identity backend drift onto different firebase uids — with the result that
+ * development sign-in worked in memory and 404'd against a real database.
+ */
+export const DEV_USERS = DEMO_PERSONAS.map((persona) => ({
+  ref: persona.ref,
+  firebaseUid: persona.firebaseUid,
+  phone: persona.phone,
+  fullName: persona.fullName,
+  preferredLocale: persona.preferredLocale,
+  roles: persona.roles,
+}));
 
 export const DEV_VENDOR = {
   businessName: 'Demo Kirana Store',

@@ -1,7 +1,7 @@
 import { apiError, apiSuccess, requestIdFrom } from '@/lib/http/api-response';
-import { clearCartCookie } from '@/lib/http/cart-cookie';
+import { clearCart, loadCart } from '@/lib/shell/cart-session';
 import { noStoreHeaders, resolveRequestLocale } from '@/lib/http/request-locale';
-import { readCartIntent, readCartPincode } from '@/lib/shell/current-cart';
+import { readCartPincode } from '@/lib/shell/current-cart';
 import { getCartService } from '@/modules/cart';
 
 /**
@@ -19,13 +19,19 @@ export async function GET(request: Request) {
   const locale = resolveRequestLocale(request);
 
   try {
-    const [intent, pincode, service] = await Promise.all([
-      readCartIntent(),
+    const [{ intent, userId }, pincode, service] = await Promise.all([
+      loadCart(),
       readCartPincode(),
       getCartService(),
     ]);
 
-    const view = await service.view(intent, { locale, ...(pincode ? { pincode } : {}) });
+    const view = await service.view(intent, {
+      locale,
+      ...(pincode ? { pincode } : {}),
+      // Passed so user-scoped coupon rules (first-order, per-user limit) can be
+      // evaluated. Omitting it silently refused those coupons for signed-in customers.
+      userId,
+    });
 
     const response = apiSuccess(
       { cart: view },
@@ -42,12 +48,18 @@ export async function GET(request: Request) {
   }
 }
 
-export function DELETE(request: Request) {
+export async function DELETE(request: Request) {
   const requestId = requestIdFrom(request);
   const locale = resolveRequestLocale(request);
 
-  const response = apiSuccess({ cleared: true }, { meta: { requestId, locale } });
-  clearCartCookie(response);
+  try {
+    const { owner } = await loadCart();
+    const response = apiSuccess({ cleared: true }, { meta: { requestId, locale } });
 
-  return response;
+    await clearCart(response, owner);
+
+    return response;
+  } catch (error) {
+    return apiError(error, { requestId });
+  }
 }

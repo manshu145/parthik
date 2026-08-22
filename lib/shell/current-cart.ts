@@ -4,6 +4,7 @@ import type { Locale } from '@/i18n/routing';
 import { parseCartCookie, CART_COOKIE_NAME } from '@/lib/http/cart-cookie';
 import { parseZoneCookie, ZONE_COOKIE_NAME } from '@/lib/http/zone-cookie';
 import { logger } from '@/lib/logger';
+import { loadCart } from './cart-session';
 import { getCartService } from '@/modules/cart';
 import type { CartIntent, CartView } from '@/modules/cart';
 
@@ -51,13 +52,16 @@ export async function readCartPincode(): Promise<string | null> {
  */
 export async function getCartView(locale: Locale): Promise<CartView | null> {
   try {
-    const [intent, pincode, service] = await Promise.all([
-      readCartIntent(),
+    // Goes through the session resolver, so a signed-in customer's server-rendered
+    // header and drawer read the SAME cart the API mutates. Reading the cookie here
+    // while the API wrote to Postgres would show two different carts on one page.
+    const [{ intent, userId }, pincode, service] = await Promise.all([
+      loadCart(),
       readCartPincode(),
       getCartService(),
     ]);
 
-    return service.view(intent, { locale, ...(pincode ? { pincode } : {}) });
+    return service.view(intent, { locale, ...(pincode ? { pincode } : {}), userId });
   } catch (error) {
     unstable_rethrow(error);
     logger.exception(error);

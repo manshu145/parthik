@@ -134,6 +134,17 @@ jobs:
       - name: Apply migrations, seed and execute every query
         run: bash scripts/db-integration-check.sh postgres:16-alpine
 
+      # Needs a build, because it drives the real route handlers rather than the
+      # repository directly — the wiring between session, cookie and Postgres is the
+      # part that was missing, and only a running server exercises it.
+      - name: Production build
+        run: pnpm build
+        env:
+          APP_ENV: preview
+
+      - name: Cart persistence end to end
+        run: bash scripts/check-cart-persistence.sh 3240
+
       # Guards the forward-only rule (docs/DATABASE.md §13): a schema edit without a
       # matching generated migration would otherwise reach production as drift.
       - name: Fail if the schema has uncommitted migration drift

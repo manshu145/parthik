@@ -7,6 +7,7 @@ import {
   DEMO_VENDOR_SCOPE_ID,
   InMemoryIdentityRepository,
 } from '@/modules/identity/identity-memory.repository';
+import { demoPersona } from '@/modules/identity/demo-personas';
 import { can } from '@/modules/identity/identity.policy';
 
 /**
@@ -26,6 +27,11 @@ const SECRET = 'identity-service-test-secret-long-enough';
 
 const FINGERPRINT = { ipHash: 'ip-hash-1', userAgent: 'vitest' };
 
+const CUSTOMER = demoPersona('customer');
+const ADMIN = demoPersona('admin');
+const VENDOR = demoPersona('vendor');
+const SUPPORT = demoPersona('support');
+
 function base64url(value: unknown): string {
   return Buffer.from(JSON.stringify(value)).toString('base64url');
 }
@@ -39,7 +45,7 @@ function emulatorToken(overrides: Record<string, unknown> = {}): string {
     base64url({
       iss: `https://securetoken.google.com/${PROJECT_ID}`,
       aud: PROJECT_ID,
-      sub: 'demo-customer-uid',
+      sub: CUSTOMER.firebaseUid,
       iat: now,
       exp: now + 3600,
       auth_time: now,
@@ -85,11 +91,11 @@ describe('exchangeFirebaseToken — success', () => {
     // The request body carries no phone/uid by schema; this proves the service reads the
     // verified claims even when a different number is seeded against that uid.
     await service.exchangeFirebaseToken({
-      idToken: emulatorToken({ sub: 'demo-customer-uid', phone_number: '+919111122223' }),
+      idToken: emulatorToken({ sub: CUSTOMER.firebaseUid, phone_number: '+919111122223' }),
       fingerprint: FINGERPRINT,
     });
 
-    const user = await repository.findUserByFirebaseUid('demo-customer-uid');
+    const user = await repository.findUserByFirebaseUid(CUSTOMER.firebaseUid);
     expect(user?.phone).toBe('+919111122223');
   });
 
@@ -131,7 +137,7 @@ describe('exchangeFirebaseToken — success', () => {
     const { service } = makeService();
 
     const result = await service.exchangeFirebaseToken({
-      idToken: emulatorToken({ sub: 'demo-admin-uid', phone_number: '+919000000004' }),
+      idToken: emulatorToken({ sub: ADMIN.firebaseUid, phone_number: ADMIN.phone }),
       fingerprint: FINGERPRINT,
     });
 
@@ -145,7 +151,7 @@ describe('exchangeFirebaseToken — success', () => {
     const { service } = makeService();
 
     const result = await service.exchangeFirebaseToken({
-      idToken: emulatorToken({ sub: 'demo-vendor-uid', phone_number: '+919000000002' }),
+      idToken: emulatorToken({ sub: VENDOR.firebaseUid, phone_number: VENDOR.phone }),
       fingerprint: FINGERPRINT,
     });
 
@@ -158,7 +164,7 @@ describe('exchangeFirebaseToken — success', () => {
 
     await service.exchangeFirebaseToken({ idToken: emulatorToken(), fingerprint: FINGERPRINT });
 
-    const user = await repository.findUserByFirebaseUid('demo-customer-uid');
+    const user = await repository.findUserByFirebaseUid(CUSTOMER.firebaseUid);
     expect(user?.lastLoginAt).toBeInstanceOf(Date);
   });
 });
@@ -200,7 +206,7 @@ describe('exchangeFirebaseToken — rejections', () => {
   it.each(['SUSPENDED', 'BANNED'] as const)('refuses a %s account', async (status) => {
     const { service, repository } = makeService();
 
-    const user = await repository.findUserByFirebaseUid('demo-customer-uid');
+    const user = await repository.findUserByFirebaseUid(CUSTOMER.firebaseUid);
     repository.setStatusForTests(user!.id, status);
 
     await expect(
@@ -400,7 +406,7 @@ describe('resolveSession', () => {
   it('expires an idle admin session', async () => {
     const { service, repository } = makeService();
     const issued = await service.exchangeFirebaseToken({
-      idToken: emulatorToken({ sub: 'demo-admin-uid', phone_number: '+919000000004' }),
+      idToken: emulatorToken({ sub: ADMIN.firebaseUid, phone_number: ADMIN.phone }),
       fingerprint: FINGERPRINT,
     });
 
@@ -438,7 +444,7 @@ describe('resolveSession', () => {
   it('revokes the row when an admin session times out', async () => {
     const { service, repository } = makeService();
     const issued = await service.exchangeFirebaseToken({
-      idToken: emulatorToken({ sub: 'demo-admin-uid', phone_number: '+919000000004' }),
+      idToken: emulatorToken({ sub: ADMIN.firebaseUid, phone_number: ADMIN.phone }),
       fingerprint: FINGERPRINT,
     });
     repository.setLastSeenForTests(
@@ -534,7 +540,7 @@ describe('createDevelopmentSession', () => {
     const { service } = makeService();
 
     const result = await service.createDevelopmentSession({
-      firebaseUid: 'demo-support-uid',
+      firebaseUid: SUPPORT.firebaseUid,
       fingerprint: FINGERPRINT,
     });
 
@@ -555,12 +561,12 @@ describe('createDevelopmentSession', () => {
 
   it('returns null for a suspended persona', async () => {
     const { service, repository } = makeService();
-    const user = await repository.findUserByFirebaseUid('demo-admin-uid');
+    const user = await repository.findUserByFirebaseUid(ADMIN.firebaseUid);
     repository.setStatusForTests(user!.id, 'SUSPENDED');
 
     await expect(
       service.createDevelopmentSession({
-        firebaseUid: 'demo-admin-uid',
+        firebaseUid: ADMIN.firebaseUid,
         fingerprint: FINGERPRINT,
       })
     ).resolves.toBeNull();
@@ -569,7 +575,7 @@ describe('createDevelopmentSession', () => {
   it('produces a session the normal path can resolve', async () => {
     const { service } = makeService();
     const result = await service.createDevelopmentSession({
-      firebaseUid: 'demo-vendor-uid',
+      firebaseUid: VENDOR.firebaseUid,
       fingerprint: FINGERPRINT,
     });
 
