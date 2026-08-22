@@ -24,8 +24,23 @@ export default defineConfig({
     coverage: {
       provider: 'v8',
       reportsDirectory: './coverage',
-      include: ['lib/**/*.ts', 'components/**/*.tsx'],
-      exclude: ['lib/**/*.d.ts'],
+      /**
+       * `modules/**` is included deliberately.
+       *
+       * It was previously omitted, which meant the pricing, coupon, permission and
+       * session logic — the code the documentation names as the most important to test
+       * near-exhaustively (docs/ARCHITECTURE.md §13) — reported no coverage at all.
+       * Excluding the business layer from the coverage report makes the report describe
+       * the least risky part of the codebase.
+       */
+      include: ['lib/**/*.ts', 'components/**/*.tsx', 'modules/**/*.ts'],
+      exclude: [
+        'lib/**/*.d.ts',
+        // Fixture repositories and composition roots are test scaffolding and wiring,
+        // not logic worth a coverage target.
+        'modules/**/*-memory.repository.ts',
+        'modules/**/index.ts',
+      ],
     },
   },
 });
