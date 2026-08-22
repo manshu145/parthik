@@ -228,6 +228,46 @@ export class OrderService {
   }
 
   /**
+   * The vendor's queue, scoped in the query.
+   *
+   * The caller passes the vendor id it already authorised against; this never derives it from a
+   * request body, because a body-supplied vendorId is a tenant boundary a client could move.
+   */
+  async listForVendor(
+    vendorId: string,
+    page: { limit: number; cursor?: string | undefined; statuses?: readonly OrderStatus[] }
+  ): Promise<{ items: OrderListItem[]; nextCursor: string | null }> {
+    return this.deps.repository.listForVendor(vendorId, page);
+  }
+
+  /**
+   * An order a VENDOR may see.
+   *
+   * Refuses with NOT_FOUND when the order belongs to another vendor, so a vendor cannot even
+   * confirm that an order id exists outside their own tenant.
+   */
+  async getForVendor(vendorId: string, orderId: string): Promise<OrderDetail> {
+    const detail = await this.deps.repository.findById(orderId);
+    if (!detail || detail.order.vendorId !== vendorId) {
+      throw new NotFoundError('That order could not be found.');
+    }
+    return detail;
+  }
+
+  /**
+   * An order for an INTERNAL operation — dispatch, a webhook, an admin screen.
+   *
+   * Deliberately unscoped, and named so that is obvious at the call site. Every caller must have
+   * authorised the actor already; using this where `getForUser` or `getForVendor` belongs would
+   * hand one tenant another's order.
+   */
+  async getForOperations(orderId: string): Promise<OrderDetail> {
+    const detail = await this.deps.repository.findById(orderId);
+    if (!detail) throw new NotFoundError('That order could not be found.');
+    return detail;
+  }
+
+  /**
    * Moves an order, validating the transition and recording it.
    *
    * The ONLY way `orders.status` changes. Every caller — vendor dashboard, driver app, admin

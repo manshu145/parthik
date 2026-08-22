@@ -668,6 +668,72 @@ async function seedDemoData(db: Database): Promise<SeedSummary> {
     }
   }
 
+  // ---- Demo driver ----
+  //
+  // WITHOUT THIS ROW NOTHING CAN BE DELIVERED. `deliveries.driver_id` points at `drivers`,
+  // not at `users`, so the demo driver persona having a DRIVER role grant is not enough —
+  // there was no driver to assign an order to, which made the entire fulfilment path
+  // untestable.
+  //
+  // Seeded APPROVED and ONLINE with a known position and a zone mapping, because that is the
+  // exact combination the dispatch predicate requires (docs/DATABASE.md §12: availability
+  // ONLINE, status APPROVED, position known, assigned to the store's zone).
+  const driverUserId = userIdByRef.get('driver');
+
+  if (driverUserId) {
+    const [driver] = await db
+      .insert(schema.drivers)
+      .values({
+        userId: driverUserId,
+        driverCode: 'DEMO-DRIVER-1',
+        status: 'APPROVED',
+        availability: 'ONLINE',
+        fullName: 'Demo Driver',
+        phone: '+915550000003',
+        // Near the demo store, so a distance-ranked dispatch has something sensible to rank.
+        currentLatitude: '22.720100',
+        currentLongitude: '75.858200',
+        locationUpdatedAt: new Date(),
+        approvedAt: new Date(),
+      })
+      .onConflictDoUpdate({
+        target: schema.drivers.userId,
+        set: { status: 'APPROVED', availability: 'ONLINE', locationUpdatedAt: new Date() },
+      })
+      .returning({ id: schema.drivers.id });
+
+    if (driver) {
+      inserted.drivers = 1;
+
+      // An active vehicle. The partial unique index allows exactly one per driver.
+      await db
+        .insert(schema.driverVehicles)
+        .values({
+          driverId: driver.id,
+          vehicleType: 'BIKE',
+          registrationNumber: 'MP09-DEMO-1',
+          makeModel: 'Demo Scooter',
+          isActive: true,
+        })
+        .onConflictDoNothing();
+
+      // Zone mapping: a driver with no zone is invisible to dispatch.
+      const zones = await db
+        .select({ id: schema.deliveryZones.id })
+        .from(schema.deliveryZones)
+        .limit(5);
+
+      for (const zone of zones) {
+        await db
+          .insert(schema.driverZones)
+          .values({ driverId: driver.id, deliveryZoneId: zone.id })
+          .onConflictDoNothing();
+      }
+
+      inserted.driver_zones = zones.length;
+    }
+  }
+
   inserted.coupons = couponCount;
   inserted.coupon_translations = couponTranslationCount;
   inserted.coupon_restrictions = restrictionCount;

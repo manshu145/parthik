@@ -160,6 +160,12 @@ jobs:
       - name: Payment webhooks end to end
         run: bash scripts/check-payment-flow.sh 3270
 
+      # The whole physical chain: vendor → dispatch → driver → OTP handover → cash → deposit.
+      # A delivered order whose stock was never consumed, or cash with no ledger row, both look
+      # completely normal on every screen. This is where they are actually ruled out.
+      - name: Fulfilment and cash custody end to end
+        run: bash scripts/check-fulfilment-flow.sh 3280
+
       # Guards the forward-only rule (docs/DATABASE.md §13): a schema edit without a
       # matching generated migration would otherwise reach production as drift.
       - name: Fail if the schema has uncommitted migration drift

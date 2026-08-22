@@ -363,6 +363,104 @@ export class DrizzleOrderRepository implements OrderRepository {
     };
   }
 
+  async listForVendor(
+    vendorId: string,
+    page: { limit: number; cursor?: string | undefined; statuses?: readonly OrderStatus[] }
+  ): Promise<{ items: OrderListItem[]; nextCursor: string | null }> {
+    const cursorDate = page.cursor ? new Date(page.cursor) : null;
+
+    const rows = await this.db
+      .select({
+        id: orders.id,
+        orderNumber: orders.orderNumber,
+        status: orders.status,
+        totalAmountPaise: orders.totalAmountPaise,
+        isCod: orders.isCod,
+        createdAt: orders.createdAt,
+      })
+      .from(orders)
+      // Matches `orders_vendor_idx`.
+      .where(
+        and(
+          eq(orders.vendorId, vendorId),
+          ...(page.statuses && page.statuses.length > 0
+            ? [inArray(orders.status, [...page.statuses])]
+            : []),
+          ...(cursorDate ? [lt(orders.createdAt, cursorDate)] : [])
+        )
+      )
+      .orderBy(desc(orders.createdAt))
+      .limit(page.limit + 1);
+
+    const hasMore = rows.length > page.limit;
+    const pageRows = hasMore ? rows.slice(0, page.limit) : rows;
+    const summaries = await this.lineSummaries(pageRows.map((row) => row.id));
+
+    const items = pageRows.map((row) => {
+      const summary = summaries.get(row.id);
+      return {
+        id: row.id,
+        orderNumber: row.orderNumber,
+        status: row.status as OrderStatus,
+        totalAmountPaise: Number(row.totalAmountPaise),
+        itemCount: summary?.itemCount ?? 0,
+        thumbnailKey: summary?.imageKey ?? null,
+        firstItemName: summary?.name ?? '',
+        createdAt: row.createdAt,
+        isCod: row.isCod,
+      };
+    });
+
+    return {
+      items,
+      nextCursor: hasMore ? (items.at(-1)?.createdAt.toISOString() ?? null) : null,
+    };
+  }
+
+  /**
+   * Line summaries for a page of orders, in one indexed query.
+   *
+   * Shared by the customer list and the vendor queue. NOT a correlated subquery: drizzle renders
+   * columns unqualified inside a raw `sql` template when the outer query has one FROM table, so
+   * `where ${orderItems.orderId} = ${orders.id}` silently compares two `order_items` columns and
+   * every count comes back 0 (docs/DATABASE.md §15.1).
+   */
+  private async lineSummaries(
+    orderIds: string[]
+  ): Promise<Map<string, { itemCount: number; name: string; imageKey: string | null }>> {
+    const summaries = new Map<
+      string,
+      { itemCount: number; name: string; imageKey: string | null }
+    >();
+    if (orderIds.length === 0) return summaries;
+
+    const lines = await this.db
+      .select({
+        orderId: orderItems.orderId,
+        quantity: orderItems.quantity,
+        productNameSnapshot: orderItems.productNameSnapshot,
+        imageKeySnapshot: orderItems.imageKeySnapshot,
+      })
+      .from(orderItems)
+      .where(inArray(orderItems.orderId, orderIds))
+      .orderBy(orderItems.orderId, orderItems.createdAt);
+
+    for (const line of lines) {
+      const existing = summaries.get(line.orderId);
+      if (existing) {
+        existing.itemCount += line.quantity;
+      } else {
+        summaries.set(line.orderId, {
+          itemCount: line.quantity,
+          name: line.productNameSnapshot,
+          imageKey: line.imageKeySnapshot,
+        });
+      }
+    }
+
+    return summaries;
+  }
+
   async applyTransition(input: TransitionInput): Promise<OrderRecord> {
     return this.db.transaction((tx) => applyOrderTransitionInTx(tx, input));
   }
