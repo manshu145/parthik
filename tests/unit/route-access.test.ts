@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  canonicalRedirectFor,
   classifySurface,
   homePathForSurface,
   isNoindexPath,
@@ -136,5 +137,43 @@ describe('surface home paths', () => {
     expect(homePathForSurface('driver')).toBe('/driver');
     expect(homePathForSurface('admin')).toBe('/admin');
     expect(homePathForSurface('customer')).toBe('/');
+  });
+});
+
+describe('canonical route consolidation', () => {
+  it('sends the duplicate entry points to the canonical route', () => {
+    expect(canonicalRedirectFor('/account/orders')).toBe('/orders');
+    expect(canonicalRedirectFor('/account/favorites')).toBe('/favorites');
+  });
+
+  it('carries the id across the singular-to-plural redirect', () => {
+    expect(canonicalRedirectFor('/order/abc-123')).toBe('/orders/abc-123');
+  });
+
+  it('applies identically with a locale prefix', () => {
+    // A Hindi customer must land on the same canonical route, not a 404.
+    expect(canonicalRedirectFor('/hi/account/orders')).toBe('/orders');
+    expect(canonicalRedirectFor('/hi/order/abc-123')).toBe('/orders/abc-123');
+  });
+
+  it('tolerates a trailing slash', () => {
+    expect(canonicalRedirectFor('/account/orders/')).toBe('/orders');
+  });
+
+  it('leaves the canonical routes alone', () => {
+    // The one thing that must not happen: redirecting the canonical route to itself, which
+    // is an infinite loop rather than a broken link.
+    expect(canonicalRedirectFor('/orders')).toBeNull();
+    expect(canonicalRedirectFor('/orders/abc-123')).toBeNull();
+    expect(canonicalRedirectFor('/orders/abc-123/track')).toBeNull();
+    expect(canonicalRedirectFor('/favorites')).toBeNull();
+    expect(canonicalRedirectFor('/account')).toBeNull();
+  });
+
+  it('does not match a deeper path under a redirected prefix', () => {
+    // `/account/orders/123` has no canonical equivalent to guess at, so it must fall through
+    // to a 404 rather than being rewritten to something that may not exist.
+    expect(canonicalRedirectFor('/account/orders/123')).toBeNull();
+    expect(canonicalRedirectFor('/order/abc/track')).toBeNull();
   });
 });

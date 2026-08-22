@@ -516,6 +516,102 @@
     },
     "backToCart": "Back to cart"
   },
+  "orders": {
+    "title": "Your orders",
+    "empty": {
+      "title": "No orders yet",
+      "description": "When you place an order, it will show up here with live tracking.",
+      "action": "Start shopping"
+    },
+    "status": {
+      "PENDING_PAYMENT": "Awaiting payment",
+      "PAYMENT_FAILED": "Payment failed",
+      "CONFIRMED": "Order placed",
+      "ACCEPTED": "Accepted by store",
+      "PREPARING": "Being prepared",
+      "READY_FOR_PICKUP": "Ready for pickup",
+      "ASSIGNED": "Driver assigned",
+      "PICKED_UP": "Picked up",
+      "OUT_FOR_DELIVERY": "Out for delivery",
+      "DELIVERED": "Delivered",
+      "FAILED_DELIVERY": "Delivery attempt failed",
+      "CANCELLED": "Cancelled",
+      "REFUNDED": "Refunded",
+      "RETURNED": "Returned"
+    },
+    "card": {
+      "cod": "Cash on delivery",
+      "andMore": "{count, plural, one {and # more item} other {and # more items}}",
+      "placedOn": "Placed {date}",
+      "view": "View order"
+    },
+    "loadMore": "Show older orders",
+    "summary": {
+      "items": "Items",
+      "itemSavings": "Item savings",
+      "coupon": "Coupon ({code})",
+      "delivery": "Delivery",
+      "packaging": "Packaging",
+      "service": "Service fee",
+      "free": "Free",
+      "total": "Order total",
+      "codDue": "{amount} to be paid in cash on delivery."
+    },
+    "detail": {
+      "metaTitle": "Order details",
+      "title": "Order {number}",
+      "items": "Items in this order",
+      "lineQuantity": "{quantity} × {price}",
+      "delivery": "Delivery details",
+      "note": "Your note: {note}",
+      "paymentLabel": "Payment",
+      "paymentMethod": {
+        "UPI": "UPI",
+        "CARD": "Credit or debit card",
+        "COD": "Cash on delivery"
+      },
+      "paymentStatusLabel": "Payment status",
+      "placedLabel": "Placed",
+      "deliveredLabel": "Delivered",
+      "notAnInvoice": "This is an order summary, not a tax invoice. Prices are inclusive and no tax invoice is issued at this time.",
+      "timeline": "Order history",
+      "track": "Track this order",
+      "backToOrders": "Back to orders",
+      "cancelledReason": "Cancellation reason: {reason}"
+    },
+    "cancel": {
+      "action": "Cancel order",
+      "title": "Cancel this order?",
+      "description": "Tell us why, so we can fix what went wrong. If you have already paid, our support team will arrange the reversal.",
+      "reasonLabel": "Reason for cancelling",
+      "reasonPlaceholder": "For example: ordered by mistake",
+      "confirm": "Cancel the order",
+      "keep": "Keep my order",
+      "pending": "Cancelling…"
+    },
+    "reorder": {
+      "action": "Order these again",
+      "pending": "Adding to cart…",
+      "partial": "{count, plural, one {# item is no longer available and was skipped} other {# items are no longer available and were skipped}}",
+      "noneAvailable": "None of these items are available right now."
+    },
+    "track": {
+      "title": "Track your order",
+      "backToOrder": "Back to order details",
+      "stage": {
+        "CONFIRMED": "Order placed",
+        "PREPARING": "Being prepared",
+        "READY_FOR_PICKUP": "Ready for pickup",
+        "OUT_FOR_DELIVERY": "On the way to you",
+        "DELIVERED": "Delivered"
+      },
+      "eta": "Expected by about {time}",
+      "updated": "Updated at {time}",
+      "settled": "This order is complete, so it is no longer being updated.",
+      "stopped": "We could not refresh this. Try again when you are ready.",
+      "notInProgress": "This order is not in progress."
+    }
+  },
   "addresses": {
     "title": "Saved addresses",
     "subtitle": "Where should we deliver your orders?",

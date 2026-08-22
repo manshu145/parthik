@@ -310,13 +310,17 @@ export class OrderService {
     }
 
     if (decision.requiresReason && !input.reason.trim()) {
-      throw new BusinessRuleError('BUSINESS_RULE_VIOLATED', 'Please tell us why you are cancelling.');
+      throw new BusinessRuleError(
+        'BUSINESS_RULE_VIOLATED',
+        'Please tell us why you are cancelling.'
+      );
     }
 
     const order = await this.transition({
       orderId: input.orderId,
       to: 'CANCELLED',
-      actor: input.actor === 'CUSTOMER' ? 'CUSTOMER' : input.actor === 'VENDOR' ? 'VENDOR' : 'ADMIN',
+      actor:
+        input.actor === 'CUSTOMER' ? 'CUSTOMER' : input.actor === 'VENDOR' ? 'VENDOR' : 'ADMIN',
       actorUserId: input.actorUserId,
       reason: input.reason,
     });

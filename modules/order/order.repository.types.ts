@@ -192,7 +192,10 @@ export interface OrderRepository {
   /** Any order, for admin and for internal transitions. */
   findById(orderId: string): Promise<OrderDetail | null>;
 
-  listForUser(userId: string, page: { limit: number; cursor?: string | undefined }): Promise<{
+  listForUser(
+    userId: string,
+    page: { limit: number; cursor?: string | undefined }
+  ): Promise<{
     items: OrderListItem[];
     nextCursor: string | null;
   }>;

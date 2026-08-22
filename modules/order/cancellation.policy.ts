@@ -105,38 +105,34 @@ export const CONSERVATIVE_CANCELLATION_POLICIES: readonly CancellationPolicy[] =
       'READY_FOR_PICKUP',
       'ASSIGNED',
     ] as const
-  ).map(
-    (status): CancellationPolicy => ({
-      actorRole: 'ADMIN',
-      fromStatus: status,
-      isAllowed: true,
-      windowMinutes: null,
-      refundPercent: 100,
-      refundDeliveryFee: true,
-      requiresReason: true,
-      restock: true,
-      // Whether a driver already dispatched should be paid is a commercial decision (D-19a).
-      compensateDriver: false,
-      paymentMethodScope: 'ALL',
-      priority: 0,
-    })
-  ),
+  ).map((status): CancellationPolicy => ({
+    actorRole: 'ADMIN',
+    fromStatus: status,
+    isAllowed: true,
+    windowMinutes: null,
+    refundPercent: 100,
+    refundDeliveryFee: true,
+    requiresReason: true,
+    restock: true,
+    // Whether a driver already dispatched should be paid is a commercial decision (D-19a).
+    compensateDriver: false,
+    paymentMethodScope: 'ALL',
+    priority: 0,
+  })),
   // A vendor rejecting an order they cannot fulfil. Full refund for the same reason.
-  ...(['CONFIRMED', 'ACCEPTED', 'PREPARING'] as const).map(
-    (status): CancellationPolicy => ({
-      actorRole: 'VENDOR',
-      fromStatus: status,
-      isAllowed: true,
-      windowMinutes: null,
-      refundPercent: 100,
-      refundDeliveryFee: true,
-      requiresReason: true,
-      restock: true,
-      compensateDriver: false,
-      paymentMethodScope: 'ALL',
-      priority: 0,
-    })
-  ),
+  ...(['CONFIRMED', 'ACCEPTED', 'PREPARING'] as const).map((status): CancellationPolicy => ({
+    actorRole: 'VENDOR',
+    fromStatus: status,
+    isAllowed: true,
+    windowMinutes: null,
+    refundPercent: 100,
+    refundDeliveryFee: true,
+    requiresReason: true,
+    restock: true,
+    compensateDriver: false,
+    paymentMethodScope: 'ALL',
+    priority: 0,
+  })),
 ];
 
 /**
@@ -173,7 +169,8 @@ export function evaluateCancellation(
   if (!policy.isAllowed) return refuse('NOT_PERMITTED', policy);
 
   if (policy.windowMinutes !== null) {
-    const elapsedMinutes = ((input.now ?? new Date()).getTime() - input.placedAt.getTime()) / 60_000;
+    const elapsedMinutes =
+      ((input.now ?? new Date()).getTime() - input.placedAt.getTime()) / 60_000;
     if (elapsedMinutes > policy.windowMinutes) return refuse('WINDOW_EXPIRED', policy);
   }
 

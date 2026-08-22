@@ -229,7 +229,8 @@ class FakeOrderRepository implements OrderRepository {
     return [...this.orders.values()]
       .filter(
         (detail) =>
-          detail.order.status === 'PENDING_PAYMENT' && detail.order.createdAt.getTime() < before.getTime()
+          detail.order.status === 'PENDING_PAYMENT' &&
+          detail.order.createdAt.getTime() < before.getTime()
       )
       .slice(0, limit)
       .map((detail) => detail.order);
@@ -525,9 +526,9 @@ describe('reads are scoped to the owner', () => {
   it('lists only the caller\u2019s own orders', async () => {
     const { service, repository, addressId, intent } = await build();
     await service.placeOrder(placeArgs(addressId, intent, { idempotencyKey: 'mine' }));
-    await service.placeOrder(
-      placeArgs(addressId, intent, { idempotencyKey: 'theirs', userId: OTHER_USER })
-    ).catch(() => undefined);
+    await service
+      .placeOrder(placeArgs(addressId, intent, { idempotencyKey: 'theirs', userId: OTHER_USER }))
+      .catch(() => undefined);
 
     const page = await service.listForUser(USER, { limit: 10 });
     expect(page.items.every((item) => repository.orders.get(item.id)?.order.userId === USER)).toBe(
@@ -571,7 +572,12 @@ describe('transition', () => {
 
     // A customer must not be able to accept their own order on the vendor's behalf.
     await expect(
-      service.transition({ orderId: order.id, to: 'ACCEPTED', actor: 'CUSTOMER', actorUserId: USER })
+      service.transition({
+        orderId: order.id,
+        to: 'ACCEPTED',
+        actor: 'CUSTOMER',
+        actorUserId: USER,
+      })
     ).rejects.toMatchObject({ code: 'INVALID_STATUS_TRANSITION' });
   });
 
@@ -608,7 +614,12 @@ describe('transition', () => {
   it('answers NOT_FOUND for an unknown order', async () => {
     const { service } = await build();
     await expect(
-      service.transition({ orderId: 'order-nope', to: 'ACCEPTED', actor: 'VENDOR', actorUserId: null })
+      service.transition({
+        orderId: 'order-nope',
+        to: 'ACCEPTED',
+        actor: 'VENDOR',
+        actorUserId: null,
+      })
     ).rejects.toMatchObject({ code: 'NOT_FOUND' });
   });
 
@@ -616,8 +627,18 @@ describe('transition', () => {
     const { service, addressId, intent } = await build();
     const { order } = await service.placeOrder(placeArgs(addressId, intent));
 
-    await service.transition({ orderId: order.id, to: 'ACCEPTED', actor: 'VENDOR', actorUserId: null });
-    await service.transition({ orderId: order.id, to: 'PREPARING', actor: 'VENDOR', actorUserId: null });
+    await service.transition({
+      orderId: order.id,
+      to: 'ACCEPTED',
+      actor: 'VENDOR',
+      actorUserId: null,
+    });
+    await service.transition({
+      orderId: order.id,
+      to: 'PREPARING',
+      actor: 'VENDOR',
+      actorUserId: null,
+    });
 
     const detail = await service.getForUser(USER, order.id);
     expect(detail.timeline.map((e) => e.toStatus)).toEqual(['CONFIRMED', 'ACCEPTED', 'PREPARING']);
@@ -665,7 +686,12 @@ describe('cancel', () => {
   it('refuses once the vendor has accepted, and says why', async () => {
     const { service, addressId, intent } = await build();
     const { order } = await service.placeOrder(placeArgs(addressId, intent));
-    await service.transition({ orderId: order.id, to: 'ACCEPTED', actor: 'VENDOR', actorUserId: null });
+    await service.transition({
+      orderId: order.id,
+      to: 'ACCEPTED',
+      actor: 'VENDOR',
+      actorUserId: null,
+    });
 
     await expect(
       service.cancel({
@@ -684,7 +710,12 @@ describe('cancel', () => {
   it('does not move the order when the policy refuses', async () => {
     const { service, repository, addressId, intent } = await build();
     const { order } = await service.placeOrder(placeArgs(addressId, intent));
-    await service.transition({ orderId: order.id, to: 'ACCEPTED', actor: 'VENDOR', actorUserId: null });
+    await service.transition({
+      orderId: order.id,
+      to: 'ACCEPTED',
+      actor: 'VENDOR',
+      actorUserId: null,
+    });
 
     const before = repository.transitions.length;
     await service
@@ -719,7 +750,12 @@ describe('cancel', () => {
   it('lets an admin cancel without an ownership restriction', async () => {
     const { service, addressId, intent } = await build();
     const { order } = await service.placeOrder(placeArgs(addressId, intent));
-    await service.transition({ orderId: order.id, to: 'ACCEPTED', actor: 'VENDOR', actorUserId: null });
+    await service.transition({
+      orderId: order.id,
+      to: 'ACCEPTED',
+      actor: 'VENDOR',
+      actorUserId: null,
+    });
 
     const { order: cancelled } = await service.cancel({
       orderId: order.id,

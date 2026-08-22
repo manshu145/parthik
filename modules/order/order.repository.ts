@@ -304,7 +304,10 @@ export class DrizzleOrderRepository implements OrderRepository {
      * The cost is one extra round trip over `order_items_order_idx` for at most `limit`
      * ids, and the summary is folded in memory over a few dozen rows.
      */
-    const summaries = new Map<string, { itemCount: number; name: string; imageKey: string | null }>();
+    const summaries = new Map<
+      string,
+      { itemCount: number; name: string; imageKey: string | null }
+    >();
 
     if (pageRows.length > 0) {
       const lines = await this.db
@@ -502,25 +505,21 @@ export class DrizzleOrderRepository implements OrderRepository {
 
     return {
       order: mapOrder(order),
-      lines: lines.map(
-        (line): OrderLineRecord => ({
-          ...line,
-          mrpPaise: Number(line.mrpPaise),
-          unitPricePaise: Number(line.unitPricePaise),
-          itemDiscountPaise: Number(line.itemDiscountPaise),
-          lineTotalPaise: Number(line.lineTotalPaise),
-        })
-      ),
-      timeline: timeline.map(
-        (event): OrderStatusEvent => ({
-          id: event.id,
-          fromStatus: event.fromStatus as OrderStatus | null,
-          toStatus: event.toStatus as OrderStatus,
-          changedByRole: event.changedByRole,
-          reason: event.reason,
-          createdAt: event.createdAt,
-        })
-      ),
+      lines: lines.map((line): OrderLineRecord => ({
+        ...line,
+        mrpPaise: Number(line.mrpPaise),
+        unitPricePaise: Number(line.unitPricePaise),
+        itemDiscountPaise: Number(line.itemDiscountPaise),
+        lineTotalPaise: Number(line.lineTotalPaise),
+      })),
+      timeline: timeline.map((event): OrderStatusEvent => ({
+        id: event.id,
+        fromStatus: event.fromStatus as OrderStatus | null,
+        toStatus: event.toStatus as OrderStatus,
+        changedByRole: event.changedByRole,
+        reason: event.reason,
+        createdAt: event.createdAt,
+      })),
     };
   }
 }
@@ -591,7 +590,9 @@ async function reserveStock(
       storeId: input.storeId,
       txnType: 'RESERVE',
       quantityDelta: -line.quantity,
-      quantityAfter: row.trackInventory ? row.quantityAvailable - line.quantity : row.quantityAvailable,
+      quantityAfter: row.trackInventory
+        ? row.quantityAvailable - line.quantity
+        : row.quantityAvailable,
       referenceType: 'ORDER',
       // Filled in once the order row exists.
       referenceId: null,

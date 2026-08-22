@@ -9,6 +9,7 @@ import {
 } from '@/lib/http/request-context';
 import { applySecurityHeaders } from '@/lib/http/security-headers';
 import {
+  canonicalRedirectFor,
   classifySurface,
   homePathForSurface,
   isNoindexPath,
@@ -52,14 +53,35 @@ export async function middleware(request: NextRequest): Promise<NextResponse> {
     return apiResponse;
   }
 
-  // 1. Locale resolution. next-intl may rewrite or redirect.
+  /**
+   * 1. Canonical route consolidation (docs/ROUTES.md §5).
+   *
+   * Before locale handling and before the auth gate, so a duplicate entry point costs one
+   * cheap 308 and never renders anything. Done here rather than with `permanentRedirect()`
+   * in a page because those segments stream: the 200 is committed before the page body
+   * runs, and the redirect degrades to a client-side one.
+   */
+  const canonical = canonicalRedirectFor(pathname);
+  if (canonical) {
+    const prefix = pathname.slice(0, pathname.length - stripLocalePrefix(pathname).length);
+    // 308, not 307: the method is preserved and crawlers and the PWA cache settle on the one
+    // URL instead of keeping both alive forever.
+    const redirect = NextResponse.redirect(
+      new URL(`${prefix}${canonical}${search}`, request.url),
+      308
+    );
+    decorate(redirect, { requestId, locale: detectLocaleFromPath(pathname), pathname });
+    return redirect;
+  }
+
+  // 2. Locale resolution. next-intl may rewrite or redirect.
   const response = intlMiddleware(request);
 
   // next-intl signals its chosen locale via a rewrite header; fall back to the
   // URL prefix, then the default.
   const locale = detectLocale(pathname, response);
 
-  // 2. Coarse auth gate.
+  // 3. Coarse auth gate.
   //
   // The cookie SIGNATURE is verified, not merely its presence. Checking presence
   // alone meant any visitor could reach a privileged shell by setting a cookie of
@@ -164,6 +186,11 @@ function detectLocale(pathname: string, response: NextResponse): string {
   const fromHeader = response.headers.get('x-next-intl-locale');
   if (fromHeader) return fromHeader;
 
+  return detectLocaleFromPath(pathname);
+}
+
+/** Locale from the URL alone, for responses produced before next-intl has run. */
+function detectLocaleFromPath(pathname: string): string {
   const segment = pathname.split('/')[1];
   if (segment && (routing.locales as readonly string[]).includes(segment)) {
     return segment;
