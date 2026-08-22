@@ -5,6 +5,7 @@ import {
   index,
   integer,
   jsonb,
+  pgSequence,
   pgTable,
   text,
   uniqueIndex,
@@ -111,6 +112,29 @@ export const cartItems = pgTable(
     check('cart_items_quantity_positive', sql`${table.quantity} > 0`),
   ]
 );
+
+/**
+ * Order number sequence.
+ *
+ * `orders.order_number` is the reference a customer reads out on a support call
+ * ("PK-2026-000123"), so it must be short, sequential and unique. A COUNT-based scheme
+ * would race: two concurrent checkouts would read the same count and collide on
+ * `orders_number_key`, failing one checkout for no reason the customer could understand.
+ *
+ * A sequence is the only race-free source. It is declared here rather than created by hand
+ * so it lives in a migration and exists identically in every environment.
+ *
+ * Note this deliberately DOES leak order volume, unlike the primary keys (docs/DATABASE.md
+ * §1). That is the accepted trade for a number a human can say aloud, and it is why ids and
+ * order numbers are separate columns.
+ */
+export const orderNumberSequence = pgSequence('order_number_seq', {
+  startWith: 1,
+  increment: 1,
+  // No cycle: reusing an order number would make two different orders indistinguishable
+  // in a support conversation.
+  cycle: false,
+});
 
 /**
  * Orders — the financial snapshot. Never soft-deleted and never mutated in a way

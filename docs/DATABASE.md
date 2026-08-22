@@ -1308,6 +1308,36 @@ Managed PITR from the chosen host (**[D-01]**), plus an independent periodic log
 
 ### Generated
 
-**`db/migrations/0000_initial_schema.sql` exists** — 1,843 lines covering 90 tables, 59 enums and 332 indexes. Applied and verified against a real PostgreSQL 16 container by `scripts/db-integration-check.sh`, which also confirms the migrations are idempotent, the seeds are idempotent, and all 62 catalog/search queries execute.
+**`db/migrations/0000_initial_schema.sql` exists** — 1,843 lines covering 90 tables, 59 enums and 332 indexes. `db/migrations/0001_order_number_sequence.sql` adds `order_number_seq`. Both are applied and verified against a real PostgreSQL 16 container by `scripts/db-integration-check.sh`, which also confirms the migrations are idempotent, the seeds are idempotent, and that all 62 catalog/search queries plus 42 commerce queries (cart, addresses, settings, orders) execute and return the expected rows.
 
 Applied with `pnpm db:migrate`, which runs `db/bootstrap.sql` first. That ordering is deliberate rather than documented-and-hoped-for: the DDL cannot apply without `pg_trgm` and `uuidv7()`, and a separate manual bootstrap step would work once in development and then be forgotten on the first real deploy.
+
+---
+
+## 15. Query traps that typecheck and still return the wrong answer
+
+Every item here was found by running the query against a real PostgreSQL container, not by review. They are recorded because each one is invisible to `tsc`, invisible to a unit test with a fake repository, and produces a plausible-looking result rather than an error.
+
+### 15.1 Drizzle renders columns UNQUALIFIED inside a raw `sql` template
+
+When the outer query has a single table in its `FROM` clause, Drizzle emits column references inside a `sql` template without the table prefix. A correlated subquery written the obvious way:
+
+```ts
+// ⚠️ WRONG — do not copy
+itemCount: sql<number>`(
+  select coalesce(sum(${orderItems.quantity}), 0)
+  from ${orderItems} where ${orderItems.orderId} = ${orders.id}
+)`,
+```
+
+emits `where "order_id" = "id"`, and inside the subquery **both** names resolve against `order_items`. It is valid SQL, it executes without error, and it matches nothing — so every order reported `itemCount: 0`. `orders.id` in the same query's `.where()` renders correctly as `"orders"."id"`, which is what makes the behaviour so easy to trust.
+
+The rule for this codebase: **do not write correlated subqueries in a select list.** Fetch the page of parent rows, then fetch the children for those ids in a second query and fold the summary in memory (`modules/order/order.repository.ts` → `listForUser`). The extra round trip is bounded by the page size and hits `order_items_order_idx`; the ambiguity is gone rather than commented around.
+
+### 15.2 `uuidv7()` is PostgreSQL 18+
+
+Covered in §1. Restated here because it has the same shape: the schema typechecks, `drizzle-kit generate` succeeds, and the failure only appears when the DDL reaches a server.
+
+### 15.3 `onConflictDoUpdate` and `onConflictDoNothing` take different predicate keys
+
+`onConflictDoUpdate` filters the conflict target with `targetWhere`; `onConflictDoNothing` uses `where`. Passing `where` to the former typechecks and silently changes which rows the upsert applies to.
