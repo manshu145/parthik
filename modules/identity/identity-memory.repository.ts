@@ -72,6 +72,20 @@ export const DEMO_USERS: readonly SeedUser[] = [
     fullName: 'Demo Super Admin',
     roles: [{ roleKey: 'CUSTOMER' }, { roleKey: 'SUPER_ADMIN' }],
   },
+  /**
+   * A DELIBERATELY UNDER-PRIVILEGED admin.
+   *
+   * ADMIN_SUPPORT reaches the admin surface but holds only 10 of the 59 permissions —
+   * no refunds, no settings, no RBAC. Without a persona like this, every test would
+   * sign in as SUPER_ADMIN and the per-page permission checks would never be observed
+   * DENYING anything, which is the half of authorization that actually matters.
+   */
+  {
+    firebaseUid: 'demo-support-uid',
+    phone: '+919000000005',
+    fullName: 'Demo Support Agent',
+    roles: [{ roleKey: 'CUSTOMER' }, { roleKey: 'ADMIN_SUPPORT' }],
+  },
 ];
 
 interface StoredUser extends UserRecord {
@@ -84,16 +98,135 @@ interface StoredAttempt {
   createdAt: Date;
 }
 
-export class InMemoryIdentityRepository implements IdentityRepository {
-  private readonly users = new Map<string, StoredUser>();
-  private readonly sessions = new Map<string, SessionRecord>();
-  private readonly attempts: StoredAttempt[] = [];
+/**
+ * The backing store, held at MODULE level.
+ *
+ * This is the one place the identity memory repository must differ from the
+ * catalogue/location/search ones. Those serve read-only fixtures, so a fresh instance
+ * per request is harmless. Identity WRITES — sessions are created on sign-in and read
+ * on every subsequent request — and the composition root builds a new repository for
+ * each call. With per-instance state a session vanished the moment the request that
+ * created it ended, so sign-in appeared to succeed and every following page reported
+ * the user as anonymous.
+ *
+ * Sharing the store makes it behave like a real store for the lifetime of the process,
+ * which is what the code under test actually depends on.
+ */
+export interface IdentityStore {
+  users: Map<string, StoredUser>;
+  sessions: Map<string, SessionRecord>;
+  attempts: StoredAttempt[];
+}
 
-  constructor(seed: readonly SeedUser[] = DEMO_USERS) {
-    for (const user of seed) this.seedUser(user);
+/**
+ * The shared store hangs off `globalThis`, NOT a module-level `let`.
+ *
+ * Next.js compiles route handlers and server components into SEPARATE module graphs,
+ * so a module-level singleton is instantiated once PER GRAPH. A session written by
+ * `POST /api/v1/auth/dev-session` (a route handler) was therefore invisible to the
+ * admin page that rendered next (a server component): sign-in returned 201 and set a
+ * valid cookie, and every page still reported the visitor as anonymous.
+ *
+ * `globalThis` is shared across both graphs within the process, which is the only
+ * place this state can live and be seen by both. Same reasoning as the well-known
+ * database-client singleton pattern, and it is dev-only either way — production always
+ * resolves to Postgres.
+ */
+const STORE_KEY = '__parthikIdentityStore';
+
+type GlobalWithStore = typeof globalThis & { [STORE_KEY]?: IdentityStore };
+
+function readSharedStore(): IdentityStore | undefined {
+  return (globalThis as GlobalWithStore)[STORE_KEY];
+}
+
+function writeSharedStore(store: IdentityStore): void {
+  (globalThis as GlobalWithStore)[STORE_KEY] = store;
+}
+
+function createStore(seed: readonly SeedUser[]): IdentityStore {
+  const store: IdentityStore = { users: new Map(), sessions: new Map(), attempts: [] };
+
+  for (const user of seed) {
+    const id = fixtureId('user', user.firebaseUid);
+    store.users.set(id, {
+      id,
+      firebaseUid: user.firebaseUid,
+      phone: user.phone,
+      phoneVerifiedAt: new Date('2026-01-01T00:00:00Z'),
+      email: null,
+      fullName: user.fullName ?? null,
+      preferredLocale: user.preferredLocale ?? 'en',
+      status: user.status ?? 'ACTIVE',
+      lastLoginAt: null,
+      deletedAt: null,
+      anonymizedAt: null,
+      roles: user.roles.map((role) => ({
+        roleKey: role.roleKey,
+        scopeType: role.scopeType ?? 'GLOBAL',
+        scopeId: role.scopeId ?? null,
+      })),
+    });
   }
 
-  private seedUser(seed: SeedUser): void {
+  return store;
+}
+
+/** An independent store, so a test cannot be affected by another test's writes. */
+export function createIsolatedIdentityStore(seed: readonly SeedUser[] = DEMO_USERS): IdentityStore {
+  return createStore(seed);
+}
+
+/** Test-only: drops the shared store so state does not leak between suites. */
+export function resetSharedIdentityStoreForTests(): void {
+  delete (globalThis as GlobalWithStore)[STORE_KEY];
+}
+
+export interface InMemoryIdentityRepositoryOptions {
+  /**
+   * Use a private store rather than the shared one.
+   *
+   * Tests should set this. Anything relying on cross-request persistence (the running
+   * application) must not.
+   */
+  isolated?: boolean;
+  seed?: readonly SeedUser[];
+  store?: IdentityStore;
+}
+
+export class InMemoryIdentityRepository implements IdentityRepository {
+  private readonly store: IdentityStore;
+
+  constructor(options: InMemoryIdentityRepositoryOptions = {}) {
+    if (options.store) {
+      this.store = options.store;
+    } else if (options.isolated) {
+      this.store = createStore(options.seed ?? DEMO_USERS);
+    } else {
+      const existing = readSharedStore();
+      if (existing) {
+        this.store = existing;
+      } else {
+        this.store = createStore(options.seed ?? DEMO_USERS);
+        writeSharedStore(this.store);
+      }
+    }
+  }
+
+  private get users(): Map<string, StoredUser> {
+    return this.store.users;
+  }
+
+  private get sessions(): Map<string, SessionRecord> {
+    return this.store.sessions;
+  }
+
+  private get attempts(): StoredAttempt[] {
+    return this.store.attempts;
+  }
+
+  /** Adds a user after construction, for tests that need a specific fixture. */
+  seedUserForTests(seed: SeedUser): string {
     const id = fixtureId('user', seed.firebaseUid);
     this.users.set(id, {
       id,
@@ -113,6 +246,7 @@ export class InMemoryIdentityRepository implements IdentityRepository {
         scopeId: role.scopeId ?? null,
       })),
     });
+    return id;
   }
 
   // ---- Users ----

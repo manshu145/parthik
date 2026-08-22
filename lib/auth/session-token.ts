@@ -72,8 +72,16 @@ export interface VerifiedSessionToken {
   expiresAt: Date;
 }
 
-function requireAuthSecret(): Uint8Array {
-  const secret = getServerEnv().AUTH_SECRET;
+/**
+ * Resolves the signing key.
+ *
+ * `override` exists for MIDDLEWARE. Middleware runs in the constrained edge
+ * environment where the validated server config is not loaded, so it reads
+ * `AUTH_SECRET` itself and passes it in rather than triggering a full Zod parse of
+ * `process.env` at the edge on every navigation.
+ */
+function requireAuthSecret(override?: string | undefined): Uint8Array {
+  const secret = override ?? getServerEnv().AUTH_SECRET;
   if (!secret) {
     throw new ConfigurationError(
       'AUTH_SECRET is not configured, so sessions cannot be issued or verified. Generate one with `openssl rand -base64 32`.'
@@ -177,12 +185,15 @@ export async function issueSessionToken(input: {
  *
  * @throws AuthenticationError on a bad signature, expiry or malformed claims
  */
-export async function verifySessionToken(cookieValue: string): Promise<VerifiedSessionToken> {
+export async function verifySessionToken(
+  cookieValue: string,
+  secretOverride?: string | undefined
+): Promise<VerifiedSessionToken> {
   if (!cookieValue) {
     throw new AuthenticationError('UNAUTHENTICATED', 'Please sign in to continue.');
   }
 
-  const key = requireAuthSecret();
+  const key = requireAuthSecret(secretOverride);
 
   let payload: Record<string, unknown>;
   try {
@@ -249,12 +260,13 @@ function readClaims(payload: Record<string, unknown>): SessionTokenPayload {
  * bad cookie is to redirect to sign-in, not to render an error.
  */
 export async function readSessionClaimsForRouting(
-  cookieValue: string | undefined
+  cookieValue: string | undefined,
+  secretOverride?: string | undefined
 ): Promise<{ userId: string; sessionId: string; roles: string[]; surface: string } | null> {
   if (!cookieValue) return null;
 
   try {
-    const verified = await verifySessionToken(cookieValue);
+    const verified = await verifySessionToken(cookieValue, secretOverride);
     return {
       userId: verified.userId,
       sessionId: verified.sessionId,

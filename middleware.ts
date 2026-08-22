@@ -10,12 +10,15 @@ import {
 import { applySecurityHeaders } from '@/lib/http/security-headers';
 import {
   classifySurface,
+  homePathForSurface,
   isNoindexPath,
   isSafeRedirectTarget,
   requiresSession,
   stripLocalePrefix,
 } from '@/lib/http/route-access';
 import { SESSION_COOKIE_NAME } from '@/lib/auth/session-cookie';
+import { readSessionClaimsForRouting } from '@/lib/auth/session-token';
+import { landingSurfaceForRoles, surfacesForRoles } from '@/modules/identity/identity.policy';
 
 /**
  * Composed middleware (docs/ROUTES.md §10).
@@ -28,12 +31,14 @@ import { SESSION_COOKIE_NAME } from '@/lib/auth/session-cookie';
  * Hard constraints (docs/ARCHITECTURE.md §4.2):
  *   - runs in the constrained edge environment, so NO database, NO Node APIs
  *   - NO Firebase Admin calls
- *   - session cookie presence is checked, never trusted for authorization
+ *   - the cookie SIGNATURE is verified here, but the claims inside it are only ever
+ *     used for routing. Authorization is re-derived from the database in the service
+ *     layer on every request, because these claims can be stale by design.
  */
 
 const intlMiddleware = createIntlMiddleware(routing);
 
-export function middleware(request: NextRequest): NextResponse {
+export async function middleware(request: NextRequest): Promise<NextResponse> {
   const { pathname, search } = request.nextUrl;
   const requestId = resolveRequestId(request.headers);
 
@@ -54,18 +59,43 @@ export function middleware(request: NextRequest): NextResponse {
   // URL prefix, then the default.
   const locale = detectLocale(pathname, response);
 
-  // 2. Coarse auth gate — presence only, never a permission decision.
-  if (requiresSession(pathname) && !isUnauthenticatedPreview(pathname)) {
-    const hasSession = request.cookies.has(SESSION_COOKIE_NAME);
+  // 2. Coarse auth gate.
+  //
+  // The cookie SIGNATURE is verified, not merely its presence. Checking presence
+  // alone meant any visitor could reach a privileged shell by setting a cookie of
+  // that name by hand.
+  //
+  // This remains routing, not authorization: the claims may be stale, so the page
+  // itself re-derives permissions from the database (docs/SECURITY.md §4).
+  if (requiresSession(pathname)) {
+    const claims = await readSessionClaimsForRouting(
+      request.cookies.get(SESSION_COOKIE_NAME)?.value,
+      // Read here rather than through the validated config: middleware runs on the
+      // edge, where a full Zod parse of the environment on every navigation is a cost
+      // with no benefit.
+      process.env.AUTH_SECRET
+    );
 
-    if (!hasSession) {
-      const loginUrl = new URL(localePath('/login', locale), request.url);
-      const target = `${stripLocalePrefix(pathname)}${search}`;
-      if (isSafeRedirectTarget(target) && target !== '/login') {
-        loginUrl.searchParams.set('next', target);
+    if (!claims) {
+      const redirect = NextResponse.redirect(buildLoginUrl(request, locale, pathname, search));
+      decorate(redirect, { requestId, locale, pathname });
+      // A cookie that failed verification is expired, tampered with or signed by a
+      // rotated key. Clearing it stops the browser resending a dead value and stops a
+      // redirect loop where the gate keeps rejecting a cookie the browser keeps
+      // presenting.
+      if (request.cookies.has(SESSION_COOKIE_NAME)) {
+        redirect.cookies.set({ name: SESSION_COOKIE_NAME, value: '', path: '/', maxAge: 0 });
       }
+      return redirect;
+    }
 
-      const redirect = NextResponse.redirect(loginUrl);
+    // Wrong surface: a signed-in customer requesting /admin. Sent to their own home
+    // rather than to sign-in, because they ARE signed in — bouncing them to a login
+    // page they do not need is the confusing outcome.
+    const requested = classifySurface(pathname);
+    if (!surfacesForRoles(claims.roles).has(requested)) {
+      const target = localePath(homePathForSurface(landingSurfaceForRoles(claims.roles)), locale);
+      const redirect = NextResponse.redirect(new URL(target, request.url));
       decorate(redirect, { requestId, locale, pathname });
       return redirect;
     }
@@ -73,6 +103,23 @@ export function middleware(request: NextRequest): NextResponse {
 
   decorate(response, { requestId, locale, pathname });
   return response;
+}
+
+/** Login URL carrying a validated `next` so the user resumes where they were going. */
+function buildLoginUrl(
+  request: NextRequest,
+  locale: string,
+  pathname: string,
+  search: string
+): URL {
+  const loginUrl = new URL(localePath('/login', locale), request.url);
+  const target = `${stripLocalePrefix(pathname)}${search}`;
+
+  if (isSafeRedirectTarget(target) && target !== '/login') {
+    loginUrl.searchParams.set('next', target);
+  }
+
+  return loginUrl;
 }
 
 function decorate(
@@ -111,33 +158,6 @@ function decorate(
  */
 function isIndexableDeployment(): boolean {
   return process.env.APP_ENV === 'production';
-}
-
-/**
- * Lets the vendor, driver and admin SHELLS be reviewed before authentication
- * exists.
- *
- * ⚠️ THIS IS A TEMPORARY, SELF-DISABLING SWITCH. Both conditions must hold:
- *
- *   1. NOT production. A production deployment always enforces the gate.
- *   2. Firebase is NOT configured — meaning sign-in is impossible, so no session
- *      cookie can ever be issued and the gate would redirect every visitor to a
- *      login page that cannot work.
- *
- * The moment Firebase credentials are added (TASK 003), condition 2 fails and the
- * gate returns with no code change. That is the point: this cannot be forgotten
- * and left open, because configuring auth is exactly what closes it.
- *
- * What it exposes is genuinely nothing: these routes render static shells with no
- * database reads and no customer data. Only `/account`-style CUSTOMER routes stay
- * gated, because those are per-user surfaces where a shell would be misleading.
- */
-function isUnauthenticatedPreview(pathname: string): boolean {
-  if (process.env.APP_ENV === 'production') return false;
-  if (process.env.FIREBASE_PROJECT_ID) return false;
-
-  const surface = classifySurface(pathname);
-  return surface === 'vendor' || surface === 'driver' || surface === 'admin';
 }
 
 function detectLocale(pathname: string, response: NextResponse): string {

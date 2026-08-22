@@ -43,6 +43,21 @@ const serverSchema = z.object({
   CACHE_REST_TOKEN: nonEmpty.optional(),
 
   /**
+   * Enables `POST /api/v1/auth/dev-session`, which mints a session for a seeded demo
+   * user so dashboards can be reviewed and E2E tests can authenticate without SMS.
+   *
+   * REQUIRES AN EXPLICIT OPT-IN and is ignored in production. It replaces the former
+   * `isUnauthenticatedPreview` switch, which left every vendor, driver and admin
+   * route open to anonymous visitors outside production. The difference matters: this
+   * issues a REAL session for a REAL user and every permission check still runs, so
+   * the authorization path being exercised is the production one.
+   */
+  DEV_AUTH_ENABLED: z
+    .enum(['true', 'false'])
+    .default('false')
+    .transform((value) => value === 'true'),
+
+  /**
    * Signing key for Parthik session cookies (D-10).
    *
    * OPTIONAL at the schema level but REQUIRED in practice for sign-in: a missing

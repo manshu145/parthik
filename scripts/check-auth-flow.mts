@@ -41,7 +41,9 @@ function emulatorToken(claims: Record<string, unknown>): string {
   ].join('.');
 }
 
-const repository = new InMemoryIdentityRepository();
+// Isolated so this script cannot be affected by, or affect, the shared store the
+// running application uses.
+const repository = new InMemoryIdentityRepository({ isolated: true });
 const service = new IdentityService({ repository });
 const roleKeysOf = (actor: { roles: Array<{ roleKey: string }> }) =>
   actor.roles.map((grant) => grant.roleKey);

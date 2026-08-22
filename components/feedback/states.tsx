@@ -58,7 +58,14 @@ export function NotFoundState(props: StateProps) {
 }
 
 export function UnauthorizedState(props: StateProps) {
-  return <StateShell icon={<LockKeyhole className="size-7" />} {...props} role="alert" />;
+  return (
+    <StateShell
+      icon={<LockKeyhole className="size-7" />}
+      testId="state-unauthorized"
+      {...props}
+      role="alert"
+    />
+  );
 }
 
 export function OfflineState(props: StateProps) {

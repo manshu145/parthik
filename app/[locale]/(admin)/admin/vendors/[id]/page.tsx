@@ -1,6 +1,6 @@
 import type { Metadata } from 'next';
 import { getTranslations, setRequestLocale } from 'next-intl/server';
-import { DashboardPage } from '@/components/layout/dashboard-page';
+import { GuardedDashboardPage } from '@/app/_components/guarded-dashboard-page';
 
 /**
  * Route is live, screen is pending. See components/layout/dashboard-page.tsx for
@@ -31,7 +31,7 @@ export default async function Page({
   const tDashboard = await getTranslations('dashboard');
 
   return (
-    <DashboardPage
+    <GuardedDashboardPage
       title={t('vendorDetail')}
       permission={'vendor:view'}
       pendingLabel={tDashboard('pendingLabel')}

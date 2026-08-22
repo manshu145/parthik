@@ -313,6 +313,59 @@ export class IdentityService {
     return this.repository.revokeAllSessionsForUser(userId, reason, new Date());
   }
 
+  /**
+   * Issues a session for an EXISTING user without a Firebase token.
+   *
+   * Used only by `POST /api/v1/auth/dev-session`, which is 404 in production and
+   * requires an explicit opt-in. The caller owns that gating; this method deliberately
+   * enforces none of it, because a security control split across two places is a
+   * control that gets half-checked.
+   *
+   * What it does enforce is that it CANNOT CREATE a user. It returns null for an
+   * unknown uid rather than provisioning one, so the endpoint can never be used to
+   * conjure an account — only to sign in as an already-seeded demo identity.
+   */
+  async createDevelopmentSession(input: {
+    firebaseUid: string;
+    fingerprint: RequestFingerprint;
+  }): Promise<ExchangeResult | null> {
+    const user = await this.repository.findUserByFirebaseUid(input.firebaseUid);
+    if (!user || user.status !== 'ACTIVE') return null;
+
+    const roles = await this.repository.listRoleGrants(user.id);
+    const roleKeys = roles.map((grant) => grant.roleKey);
+    const audience = sessionAudienceForRoles(roleKeys);
+
+    // The same issue-then-insert path as the real exchange, so this exercises the
+    // production session mechanism rather than a parallel one that could drift.
+    const sessionId = crypto.randomUUID();
+    const token = await issueSessionToken({
+      userId: user.id,
+      sessionId,
+      roles: roleKeys,
+      surface: audience,
+      lifetimeSeconds: SESSION_LIFETIMES_SECONDS[audience],
+    });
+
+    const session = await this.repository.createSession({
+      id: sessionId,
+      userId: user.id,
+      tokenHash: token.tokenHash,
+      expiresAt: token.expiresAt,
+      firebaseTokenIssuedAt: null,
+      ipHash: input.fingerprint.ipHash,
+      userAgent: input.fingerprint.userAgent,
+    });
+
+    return {
+      actor: buildActor({ userId: user.id, sessionId: session.id, user, roles }),
+      token,
+      audience,
+      landingPath: homePathForSurface(landingSurfaceForRoles(roleKeys)),
+      isNewUser: false,
+    };
+  }
+
   // -------------------------------------------------------------------------
   // Internals
   // -------------------------------------------------------------------------

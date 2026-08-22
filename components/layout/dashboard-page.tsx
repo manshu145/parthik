@@ -10,14 +10,22 @@ import { Badge } from '@/components/ui/badge';
  *
  * WHY A SHARED PLACEHOLDER IS HONEST HERE: these routes exist so navigation, route
  * gating, deep links and the permission map are real and testable now. The data
- * behind them needs authentication (TASK 003) and the feature tasks that own each
- * screen. Stating that plainly is better than a fake chart, which would imply
- * working software and hide which screens are actually done.
+ * behind them belongs to the feature tasks that own each screen. Stating that plainly
+ * is better than a fake chart, which would imply working software and hide which
+ * screens are actually done.
+ *
+ * The `permission` prop is DISPLAY ONLY and must never be mistaken for the check
+ * itself. Enforcement lives in the page, which calls `requireCurrentPermission`
+ * before rendering — `components/` cannot import modules by design, so a component
+ * could not authorize even if it wanted to.
  */
 export function DashboardPage({
   title,
   description,
-  /** Permission required, admin only. Shown so the mapping is visible while reviewing. */
+  /**
+   * The permission the page already enforced, rendered as a badge so the mapping is
+   * visible during review. NOT the enforcement — see the note above.
+   */
   permission,
   pendingLabel,
   pendingDescription,

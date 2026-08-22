@@ -121,7 +121,14 @@ export function resetIdentityBackendWarningForTests(): void {
 }
 
 export { IdentityService } from './identity.service';
-export { InMemoryIdentityRepository, DEMO_USERS } from './identity-memory.repository';
+export {
+  InMemoryIdentityRepository,
+  createIsolatedIdentityStore,
+  resetSharedIdentityStoreForTests,
+  DEMO_USERS,
+  DEMO_VENDOR_SCOPE_ID,
+  DEMO_STORE_SCOPE_ID,
+} from './identity-memory.repository';
 export {
   DrizzleIdentityRepository,
   createIdentityRepository as createDrizzleIdentityRepository,

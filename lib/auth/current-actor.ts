@@ -1,9 +1,12 @@
 import { cookies } from 'next/headers';
+import { AuthorizationError } from '@/lib/errors';
+import type { SurfaceKind } from '@/lib/http/route-access';
 import {
   can,
   getIdentityService,
   requireActor,
   requirePermission,
+  surfacesForRoles,
   type Actor,
   type PermissionKey,
   type ResourceScope,
@@ -75,6 +78,31 @@ export async function requireCurrentPermission(
 ): Promise<Actor> {
   const actor = await getCurrentActor();
   return requirePermission(actor, permission, scope);
+}
+
+/**
+ * Asserts the actor may reach a whole surface, and returns them.
+ *
+ * Used by the vendor, driver and admin LAYOUTS so that entering a dashboard requires
+ * the corresponding role, independently of whatever each page checks. Two layers on
+ * purpose: a page added later without its own permission check is still not reachable
+ * by a customer, so the failure mode of forgetting is a locked door rather than an
+ * open one.
+ *
+ * Middleware already routes on surface, but middleware trusts cookie CLAIMS. This
+ * re-derives the roles from the database, so a role revoked mid-session takes effect
+ * here even though the cookie still says otherwise.
+ */
+export async function requireSurface(surface: SurfaceKind): Promise<Actor> {
+  const actor = requireActor(await getCurrentActor());
+
+  if (!surfacesForRoles(actor.roles.map((grant) => grant.roleKey)).has(surface)) {
+    throw new AuthorizationError('FORBIDDEN', 'You do not have access to this area.', {
+      context: { userId: actor.userId, surface },
+    });
+  }
+
+  return actor;
 }
 
 /**

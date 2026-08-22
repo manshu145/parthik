@@ -330,7 +330,7 @@
     "backToStore": "Back to store",
     "pendingLabel": "Screen not built yet",
     "pendingDescription": "This route, its navigation and its access rules are live. The data and controls arrive with the task that owns this screen.",
-    "previewNotice": "Preview access: authentication is not configured yet, so dashboard shells are viewable. This closes automatically once Firebase is set up."
+    "previewNotice": "Development sign-in is enabled, so this session may belong to a seeded demo user. This endpoint is unavailable in production."
   },
   "vendorNav": {
     "surface": "Vendor",

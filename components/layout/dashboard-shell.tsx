@@ -25,10 +25,11 @@ import { cn } from '@/lib/utils';
 export interface DashboardShellProps {
   children: ReactNode;
   /**
-   * True when the middleware let this render without a session because auth is
-   * not configured yet. Shown as a banner so nobody mistakes it for a hole.
+   * True when the development sign-in endpoint is enabled, meaning this session may
+   * belong to a seeded demo user. Shown as a banner so nobody mistakes demo access
+   * for their own privileges, or a development build for a real one.
    */
-  isUnauthenticatedPreview?: boolean;
+  isDevAuthSession?: boolean;
   /** Translated surface name, e.g. "Vendor" — shown beside the brand. */
   surfaceLabel: string;
   homeHref: string;
@@ -45,7 +46,7 @@ export interface DashboardShellProps {
 
 export function DashboardShell({
   children,
-  isUnauthenticatedPreview = false,
+  isDevAuthSession = false,
   surfaceLabel,
   homeHref,
   groups,
@@ -160,7 +161,7 @@ export function DashboardShell({
         )}
 
         <main id="main" tabIndex={-1} className="min-w-0 flex-1 p-4 outline-none">
-          {isUnauthenticatedPreview && (
+          {isDevAuthSession && (
             <p
               role="status"
               data-testid="dashboard-preview-notice"

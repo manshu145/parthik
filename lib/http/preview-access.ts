@@ -1,18 +1,21 @@
 import { getServerEnv } from '@/lib/config/env';
 
 /**
- * Whether dashboard shells are being served without authentication.
+ * Whether the development sign-in endpoint is active.
  *
- * Mirrors the middleware predicate exactly (see `middleware.ts`). Duplicated rather
- * than shared because middleware runs on the edge without the validated config, and
- * a server component must not read `process.env` directly — the ESLint rule forbids
- * it. The two conditions are identical and both are asserted by tests.
+ * This REPLACES the former `isUnauthenticatedPreview()`, which reported whether
+ * dashboard shells were being served with no authentication at all. That switch is
+ * gone: privileged routes are now always gated, in every environment.
  *
- * SELF-DISABLING: configuring Firebase closes it with no code change.
+ * What remains is narrower and must be opted into explicitly. It is surfaced to the
+ * UI so a development build can show an honest "you are signed in as a demo user"
+ * affordance rather than leaving someone to wonder why they have admin access.
  */
-export function isUnauthenticatedPreview(): boolean {
+export function isDevAuthEnabled(): boolean {
   const env = getServerEnv();
 
+  // Production is unconditional and checked first, so no later change to the opt-in
+  // can accidentally enable this against real users.
   if (env.APP_ENV === 'production') return false;
-  return !env.FIREBASE_PROJECT_ID;
+  return env.DEV_AUTH_ENABLED;
 }
