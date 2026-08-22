@@ -97,6 +97,75 @@ jobs:
         run: pnpm audit --audit-level high
         continue-on-error: true
 
+  database:
+    name: Migrations + schema against real PostgreSQL
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    needs: quality
+
+    # WHY THIS JOB EXISTS: the unit suite runs against in-memory repositories and never
+    # compiles a line of SQL. Drizzle typechecks the query builder, not the statement it
+    # emits — CTEs, `count(*) filter (...)`, keyset comparisons and casts can all
+    # typecheck and still fail in Postgres.
+    #
+    # It also pins the two things that were genuinely broken and invisible from code
+    # review: that the migrations apply at all, and that `uuidv7()` is a REAL
+    # time-sortable v7 rather than a random v4 wearing its version number. Every primary
+    # key in the system depends on the latter.
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v5
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      # 16 deliberately, not the newest available: it is the documented floor
+      # (docs/DATABASE.md §1) and the version both D-01a candidates run, so it is the
+      # version where the uuidv7 gap actually bites.
+      - name: Apply migrations, seed and execute every query
+        run: bash scripts/db-integration-check.sh postgres:16-alpine
+
+      # Needs a build, because it drives the real route handlers rather than the
+      # repository directly — the wiring between session, cookie and Postgres is the
+      # part that was missing, and only a running server exercises it.
+      - name: Production build
+        run: pnpm build
+        env:
+          APP_ENV: preview
+
+      - name: Cart persistence end to end
+        run: bash scripts/check-cart-persistence.sh 3240
+
+      - name: Checkout quote end to end
+        run: bash scripts/check-checkout-flow.sh 3250
+
+      # Placement, idempotency replay, stock reservation and release, and the pages that
+      # render them. The only check that would catch an order that is created and then
+      # leaves the cart full, or a cancellation that never gives the stock back.
+      - name: Order placement end to end
+        run: bash scripts/check-order-flow.sh 3260
+
+      # Guards the forward-only rule (docs/DATABASE.md §13): a schema edit without a
+      # matching generated migration would otherwise reach production as drift.
+      - name: Fail if the schema has uncommitted migration drift
+        run: |
+          pnpm db:generate
+          if ! git diff --quiet -- db/migrations; then
+            echo "::error::db/schema was changed without generating a migration."
+            git --no-pager diff --stat -- db/migrations
+            exit 1
+          fi
+          echo "No migration drift."
+
   e2e:
     name: Playwright E2E (desktop + mobile)
     runs-on: ubuntu-latest
@@ -131,8 +200,10 @@ jobs:
       # script starts the server, waits for readiness and shuts it down, so no
       # process is left behind.
       #
-      # Authenticated journeys are NOT covered yet: they need the Firebase Auth
-      # Emulator (docs/ARCHITECTURE.md §13.1), which arrives with TASK 003.
+      # Authenticated journeys ARE covered: run-e2e.sh enables the development
+      # session endpoint, which issues a real session for a seeded persona and
+      # leaves every permission check running (tests/e2e/helpers/auth.ts). Real
+      # SMS cannot be received in CI, which is why that path exists.
       - name: E2E
         run: bash scripts/run-e2e.sh 3200
 

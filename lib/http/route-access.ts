@@ -41,6 +41,45 @@ const NOINDEX_PREFIXES: readonly string[] = [
 ];
 
 /**
+ * Duplicate entry points that resolve to a CANONICAL route (docs/ROUTES.md §5).
+ *
+ * The master spec lists both `/orders` and `/account/orders`, both `/favorites` and
+ * `/account/favorites`, and `/order/[id]` alongside `/orders/[id]`. Building each list twice
+ * would mean two paginations, two empty states and two places to fix a bug, so one URL is
+ * canonical and the others redirect. Every entry point stays valid; the code exists once.
+ *
+ * Handled in MIDDLEWARE rather than by `permanentRedirect()` in a page, and that is not a
+ * style choice: those segments stream (there is a `loading.tsx` above them), so the 200 is
+ * already committed by the time the page body runs and Next can only fall back to a
+ * client-side redirect. The status code has to be decided before rendering starts.
+ */
+const CANONICAL_REDIRECTS: ReadonlyArray<{
+  pattern: RegExp;
+  target: (match: RegExpMatchArray) => string;
+}> = [
+  { pattern: /^\/account\/orders\/?$/, target: () => '/orders' },
+  { pattern: /^\/account\/favorites\/?$/, target: () => '/favorites' },
+  { pattern: /^\/order\/([^/]+)\/?$/, target: (match) => `/orders/${match[1]}` },
+];
+
+/**
+ * The canonical path for a duplicate entry point, or null if the path is already canonical.
+ *
+ * Takes and returns LOCALE-STRIPPED paths, so the rules are written once rather than per
+ * locale; the caller re-applies the prefix.
+ */
+export function canonicalRedirectFor(pathname: string): string | null {
+  const path = stripLocalePrefix(pathname);
+
+  for (const rule of CANONICAL_REDIRECTS) {
+    const match = path.match(rule.pattern);
+    if (match) return rule.target(match);
+  }
+
+  return null;
+}
+
+/**
  * Strips a leading locale segment so route rules are written once rather than
  * per locale. `/hi/vendor/orders` and `/vendor/orders` classify identically.
  */

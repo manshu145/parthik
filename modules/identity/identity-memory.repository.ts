@@ -10,6 +10,7 @@ import type {
   SessionWithUser,
   UserRecord,
 } from './identity.repository.types';
+import { DEMO_PERSONAS } from './demo-personas';
 import type { RoleKey } from './permissions';
 
 /**
@@ -41,52 +42,24 @@ export const DEMO_VENDOR_SCOPE_ID = fixtureId('vendor', 'demo-vendor');
 export const DEMO_STORE_SCOPE_ID = fixtureId('store', 'demo-store');
 
 /**
- * Demo actors, mirroring the roles in db/seed/dev-data.ts so a developer signing in
- * against the Auth Emulator lands on the surface they expect.
+ * Demo actors, DERIVED from the canonical persona list rather than declared again.
+ *
+ * Previously this held its own uids (`demo-admin-uid`, …) while the database seed used
+ * different ones, so the development sign-in endpoint worked against this backend and
+ * failed against a real database. Deriving both from one declaration removes the
+ * possibility; `tests/unit/demo-personas.test.ts` asserts they still agree.
  */
-export const DEMO_USERS: readonly SeedUser[] = [
-  {
-    firebaseUid: 'demo-customer-uid',
-    phone: '+919000000001',
-    fullName: 'Demo Customer',
-    roles: [{ roleKey: 'CUSTOMER' }],
-  },
-  {
-    firebaseUid: 'demo-vendor-uid',
-    phone: '+919000000002',
-    fullName: 'Demo Vendor Owner',
-    roles: [
-      { roleKey: 'CUSTOMER' },
-      { roleKey: 'VENDOR_OWNER', scopeType: 'VENDOR', scopeId: DEMO_VENDOR_SCOPE_ID },
-    ],
-  },
-  {
-    firebaseUid: 'demo-driver-uid',
-    phone: '+919000000003',
-    fullName: 'Demo Driver',
-    roles: [{ roleKey: 'CUSTOMER' }, { roleKey: 'DRIVER' }],
-  },
-  {
-    firebaseUid: 'demo-admin-uid',
-    phone: '+919000000004',
-    fullName: 'Demo Super Admin',
-    roles: [{ roleKey: 'CUSTOMER' }, { roleKey: 'SUPER_ADMIN' }],
-  },
-  /**
-   * A DELIBERATELY UNDER-PRIVILEGED admin.
-   *
-   * ADMIN_SUPPORT reaches the admin surface but holds only 10 of the 59 permissions —
-   * no refunds, no settings, no RBAC. Without a persona like this, every test would
-   * sign in as SUPER_ADMIN and the per-page permission checks would never be observed
-   * DENYING anything, which is the half of authorization that actually matters.
-   */
-  {
-    firebaseUid: 'demo-support-uid',
-    phone: '+919000000005',
-    fullName: 'Demo Support Agent',
-    roles: [{ roleKey: 'CUSTOMER' }, { roleKey: 'ADMIN_SUPPORT' }],
-  },
-];
+export const DEMO_USERS: readonly SeedUser[] = DEMO_PERSONAS.map((persona) => ({
+  firebaseUid: persona.firebaseUid,
+  phone: persona.phone,
+  fullName: persona.fullName,
+  preferredLocale: persona.preferredLocale,
+  roles: persona.roles.map((role) =>
+    role.scope === 'DEMO_VENDOR'
+      ? { roleKey: role.roleKey, scopeType: 'VENDOR' as const, scopeId: DEMO_VENDOR_SCOPE_ID }
+      : { roleKey: role.roleKey, scopeType: 'GLOBAL' as const }
+  ),
+}));
 
 interface StoredUser extends UserRecord {
   roles: RoleGrant[];

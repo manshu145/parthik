@@ -460,5 +460,194 @@
       "vendor-registration": "Become a vendor",
       "driver-registration": "Become a delivery partner"
     }
+  },
+  "checkout": {
+    "title": "Checkout",
+    "steps": {
+      "address": "Delivery address",
+      "payment": "Payment method",
+      "summary": "Order summary"
+    },
+    "address": {
+      "choose": "Choose a delivery address",
+      "none": "You have no saved addresses yet.",
+      "add": "Add an address",
+      "manage": "Manage addresses",
+      "deliverHere": "Deliver here",
+      "selected": "Delivering here",
+      "unserviceable": "We do not deliver to this PIN code yet",
+      "default": "Default"
+    },
+    "payment": {
+      "choose": "How would you like to pay?",
+      "UPI": "UPI",
+      "CARD": "Credit or debit card",
+      "COD": "Cash on delivery",
+      "codNote": "Pay {amount} in cash when your order arrives",
+      "unavailable": {
+        "COD_DISABLED_PLATFORM": "Cash on delivery is currently unavailable.",
+        "COD_DISABLED_ZONE": "Cash on delivery is not available in your area.",
+        "COD_DISABLED_STORE": "This store does not accept cash on delivery.",
+        "COD_ORDER_VALUE_TOO_HIGH": "Cash on delivery is available on orders up to {max}."
+      }
+    },
+    "summary": {
+      "title": "Order summary",
+      "items": "Items",
+      "itemSavings": "Item savings",
+      "coupon": "Coupon ({code})",
+      "delivery": "Delivery",
+      "free": "Free",
+      "total": "Total payable",
+      "eta": "Arriving in about {min}–{max} minutes",
+      "noTaxNotice": "Prices are inclusive. A tax invoice is not issued at this time."
+    },
+    "placeOrder": "Place order",
+    "placing": "Placing your order…",
+    "blockers": {
+      "CART_EMPTY": "Your cart is empty.",
+      "ADDRESS_REQUIRED": "Choose a delivery address to continue.",
+      "NOT_SERVICEABLE": "We do not deliver to {pincode} yet.",
+      "STORE_NOT_ACCEPTING_ORDERS": "This store is not accepting orders right now.",
+      "MIN_ORDER_NOT_MET": "Add {shortfall} more to reach the {min} minimum.",
+      "INSUFFICIENT_STOCK": "An item in your cart is no longer in stock.",
+      "PRODUCT_UNAVAILABLE": "An item in your cart is no longer available.",
+      "PAYMENT_METHOD_UNAVAILABLE": "That payment method is not available for this order."
+    },
+    "backToCart": "Back to cart"
+  },
+  "orders": {
+    "title": "Your orders",
+    "empty": {
+      "title": "No orders yet",
+      "description": "When you place an order, it will show up here with live tracking.",
+      "action": "Start shopping"
+    },
+    "status": {
+      "PENDING_PAYMENT": "Awaiting payment",
+      "PAYMENT_FAILED": "Payment failed",
+      "CONFIRMED": "Order placed",
+      "ACCEPTED": "Accepted by store",
+      "PREPARING": "Being prepared",
+      "READY_FOR_PICKUP": "Ready for pickup",
+      "ASSIGNED": "Driver assigned",
+      "PICKED_UP": "Picked up",
+      "OUT_FOR_DELIVERY": "Out for delivery",
+      "DELIVERED": "Delivered",
+      "FAILED_DELIVERY": "Delivery attempt failed",
+      "CANCELLED": "Cancelled",
+      "REFUNDED": "Refunded",
+      "RETURNED": "Returned"
+    },
+    "card": {
+      "cod": "Cash on delivery",
+      "andMore": "{count, plural, one {and # more item} other {and # more items}}",
+      "placedOn": "Placed {date}",
+      "view": "View order"
+    },
+    "loadMore": "Show older orders",
+    "summary": {
+      "items": "Items",
+      "itemSavings": "Item savings",
+      "coupon": "Coupon ({code})",
+      "delivery": "Delivery",
+      "packaging": "Packaging",
+      "service": "Service fee",
+      "free": "Free",
+      "total": "Order total",
+      "codDue": "{amount} to be paid in cash on delivery."
+    },
+    "detail": {
+      "metaTitle": "Order details",
+      "title": "Order {number}",
+      "items": "Items in this order",
+      "lineQuantity": "{quantity} × {price}",
+      "delivery": "Delivery details",
+      "note": "Your note: {note}",
+      "paymentLabel": "Payment",
+      "paymentMethod": {
+        "UPI": "UPI",
+        "CARD": "Credit or debit card",
+        "COD": "Cash on delivery"
+      },
+      "paymentStatusLabel": "Payment status",
+      "placedLabel": "Placed",
+      "deliveredLabel": "Delivered",
+      "notAnInvoice": "This is an order summary, not a tax invoice. Prices are inclusive and no tax invoice is issued at this time.",
+      "timeline": "Order history",
+      "track": "Track this order",
+      "backToOrders": "Back to orders",
+      "cancelledReason": "Cancellation reason: {reason}"
+    },
+    "cancel": {
+      "action": "Cancel order",
+      "title": "Cancel this order?",
+      "description": "Tell us why, so we can fix what went wrong. If you have already paid, our support team will arrange the reversal.",
+      "reasonLabel": "Reason for cancelling",
+      "reasonPlaceholder": "For example: ordered by mistake",
+      "confirm": "Cancel the order",
+      "keep": "Keep my order",
+      "pending": "Cancelling…"
+    },
+    "reorder": {
+      "action": "Order these again",
+      "pending": "Adding to cart…",
+      "partial": "{count, plural, one {# item is no longer available and was skipped} other {# items are no longer available and were skipped}}",
+      "noneAvailable": "None of these items are available right now."
+    },
+    "track": {
+      "title": "Track your order",
+      "backToOrder": "Back to order details",
+      "stage": {
+        "CONFIRMED": "Order placed",
+        "PREPARING": "Being prepared",
+        "READY_FOR_PICKUP": "Ready for pickup",
+        "OUT_FOR_DELIVERY": "On the way to you",
+        "DELIVERED": "Delivered"
+      },
+      "eta": "Expected by about {time}",
+      "updated": "Updated at {time}",
+      "settled": "This order is complete, so it is no longer being updated.",
+      "stopped": "We could not refresh this. Try again when you are ready.",
+      "notInProgress": "This order is not in progress."
+    }
+  },
+  "addresses": {
+    "title": "Saved addresses",
+    "subtitle": "Where should we deliver your orders?",
+    "empty": {
+      "title": "No saved addresses",
+      "description": "Add an address so we can deliver to you."
+    },
+    "add": "Add address",
+    "edit": "Edit",
+    "delete": "Delete",
+    "makeDefault": "Make default",
+    "default": "Default",
+    "unserviceable": "Not serviceable yet",
+    "eta": "About {minutes} minutes",
+    "confirmDelete": "Remove this address?",
+    "saving": "Saving…",
+    "save": "Save address",
+    "cancel": "Cancel",
+    "limitReached": "You have reached the maximum number of saved addresses.",
+    "form": {
+      "label": "Nickname (optional)",
+      "labelHint": "For example: Home, Office",
+      "type": "Address type",
+      "HOME": "Home",
+      "WORK": "Work",
+      "OTHER": "Other",
+      "recipientName": "Recipient name",
+      "recipientPhone": "Recipient mobile",
+      "line1": "House / flat and street",
+      "line2": "Area (optional)",
+      "landmark": "Landmark (optional)",
+      "city": "City",
+      "state": "State",
+      "pincode": "PIN code",
+      "instructions": "Delivery instructions (optional)",
+      "setDefault": "Use as my default address"
+    }
   }
 }

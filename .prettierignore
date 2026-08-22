@@ -8,3 +8,8 @@ test-results/
 pnpm-lock.yaml
 next-env.d.ts
 types/cloudflare-env.d.ts
+
+# Drizzle writes these itself, byte for byte, and CI re-runs `db:generate` to prove the
+# schema and the migrations agree. Formatting them makes that check fail forever: prettier
+# would reformat what drizzle just wrote and the diff would never be empty.
+db/migrations/meta/

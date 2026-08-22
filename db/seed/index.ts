@@ -332,28 +332,47 @@ async function seedReferenceData(db: Database): Promise<SeedSummary> {
 async function seedDemoData(db: Database): Promise<SeedSummary> {
   const inserted: Record<string, number> = {};
 
-  const ownerFixture = DEV_USERS.find((user) => user.ref === 'vendor-owner');
-  if (!ownerFixture) throw new Error('Missing the vendor-owner fixture in dev-data.ts.');
+  const ownerFixture = DEV_USERS.find((user) => user.ref === 'vendor');
+  if (!ownerFixture)
+    throw new Error('Missing the vendor persona in modules/identity/demo-personas.ts.');
 
-  // ---- Owner user ----
-  // Roles and permissions are deliberately NOT assigned here: RBAC belongs to
-  // TASK 003. This row exists only to satisfy vendors.owner_user_id.
-  const [owner] = await db
-    .insert(schema.users)
-    .values({
-      firebaseUid: ownerFixture.firebaseUid,
-      phone: ownerFixture.phone,
-      fullName: ownerFixture.fullName,
-      preferredLocale: ownerFixture.preferredLocale,
-    })
-    .onConflictDoUpdate({
-      target: schema.users.firebaseUid,
-      set: { fullName: ownerFixture.fullName, phone: ownerFixture.phone },
-    })
-    .returning({ id: schema.users.id });
+  // ---- Demo users ----
+  //
+  // ALL personas are created, not just the vendor owner. Previously only the owner was
+  // inserted (to satisfy `vendors.owner_user_id`) and no roles were granted, so signing
+  // in as any other persona against a real database was impossible — which is exactly
+  // what `POST /api/v1/auth/dev-session` needs to do.
+  //
+  // Role grants are applied further down, once the vendor exists and its id can scope
+  // the VENDOR_OWNER grant.
+  const userIdByRef = new Map<string, string>();
 
-  if (!owner) throw new Error('Failed to upsert the demo vendor owner.');
-  inserted.users = 1;
+  for (const persona of DEV_USERS) {
+    const [row] = await db
+      .insert(schema.users)
+      .values({
+        firebaseUid: persona.firebaseUid,
+        phone: persona.phone,
+        fullName: persona.fullName,
+        preferredLocale: persona.preferredLocale,
+        status: 'ACTIVE',
+        // Demo personas sign in without SMS, so the number is treated as verified.
+        phoneVerifiedAt: new Date(),
+      })
+      .onConflictDoUpdate({
+        target: schema.users.firebaseUid,
+        set: { fullName: persona.fullName, phone: persona.phone, status: 'ACTIVE' },
+      })
+      .returning({ id: schema.users.id });
+
+    if (!row) throw new Error(`Failed to upsert the demo persona "${persona.ref}".`);
+    userIdByRef.set(persona.ref, row.id);
+  }
+
+  inserted.users = DEV_USERS.length;
+
+  const owner = { id: userIdByRef.get(ownerFixture.ref) as string };
+  if (!owner.id) throw new Error('Failed to upsert the demo vendor owner.');
 
   // ---- Vendor ----
   const [vendor] = await db
@@ -406,6 +425,51 @@ async function seedDemoData(db: Database): Promise<SeedSummary> {
 
   if (!store) throw new Error('Failed to upsert the demo store.');
   inserted.stores = 1;
+
+  // ---- Role grants ----
+  //
+  // Applied here rather than with the user rows, because the VENDOR_OWNER grant is
+  // vendor-SCOPED and the vendor id only exists now. Granting it GLOBAL instead would be
+  // the easy shortcut and would defeat the tenant-containment rules in
+  // identity.policy.ts — a vendor-scoped grant is what makes "this vendor's orders only"
+  // testable at all.
+  let grantCount = 0;
+
+  for (const persona of DEV_USERS) {
+    const userId = userIdByRef.get(persona.ref);
+    if (!userId) continue;
+
+    for (const grant of persona.roles) {
+      const [role] = await db
+        .select({ id: schema.roles.id })
+        .from(schema.roles)
+        .where(eq(schema.roles.key, grant.roleKey))
+        .limit(1);
+
+      if (!role) {
+        throw new Error(
+          `Role "${grant.roleKey}" is missing. Run the reference-data seed before the demo seed.`
+        );
+      }
+
+      const scopeType = grant.scope === 'DEMO_VENDOR' ? 'VENDOR' : 'GLOBAL';
+      const scopeId = grant.scope === 'DEMO_VENDOR' ? vendor.id : null;
+
+      await db
+        .insert(schema.userRoles)
+        .values({ userId, roleId: role.id, scopeType, scopeId })
+        // The unique index is partial (`where revoked_at is null`), so the conflict
+        // target needs the same predicate to match it.
+        .onConflictDoNothing({
+          target: [schema.userRoles.userId, schema.userRoles.roleId, schema.userRoles.scopeId],
+          where: sql`revoked_at is null`,
+        });
+
+      grantCount += 1;
+    }
+  }
+
+  inserted.user_roles = grantCount;
 
   // ---- Products, translations, one default variant each, inventory ----
   let productCount = 0;

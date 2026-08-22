@@ -1,8 +1,8 @@
 import { ValidationError } from '@/lib/errors';
 import { apiError, apiSuccess, requestIdFrom } from '@/lib/http/api-response';
-import { setCartCookie } from '@/lib/http/cart-cookie';
 import { noStoreHeaders, resolveRequestLocale } from '@/lib/http/request-locale';
-import { readCartIntent, readCartPincode } from '@/lib/shell/current-cart';
+import { loadCart, persistCart } from '@/lib/shell/cart-session';
+import { readCartPincode } from '@/lib/shell/current-cart';
 import { getCartService } from '@/modules/cart';
 import { setQuantitySchema, variantIdParamSchema } from '@/modules/cart/cart.schema';
 
@@ -27,8 +27,8 @@ async function respond(
   const requestId = requestIdFrom(request);
   const locale = resolveRequestLocale(request);
 
-  const [intent, pincode, service] = await Promise.all([
-    readCartIntent(),
+  const [{ intent, owner, userId }, pincode, service] = await Promise.all([
+    loadCart(),
     readCartPincode(),
     getCartService(),
   ]);
@@ -36,16 +36,16 @@ async function respond(
   const next =
     mutate === 'remove'
       ? service.removeItem(intent, variantId)
-      : await service.setQuantity(intent, variantId, quantity ?? 0, { locale });
+      : await service.setQuantity(intent, variantId, quantity ?? 0, { locale, userId });
 
-  const view = await service.view(next, { locale, ...(pincode ? { pincode } : {}) });
+  const view = await service.view(next, { locale, ...(pincode ? { pincode } : {}), userId });
 
   const response = apiSuccess(
     { cart: view },
     { meta: { requestId, locale, total: view.totals.itemCount } }
   );
 
-  setCartCookie(response, next);
+  await persistCart(response, owner, next);
   for (const [header, value] of Object.entries(noStoreHeaders(locale))) {
     response.headers.set(header, value);
   }
