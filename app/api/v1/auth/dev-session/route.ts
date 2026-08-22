@@ -6,7 +6,14 @@ import { apiError, apiSuccess, requestIdFrom } from '@/lib/http/api-response';
 import { readClientFingerprint } from '@/lib/http/client-fingerprint';
 import { logger } from '@/lib/logger';
 import { canIssueSessions } from '@/lib/auth/session-token';
-import { DEMO_USERS, getIdentityService } from '@/modules/identity';
+import { mergeGuestCartOnSignIn } from '@/lib/shell/cart-session';
+import { getIdentityService } from '@/modules/identity';
+import {
+  demoPersona,
+  DEMO_PERSONAS,
+  DEMO_PERSONA_REFS,
+  type DemoPersonaRef,
+} from '@/modules/identity/demo-personas';
 
 /**
  * POST /api/v1/auth/dev-session — DEVELOPMENT AND TEST ONLY.
@@ -33,19 +40,11 @@ import { DEMO_USERS, getIdentityService } from '@/modules/identity';
 
 export const dynamic = 'force-dynamic';
 
+// Derived from the canonical persona list, so this endpoint cannot reference a uid that
+// neither the seed nor the in-memory backend actually creates.
 const bodySchema = z.object({
-  role: z.enum(['customer', 'vendor', 'driver', 'admin', 'support']),
+  role: z.enum(DEMO_PERSONA_REFS as [DemoPersonaRef, ...DemoPersonaRef[]]),
 });
-
-/** Maps a requested persona to its seeded Firebase uid. */
-const DEMO_UID_BY_ROLE: Record<z.infer<typeof bodySchema>['role'], string> = {
-  customer: 'demo-customer-uid',
-  vendor: 'demo-vendor-uid',
-  driver: 'demo-driver-uid',
-  admin: 'demo-admin-uid',
-  /** ADMIN_SUPPORT — reaches /admin but is denied most pages. */
-  support: 'demo-support-uid',
-};
 
 export async function POST(request: Request) {
   const requestId = requestIdFrom(request);
@@ -67,7 +66,7 @@ export async function POST(request: Request) {
       throw new ValidationError('A role of customer, vendor, driver or admin is required.');
     }
 
-    const firebaseUid = DEMO_UID_BY_ROLE[parsed.data.role];
+    const firebaseUid = demoPersona(parsed.data.role).firebaseUid;
     const service = await getIdentityService();
 
     const result = await service.createDevelopmentSession({
@@ -103,6 +102,11 @@ export async function POST(request: Request) {
     );
 
     setSessionCookie(response, result.token, result.audience);
+
+    // Same cart-merge behaviour as the real sign-in, so this path exercises the
+    // production flow rather than a simplified one that could diverge.
+    await mergeGuestCartOnSignIn(response, result.actor.userId);
+
     return response;
   } catch (error) {
     return apiError(error, { requestId });
@@ -118,11 +122,12 @@ export function GET() {
   }
 
   return apiSuccess({
-    roles: Object.keys(DEMO_UID_BY_ROLE),
-    demoUsers: DEMO_USERS.map((user) => ({
-      firebaseUid: user.firebaseUid,
-      phone: user.phone,
-      roles: user.roles.map((role) => role.roleKey),
+    roles: DEMO_PERSONA_REFS,
+    personas: DEMO_PERSONAS.map((persona) => ({
+      ref: persona.ref,
+      firebaseUid: persona.firebaseUid,
+      phone: persona.phone,
+      roles: persona.roles.map((role) => role.roleKey),
     })),
     notice: 'Development only. POST { "role": "admin" } to sign in as that persona.',
   });

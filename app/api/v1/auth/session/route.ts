@@ -7,6 +7,7 @@ import { readClientFingerprint } from '@/lib/http/client-fingerprint';
 import { logger } from '@/lib/logger';
 import { revokeFirebaseRefreshTokens } from '@/lib/firebase/identity-rest';
 import { isFirebaseServerConfigured } from '@/lib/firebase/config';
+import { mergeGuestCartOnSignIn } from '@/lib/shell/cart-session';
 import { describeAuthReadiness, getIdentityService } from '@/modules/identity';
 import { createSessionSchema, revokeSessionSchema } from '@/modules/identity/identity.schema';
 
@@ -86,6 +87,16 @@ export async function POST(request: Request) {
     );
 
     setSessionCookie(response, result.token, result.audience);
+
+    /**
+     * Carry the guest cart across sign-in.
+     *
+     * Without this, a customer who fills a cart and then signs in to check out watches
+     * it empty at the exact moment they authenticate — the worst possible place to lose
+     * it. Best-effort: a merge failure must never fail the sign-in.
+     */
+    await mergeGuestCartOnSignIn(response, result.actor.userId);
+
     return response;
   } catch (error) {
     return apiError(error, { requestId });
