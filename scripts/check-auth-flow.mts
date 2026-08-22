@@ -1,3 +1,4 @@
+/* eslint-disable no-console */
 /**
  * Manual verification of the authentication flow against the in-memory backend.
  *
