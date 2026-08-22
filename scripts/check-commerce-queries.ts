@@ -305,7 +305,6 @@ async function main(): Promise<void> {
     return rows;
   });
 
-
   // ---- Orders ----
   //
   // The highest-risk SQL in the project: one transaction that inserts an order, its lines,
@@ -384,7 +383,8 @@ async function main(): Promise<void> {
     // D-12: no upstream payment to wait for, so it is CONFIRMED immediately.
     if (result.order.status !== 'CONFIRMED') throw new Error(`status was ${result.order.status}`);
     if (!result.order.isCod) throw new Error('isCod was false');
-    if (result.order.codAmountPaise !== 38500) throw new Error(`cod amount ${result.order.codAmountPaise}`);
+    if (result.order.codAmountPaise !== 38500)
+      throw new Error(`cod amount ${result.order.codAmountPaise}`);
     return result.order;
   });
 
@@ -398,7 +398,8 @@ async function main(): Promise<void> {
 
   await check('order.create (writes the first history row with a null from_status)', async () => {
     const detail = await orderRepo.findById(codOrderId);
-    if (detail?.timeline.length !== 1) throw new Error(`timeline had ${detail?.timeline.length} rows`);
+    if (detail?.timeline.length !== 1)
+      throw new Error(`timeline had ${detail?.timeline.length} rows`);
     if (detail.timeline[0]?.fromStatus !== null) throw new Error('from_status was not null');
     if (detail.timeline[0]?.toStatus !== 'CONFIRMED') throw new Error('to_status was wrong');
     return detail.timeline;
@@ -423,7 +424,10 @@ async function main(): Promise<void> {
 
   await check('order.create (writes a RESERVE ledger row linked to the order)', async () => {
     const rows = await db
-      .select({ txnType: inventoryTransactions.txnType, delta: inventoryTransactions.quantityDelta })
+      .select({
+        txnType: inventoryTransactions.txnType,
+        delta: inventoryTransactions.quantityDelta,
+      })
       .from(inventoryTransactions)
       .where(
         and(
@@ -453,7 +457,8 @@ async function main(): Promise<void> {
   await check('order.create (writes fully snapshotted lines)', async () => {
     const detail = await orderRepo.findById(codOrderId);
     const line = detail?.lines[0];
-    if (line?.productNameSnapshot !== 'Commerce Check Product') throw new Error('name not snapshotted');
+    if (line?.productNameSnapshot !== 'Commerce Check Product')
+      throw new Error('name not snapshotted');
     if (line.lineTotalPaise !== 36000) throw new Error(`line total ${line.lineTotalPaise}`);
     return line;
   });
@@ -509,7 +514,9 @@ async function main(): Promise<void> {
 
     if (result.ok) throw new Error('an oversell was accepted');
     if (result.shortfalls[0]?.available !== available) {
-      throw new Error(`reported available ${result.shortfalls[0]?.available}, expected ${available}`);
+      throw new Error(
+        `reported available ${result.shortfalls[0]?.available}, expected ${available}`
+      );
     }
     return result.shortfalls;
   });
@@ -551,58 +558,61 @@ async function main(): Promise<void> {
     throw new Error('a stale transition was accepted');
   });
 
-  await check('order.applyTransition (CONSUME_STOCK frees reserved, leaves available)', async () => {
-    const before = await db
-      .select({ available: inventory.quantityAvailable, reserved: inventory.quantityReserved })
-      .from(inventory)
-      .where(eq(inventory.variantId, variantA))
-      .then((rows) => rows[0]);
+  await check(
+    'order.applyTransition (CONSUME_STOCK frees reserved, leaves available)',
+    async () => {
+      const before = await db
+        .select({ available: inventory.quantityAvailable, reserved: inventory.quantityReserved })
+        .from(inventory)
+        .where(eq(inventory.variantId, variantA))
+        .then((rows) => rows[0]);
 
-    // Walk the order to delivery through legal transitions.
-    for (const [from, to] of [
-      ['ACCEPTED', 'PREPARING'],
-      ['PREPARING', 'READY_FOR_PICKUP'],
-      ['READY_FOR_PICKUP', 'ASSIGNED'],
-      ['ASSIGNED', 'PICKED_UP'],
-      ['PICKED_UP', 'OUT_FOR_DELIVERY'],
-    ] as const) {
+      // Walk the order to delivery through legal transitions.
+      for (const [from, to] of [
+        ['ACCEPTED', 'PREPARING'],
+        ['PREPARING', 'READY_FOR_PICKUP'],
+        ['READY_FOR_PICKUP', 'ASSIGNED'],
+        ['ASSIGNED', 'PICKED_UP'],
+        ['PICKED_UP', 'OUT_FOR_DELIVERY'],
+      ] as const) {
+        await orderRepo.applyTransition({
+          orderId: codOrderId,
+          from,
+          to,
+          actor: 'ADMIN',
+          actorUserId: null,
+          reason: null,
+          effects: [],
+        });
+      }
+
       await orderRepo.applyTransition({
         orderId: codOrderId,
-        from,
-        to,
-        actor: 'ADMIN',
+        from: 'OUT_FOR_DELIVERY',
+        to: 'DELIVERED',
+        actor: 'DRIVER',
         actorUserId: null,
         reason: null,
-        effects: [],
+        effects: ['CONSUME_STOCK', 'COLLECT_COD'],
       });
-    }
 
-    await orderRepo.applyTransition({
-      orderId: codOrderId,
-      from: 'OUT_FOR_DELIVERY',
-      to: 'DELIVERED',
-      actor: 'DRIVER',
-      actorUserId: null,
-      reason: null,
-      effects: ['CONSUME_STOCK', 'COLLECT_COD'],
-    });
+      const after = await db
+        .select({ available: inventory.quantityAvailable, reserved: inventory.quantityReserved })
+        .from(inventory)
+        .where(eq(inventory.variantId, variantA))
+        .then((rows) => rows[0]);
 
-    const after = await db
-      .select({ available: inventory.quantityAvailable, reserved: inventory.quantityReserved })
-      .from(inventory)
-      .where(eq(inventory.variantId, variantA))
-      .then((rows) => rows[0]);
-
-    // available is UNCHANGED — it fell at reservation. Only reserved drops. Decrementing
-    // available again here is the obvious mistake and would double-count every sale.
-    if (after?.available !== before?.available) {
-      throw new Error(`available changed on sale: ${before?.available} -> ${after?.available}`);
+      // available is UNCHANGED — it fell at reservation. Only reserved drops. Decrementing
+      // available again here is the obvious mistake and would double-count every sale.
+      if (after?.available !== before?.available) {
+        throw new Error(`available changed on sale: ${before?.available} -> ${after?.available}`);
+      }
+      if (after?.reserved !== (before?.reserved ?? 0) - 2) {
+        throw new Error(`reserved ${before?.reserved} -> ${after?.reserved}, expected -2`);
+      }
+      return after;
     }
-    if (after?.reserved !== (before?.reserved ?? 0) - 2) {
-      throw new Error(`reserved ${before?.reserved} -> ${after?.reserved}, expected -2`);
-    }
-    return after;
-  });
+  );
 
   await check('order.applyTransition (COLLECT_COD marks the payment PAID)', async () => {
     const [payment] = await db
@@ -626,15 +636,17 @@ async function main(): Promise<void> {
       .then((rows) => rows[0]?.reserved ?? 0);
 
     // A retried queue message must not consume the same reservation twice.
-    await orderRepo.applyTransition({
-      orderId: codOrderId,
-      from: 'DELIVERED',
-      to: 'DELIVERED',
-      actor: 'ADMIN',
-      actorUserId: null,
-      reason: null,
-      effects: ['CONSUME_STOCK'],
-    }).catch(() => undefined);
+    await orderRepo
+      .applyTransition({
+        orderId: codOrderId,
+        from: 'DELIVERED',
+        to: 'DELIVERED',
+        actor: 'ADMIN',
+        actorUserId: null,
+        reason: null,
+        effects: ['CONSUME_STOCK'],
+      })
+      .catch(() => undefined);
 
     const after = await db
       .select({ reserved: inventory.quantityReserved })
@@ -684,8 +696,10 @@ async function main(): Promise<void> {
     }
 
     const detail = await orderRepo.findById(created.order.id);
-    if (detail?.order.cancellationReason !== 'Changed my mind') throw new Error('reason not stored');
-    if (detail.order.cancelledByRole !== 'CUSTOMER') throw new Error('cancelled_by_role not stored');
+    if (detail?.order.cancellationReason !== 'Changed my mind')
+      throw new Error('reason not stored');
+    if (detail.order.cancelledByRole !== 'CUSTOMER')
+      throw new Error('cancelled_by_role not stored');
     return after;
   });
 

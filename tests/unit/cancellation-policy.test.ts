@@ -176,16 +176,19 @@ describe('the conservative table only ships what D-19a already answers', () => {
       const cancel = rules.find((rule) => rule.to === 'CANCELLED');
 
       expect(cancel, `no CANCELLED transition from ${policy.fromStatus}`).toBeDefined();
-      expect(cancel?.actors, `${policy.actorRole} cannot cancel from ${policy.fromStatus}`).toContain(
-        policy.actorRole
-      );
+      expect(
+        cancel?.actors,
+        `${policy.actorRole} cannot cancel from ${policy.fromStatus}`
+      ).toContain(policy.actorRole);
     }
   });
 });
 
 describe('refund arithmetic', () => {
   it('refunds the item value plus the delivery fee when the policy says so', () => {
-    const decision = evaluateCancellation(input({ itemValuePaise: 50_000, deliveryFeePaise: 2_500 }));
+    const decision = evaluateCancellation(
+      input({ itemValuePaise: 50_000, deliveryFeePaise: 2_500 })
+    );
 
     expect(decision.isAllowed).toBe(true);
     expect(decision.refundAmountPaise).toBe(52_500);
@@ -343,9 +346,7 @@ describe('canCancel', () => {
     for (const actor of ACTORS) {
       for (const status of ALL_STATUSES) {
         const args = input({ actor, status });
-        expect(canCancel(args), `${actor} @ ${status}`).toBe(
-          evaluateCancellation(args).isAllowed
-        );
+        expect(canCancel(args), `${actor} @ ${status}`).toBe(evaluateCancellation(args).isAllowed);
       }
     }
   });

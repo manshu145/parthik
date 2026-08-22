@@ -2,7 +2,7 @@
 
 import { useCallback, useState } from 'react';
 import { useLocale, useTranslations } from 'next-intl';
-import { Link } from '@/i18n/navigation';
+import { Link, useRouter } from '@/i18n/navigation';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -37,11 +37,25 @@ export function CheckoutFlow({ initialQuote, addresses }: CheckoutFlowProps) {
   const tCommon = useTranslations('common');
   const locale = useLocale() as 'en' | 'hi';
 
+  const router = useRouter();
+
   const [quote, setQuote] = useState(initialQuote);
   const [addressId, setAddressId] = useState(initialQuote.address?.id ?? null);
   const [method, setMethod] = useState<PaymentMethodView | null>(initialQuote.selectedMethod);
   const [pending, setPending] = useState(false);
+  const [placing, setPlacing] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  /**
+   * The idempotency key for the CURRENT attempt.
+   *
+   * Held in state rather than regenerated per click, so pressing "place order" again after a
+   * timeout or a double-click replays the same request and gets the SAME order back instead of
+   * creating a second one. Cleared whenever a selection changes, because a different address
+   * or payment method is a genuinely different order and must not be answered with the
+   * previous one.
+   */
+  const [attemptKey, setAttemptKey] = useState<string | null>(null);
 
   const money = useCallback((value: number) => formatPaise(paise(value), locale), [locale]);
 
@@ -97,13 +111,68 @@ export function CheckoutFlow({ initialQuote, addresses }: CheckoutFlowProps) {
   const chooseAddress = (id: string) => {
     // Optimistic, so the radio responds immediately; corrected from the response above.
     setAddressId(id);
+    setAttemptKey(null);
     void requote({ addressId: id });
   };
 
   const chooseMethod = (next: PaymentMethodView) => {
     setMethod(next);
+    setAttemptKey(null);
     void requote({ paymentMethod: next });
   };
+
+  /**
+   * Places the order.
+   *
+   * Sends only CHOICES — the address, the method and the idempotency key. No amount, no line
+   * and no total: everything monetary is recomputed inside the creating transaction, so there
+   * is nothing here a modified client could send that would change what the order costs.
+   */
+  const placeOrder = useCallback(async () => {
+    const key = attemptKey ?? `web-${crypto.randomUUID()}`;
+    if (!attemptKey) setAttemptKey(key);
+
+    setPlacing(true);
+    setError(null);
+
+    try {
+      const response = await fetch('/api/v1/orders', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ idempotencyKey: key, addressId, paymentMethod: method }),
+      });
+
+      const payload = (await response.json()) as {
+        success: boolean;
+        data?: { order: { id: string } };
+        error?: { message?: string };
+      };
+
+      if (!response.ok || !payload.success || !payload.data) {
+        setError(payload.error?.message ?? tCommon('retry'));
+        /**
+         * Re-quote after a refusal.
+         *
+         * The most common failure is something that CHANGED — an item sold out, the store
+         * closed — so the blockers on screen are now out of date. Refreshing them turns a
+         * bare error message into a page that shows what to fix.
+         */
+        void requote({});
+        return;
+      }
+
+      /**
+       * A prepaid order lands on its own page in PENDING_PAYMENT rather than on an invented
+       * payment screen. The payment step is TASK 011; until it exists, showing the customer an
+       * honest "awaiting payment" order is better than a route that cannot complete.
+       */
+      router.push(`/orders/${payload.data.order.id}`);
+    } catch {
+      setError(tCommon('retry'));
+    } finally {
+      setPlacing(false);
+    }
+  }, [addressId, attemptKey, method, requote, router, tCommon]);
 
   const totals = quote.cart.totals;
 
@@ -306,10 +375,12 @@ export function CheckoutFlow({ initialQuote, addresses }: CheckoutFlowProps) {
         <Button
           className="w-full"
           size="lg"
-          disabled={!quote.canPlaceOrder || pending}
+          onClick={() => void placeOrder()}
+          // `canPlaceOrder` is the SERVER's verdict on the current quote, not a local check.
+          disabled={!quote.canPlaceOrder || pending || placing}
           data-testid="checkout-place-order"
         >
-          {pending ? t('placing') : t('placeOrder')}
+          {placing ? t('placing') : t('placeOrder')}
         </Button>
 
         <Button asChild variant="secondary" className="w-full">
