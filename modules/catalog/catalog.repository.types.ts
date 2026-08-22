@@ -207,6 +207,15 @@ export interface PurchasableVariant {
   /** Store-level gate: a closed store cannot take orders. */
   storeAcceptingOrders: boolean;
   storeMinOrderPaise: number | null;
+  /**
+   * Per-store COD switch (D-12).
+   *
+   * Read here rather than by a second store query at checkout, because this is already
+   * the one authoritative read of the store row for this variant — two reads could
+   * disagree, and the one that decides whether cash is accepted should not be the
+   * speculative one.
+   */
+  storeCodEnabled: boolean;
 }
 
 export interface ProductListFilters {

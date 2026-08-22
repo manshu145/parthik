@@ -655,6 +655,7 @@ export class DrizzleCatalogRepository implements CatalogRepository {
         quantityAvailable: inventory.quantityAvailable,
         trackInventory: inventory.trackInventory,
         storeAcceptingOrders: stores.isAcceptingOrders,
+        storeCodEnabled: stores.codEnabled,
         storeStatus: stores.status,
         storeMinOrderPaise: stores.minOrderPaise,
       })
@@ -727,6 +728,7 @@ export class DrizzleCatalogRepository implements CatalogRepository {
       // the product itself is fine.
       storeAcceptingOrders: row.storeAcceptingOrders && row.storeStatus === 'OPEN',
       storeMinOrderPaise: row.storeMinOrderPaise,
+      storeCodEnabled: row.storeCodEnabled,
     };
   }
 
