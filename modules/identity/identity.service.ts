@@ -53,6 +53,14 @@ const SESSION_TOUCH_INTERVAL_SECONDS = 60;
 
 export interface SessionContext {
   actor: Actor;
+  /**
+   * Which lifetime band this session belongs to.
+   *
+   * Returned rather than left for the caller to infer from role names: a route
+   * handler guessing "does any role start with ADMIN" would silently give an
+   * ADMIN_FINANCE user a 30-day cookie the moment a role was renamed.
+   */
+  audience: SessionAudience;
   /** Set when the session should be refreshed on the response. */
   renewedCookie?: IssuedSessionToken | undefined;
 }
@@ -258,7 +266,7 @@ export class IdentityService {
       now,
     });
 
-    return { actor, ...(renewedCookie ? { renewedCookie } : {}) };
+    return { actor, audience, ...(renewedCookie ? { renewedCookie } : {}) };
   }
 
   /** Signs the caller out. `allDevices` revokes every session they hold. */

@@ -30,6 +30,13 @@ import type { RoleGrant, UserRecord } from './identity.repository.types';
 export interface Actor {
   userId: string;
   sessionId: string;
+  /**
+   * Needed for privileged Identity Platform calls, which key on the FIREBASE uid and
+   * not ours (D-36). Carried here so a caller cannot accidentally pass a Parthik id
+   * to Firebase — a mistake that would fail silently as "user not found" and leave
+   * refresh tokens live after a "sign out everywhere".
+   */
+  firebaseUid: string;
   phone: string | null;
   fullName: string | null;
   preferredLocale: UserRecord['preferredLocale'];
@@ -58,6 +65,7 @@ export function buildActor(input: {
   return {
     userId: input.userId,
     sessionId: input.sessionId,
+    firebaseUid: input.user.firebaseUid,
     phone: input.user.phone,
     fullName: input.user.fullName,
     preferredLocale: input.user.preferredLocale,
