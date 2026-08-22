@@ -145,6 +145,9 @@ jobs:
       - name: Cart persistence end to end
         run: bash scripts/check-cart-persistence.sh 3240
 
+      - name: Checkout quote end to end
+        run: bash scripts/check-checkout-flow.sh 3250
+
       # Guards the forward-only rule (docs/DATABASE.md §13): a schema edit without a
       # matching generated migration would otherwise reach production as drift.
       - name: Fail if the schema has uncommitted migration drift

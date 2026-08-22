@@ -460,5 +460,98 @@
       "vendor-registration": "Become a vendor",
       "driver-registration": "Become a delivery partner"
     }
+  },
+  "checkout": {
+    "title": "Checkout",
+    "steps": {
+      "address": "Delivery address",
+      "payment": "Payment method",
+      "summary": "Order summary"
+    },
+    "address": {
+      "choose": "Choose a delivery address",
+      "none": "You have no saved addresses yet.",
+      "add": "Add an address",
+      "manage": "Manage addresses",
+      "deliverHere": "Deliver here",
+      "selected": "Delivering here",
+      "unserviceable": "We do not deliver to this PIN code yet",
+      "default": "Default"
+    },
+    "payment": {
+      "choose": "How would you like to pay?",
+      "UPI": "UPI",
+      "CARD": "Credit or debit card",
+      "COD": "Cash on delivery",
+      "codNote": "Pay {amount} in cash when your order arrives",
+      "unavailable": {
+        "COD_DISABLED_PLATFORM": "Cash on delivery is currently unavailable.",
+        "COD_DISABLED_ZONE": "Cash on delivery is not available in your area.",
+        "COD_DISABLED_STORE": "This store does not accept cash on delivery.",
+        "COD_ORDER_VALUE_TOO_HIGH": "Cash on delivery is available on orders up to {max}."
+      }
+    },
+    "summary": {
+      "title": "Order summary",
+      "items": "Items",
+      "itemSavings": "Item savings",
+      "coupon": "Coupon ({code})",
+      "delivery": "Delivery",
+      "free": "Free",
+      "total": "Total payable",
+      "eta": "Arriving in about {min}–{max} minutes",
+      "noTaxNotice": "Prices are inclusive. A tax invoice is not issued at this time."
+    },
+    "placeOrder": "Place order",
+    "placing": "Placing your order…",
+    "blockers": {
+      "CART_EMPTY": "Your cart is empty.",
+      "ADDRESS_REQUIRED": "Choose a delivery address to continue.",
+      "NOT_SERVICEABLE": "We do not deliver to {pincode} yet.",
+      "STORE_NOT_ACCEPTING_ORDERS": "This store is not accepting orders right now.",
+      "MIN_ORDER_NOT_MET": "Add {shortfall} more to reach the {min} minimum.",
+      "INSUFFICIENT_STOCK": "An item in your cart is no longer in stock.",
+      "PRODUCT_UNAVAILABLE": "An item in your cart is no longer available.",
+      "PAYMENT_METHOD_UNAVAILABLE": "That payment method is not available for this order."
+    },
+    "backToCart": "Back to cart"
+  },
+  "addresses": {
+    "title": "Saved addresses",
+    "subtitle": "Where should we deliver your orders?",
+    "empty": {
+      "title": "No saved addresses",
+      "description": "Add an address so we can deliver to you."
+    },
+    "add": "Add address",
+    "edit": "Edit",
+    "delete": "Delete",
+    "makeDefault": "Make default",
+    "default": "Default",
+    "unserviceable": "Not serviceable yet",
+    "eta": "About {minutes} minutes",
+    "confirmDelete": "Remove this address?",
+    "saving": "Saving…",
+    "save": "Save address",
+    "cancel": "Cancel",
+    "limitReached": "You have reached the maximum number of saved addresses.",
+    "form": {
+      "label": "Nickname (optional)",
+      "labelHint": "For example: Home, Office",
+      "type": "Address type",
+      "HOME": "Home",
+      "WORK": "Work",
+      "OTHER": "Other",
+      "recipientName": "Recipient name",
+      "recipientPhone": "Recipient mobile",
+      "line1": "House / flat and street",
+      "line2": "Area (optional)",
+      "landmark": "Landmark (optional)",
+      "city": "City",
+      "state": "State",
+      "pincode": "PIN code",
+      "instructions": "Delivery instructions (optional)",
+      "setDefault": "Use as my default address"
+    }
   }
 }
