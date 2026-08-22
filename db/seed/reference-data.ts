@@ -12,6 +12,13 @@
  */
 
 import type { Locale } from '@/i18n/routing';
+import {
+  PERMISSION_DESCRIPTIONS,
+  PERMISSION_KEYS,
+  ROLE_KEYS,
+  ROLE_PERMISSION_MAP,
+  WILDCARD_PERMISSION,
+} from '@/modules/identity/permissions';
 
 // ---------------------------------------------------------------------------
 // Locales (D-33)
@@ -31,243 +38,34 @@ export const SUPPORTED_LOCALES: Array<{
 ];
 
 // ---------------------------------------------------------------------------
-// Permissions (docs/SECURITY.md §5.3) — `resource:action`
+// Permissions and roles (docs/SECURITY.md §5.2, §5.3)
 // ---------------------------------------------------------------------------
 
-export const PERMISSIONS: Array<{ key: string; description: string }> = [
-  // Orders
-  { key: 'order:list', description: 'List orders' },
-  { key: 'order:view', description: 'View an order and its timeline' },
-  { key: 'order:update_status', description: 'Change operational order status' },
-  { key: 'order:cancel', description: 'Cancel an order' },
-  { key: 'order:note', description: 'Add an internal note to an order' },
+/**
+ * The catalogue itself lives in `modules/identity/permissions.ts`, and is
+ * re-exported here rather than duplicated.
+ *
+ * The RBAC engine and this seeder MUST agree on every key. Two hand-maintained
+ * lists would drift, and the failure mode of that drift is silent: a permission
+ * granted in code but absent from the database denies access to a working
+ * feature, and a permission seeded but unknown to the engine grants nothing.
+ * Deriving both from one declaration removes the possibility.
+ */
+export const PERMISSIONS: Array<{ key: string; description: string }> = PERMISSION_KEYS.map(
+  (key) => ({ key, description: PERMISSION_DESCRIPTIONS[key] })
+);
 
-  // Payments and money
-  { key: 'payment:view', description: 'View payments' },
-  { key: 'payment:reconcile', description: 'Reconcile a payment against the provider' },
-  { key: 'refund:manage', description: 'Initiate and manage refunds' },
-  { key: 'payout:manage', description: 'Manage vendor and driver payout batches' },
-
-  // COD cash — deliberately three separate permissions so verifying a deposit and
-  // writing off a shortfall need not be the same person (docs/SECURITY.md §5.2).
-  { key: 'cash:view', description: 'View driver cash balances and deposits' },
-  { key: 'cash:reconcile', description: 'Verify or reject a declared cash deposit' },
-  { key: 'cash:adjust', description: 'Record a cash adjustment or write-off' },
-
-  // Catalog
-  { key: 'product:list', description: 'List products' },
-  { key: 'product:view', description: 'View a product' },
-  { key: 'product:manage', description: 'Create and edit products' },
-  { key: 'product:publish', description: 'Publish a product' },
-  { key: 'product:approve', description: 'Approve or reject a submitted product' },
-  { key: 'category:manage', description: 'Manage the category tree' },
-  { key: 'brand:manage', description: 'Manage brands' },
-  { key: 'inventory:view', description: 'View stock levels' },
-  { key: 'inventory:manage', description: 'Adjust stock' },
-
-  // Customers
-  { key: 'customer:list', description: 'List customers' },
-  { key: 'customer:view', description: 'View a customer' },
-  { key: 'customer:suspend', description: 'Suspend or ban a customer' },
-
-  // Vendors
-  { key: 'vendor:list', description: 'List vendors' },
-  { key: 'vendor:view', description: 'View a vendor' },
-  { key: 'vendor:approve', description: 'Approve or reject a vendor application' },
-  { key: 'vendor:suspend', description: 'Suspend a vendor' },
-  { key: 'vendor:kyc_review', description: 'Review vendor KYC documents' },
-
-  // Drivers and delivery
-  { key: 'driver:list', description: 'List drivers' },
-  { key: 'driver:view', description: 'View a driver' },
-  { key: 'driver:approve', description: 'Approve or reject a driver application' },
-  { key: 'driver:suspend', description: 'Suspend a driver' },
-  { key: 'delivery:view', description: 'View deliveries and the dispatch board' },
-  { key: 'delivery:assign', description: 'Assign or reassign a driver' },
-  { key: 'zone:manage', description: 'Manage delivery zones, pincodes and fees' },
-
-  // Marketing and content
-  { key: 'coupon:manage', description: 'Manage coupons' },
-  { key: 'promotion:manage', description: 'Manage promotions' },
-  { key: 'banner:manage', description: 'Manage banners' },
-  { key: 'cms:manage', description: 'Manage CMS pages, blog, home layout, redirects' },
-  { key: 'campaign:manage', description: 'Create and schedule campaigns' },
-  { key: 'template:manage', description: 'Manage notification templates' },
-
-  // Engagement
-  { key: 'review:moderate', description: 'Moderate reviews' },
-  { key: 'ticket:list', description: 'List support tickets' },
-  { key: 'ticket:view', description: 'View a support ticket' },
-  { key: 'ticket:reply', description: 'Reply to a support ticket' },
-  { key: 'ticket:manage', description: 'Assign and change ticket status' },
-  { key: 'notification:manage', description: 'Send notifications' },
-
-  // Reporting and platform
-  { key: 'dashboard:view', description: 'View the admin dashboard' },
-  { key: 'analytics:view', description: 'View analytics' },
-  { key: 'report:view', description: 'Generate and download reports' },
-  { key: 'setting:view', description: 'View settings' },
-  { key: 'setting:manage', description: 'Change settings' },
-  { key: 'setting:manage_sensitive', description: 'Change sensitive settings' },
-  { key: 'role:manage', description: 'Manage roles and permissions' },
-  { key: 'admin_user:manage', description: 'Manage admin users' },
-  { key: 'audit:view', description: 'View audit logs' },
-  { key: 'system:view', description: 'View system health' },
-  { key: 'flag:manage', description: 'Manage feature flags' },
-];
-
-// ---------------------------------------------------------------------------
-// Roles → permissions (docs/SECURITY.md §5.2)
-// ---------------------------------------------------------------------------
-
-/** `'*'` means every permission. Only SUPER_ADMIN gets it. */
-export const ROLE_PERMISSIONS: Record<string, string[] | ['*']> = {
-  // Customers and drivers act only on their own resources; ownership is checked
-  // in the service layer, so they hold no admin permissions at all.
-  CUSTOMER: [],
-  DRIVER: [],
-
-  VENDOR_OWNER: [
-    'order:list',
-    'order:view',
-    'order:update_status',
-    'product:list',
-    'product:view',
-    'product:manage',
-    'product:publish',
-    'inventory:view',
-    'inventory:manage',
-    'analytics:view',
-  ],
-
-  // No bank details and no staff management — that is the owner's alone.
-  VENDOR_STAFF: [
-    'order:list',
-    'order:view',
-    'order:update_status',
-    'product:list',
-    'product:view',
-    'product:manage',
-    'inventory:view',
-    'inventory:manage',
-  ],
-
-  ADMIN_SUPPORT: [
-    'dashboard:view',
-    'order:list',
-    'order:view',
-    'order:note',
-    'customer:list',
-    'customer:view',
-    'ticket:list',
-    'ticket:view',
-    'ticket:reply',
-    'delivery:view',
-  ],
-
-  ADMIN_OPS: [
-    'dashboard:view',
-    'order:list',
-    'order:view',
-    'order:update_status',
-    'order:cancel',
-    'order:note',
-    'customer:list',
-    'customer:view',
-    'vendor:list',
-    'vendor:view',
-    'vendor:approve',
-    'vendor:kyc_review',
-    'driver:list',
-    'driver:view',
-    'driver:approve',
-    'delivery:view',
-    'delivery:assign',
-    'zone:manage',
-    'inventory:view',
-    'product:list',
-    'product:view',
-    'product:approve',
-    // Ops needs to see which drivers are over the cash limit to understand
-    // dispatch behaviour, but may not verify deposits or adjust balances.
-    'cash:view',
-    'ticket:list',
-    'ticket:view',
-    'system:view',
-  ],
-
-  ADMIN_FINANCE: [
-    'dashboard:view',
-    'order:list',
-    'order:view',
-    'payment:view',
-    'payment:reconcile',
-    'refund:manage',
-    'payout:manage',
-    'cash:view',
-    'cash:reconcile',
-    'report:view',
-    'analytics:view',
-  ],
-
-  // Everything operational, marketing and CMS — but NOT RBAC, NOT sensitive
-  // settings, and NOT cash adjustments.
-  ADMIN: [
-    'dashboard:view',
-    'order:list',
-    'order:view',
-    'order:update_status',
-    'order:cancel',
-    'order:note',
-    'payment:view',
-    'refund:manage',
-    'payout:manage',
-    'cash:view',
-    'cash:reconcile',
-    'customer:list',
-    'customer:view',
-    'customer:suspend',
-    'vendor:list',
-    'vendor:view',
-    'vendor:approve',
-    'vendor:suspend',
-    'vendor:kyc_review',
-    'driver:list',
-    'driver:view',
-    'driver:approve',
-    'driver:suspend',
-    'delivery:view',
-    'delivery:assign',
-    'zone:manage',
-    'product:list',
-    'product:view',
-    'product:manage',
-    'product:approve',
-    'category:manage',
-    'brand:manage',
-    'inventory:view',
-    'inventory:manage',
-    'coupon:manage',
-    'promotion:manage',
-    'banner:manage',
-    'cms:manage',
-    'campaign:manage',
-    'template:manage',
-    'review:moderate',
-    'ticket:list',
-    'ticket:view',
-    'ticket:reply',
-    'ticket:manage',
-    'notification:manage',
-    'analytics:view',
-    'report:view',
-    'setting:view',
-    'audit:view',
-    'system:view',
-  ],
-
-  SUPER_ADMIN: ['*'],
-};
+export const ROLE_PERMISSIONS: Record<string, string[] | ['*']> = Object.fromEntries(
+  ROLE_KEYS.map((roleKey) => {
+    const granted = ROLE_PERMISSION_MAP[roleKey];
+    return [
+      roleKey,
+      granted.length === 1 && granted[0] === WILDCARD_PERMISSION
+        ? (['*'] as ['*'])
+        : [...(granted as readonly string[])],
+    ];
+  })
+);
 
 // ---------------------------------------------------------------------------
 // Delivery zones (D-17) — ₹199 free-delivery threshold as DATA, not a constant
