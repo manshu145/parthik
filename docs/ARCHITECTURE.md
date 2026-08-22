@@ -505,6 +505,14 @@ Also required: a **reconciliation job** that polls provider status for payments 
 
 Provider: **Razorpay** (D-13 approved). Methods: **UPI, Card and COD** (D-12 approved) — the COD flow is specified in §11.2.1.
 
+**Built (TASK 011).** `lib/payments/` holds the interface, the Razorpay adapter (REST + Web Crypto HMAC, no SDK — the SDK assumes Node and this runs on Workers) and the factory; `modules/payment/` holds the ledger. Three things are worth knowing before changing any of it:
+
+- **A deterministic MOCK GATEWAY resolves when no credentials are present**, outside production. It is not permissive: it verifies signatures with the same Web Crypto code as production under a published development secret, and it parses events with the same mapper. That is what makes the whole path — intent, signed webhook, capture, replay, refund — verifiable in CI without a merchant account (`scripts/check-payment-flow.sh`, 59 assertions against a real PostgreSQL container). `PAYMENTS_PROVIDER=auto` **never** resolves to the mock in production: an unconfigured production deployment fails with a typed 503 instead, and COD keeps working.
+- **The provider named in the webhook URL must match the configured one.** `/webhooks/payments/razorpay` is verified with Razorpay's secret or refused with 401. Without that check a deployment running the mock gateway would honour the mock's development secret — which is public by design — at the Razorpay path.
+- **A capture and its order transition share ONE transaction.** `applyCapture` marks the payment paid, sets the order's payment status, moves the order through the state machine and marks the event processed together. Two sequential transactions fail in the worst place: a crash between them leaves a customer charged for an order the unpaid-order sweep will then cancel.
+
+The key pair and the webhook secret are read and reported **separately** (`lib/payments/config.ts`, `/api/v1/diagnostics/providers`), because a deployment with the pair but no secret can take money it will never be able to confirm.
+
 ### 11.2.1 COD (Cash on Delivery)
 
 COD is not "a payment method option" — it is a second, parallel money path with its own state entry, its own failure modes and a physical cash custody chain. Treating it as a checkbox on checkout is how COD reconciliation goes wrong.

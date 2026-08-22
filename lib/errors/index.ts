@@ -60,6 +60,33 @@ export type ErrorCode =
   | 'COUPON_NOT_APPLICABLE'
   | 'COUPON_FIRST_ORDER_ONLY'
   | 'COUPON_ZONE_RESTRICTED'
+  /**
+   * Payment codes (docs/API_SPEC.md §11).
+   *
+   * `WEBHOOK_SIGNATURE_INVALID` is separate from `UNAUTHENTICATED` on purpose: one is a
+   * customer who needs to sign in, the other is an unsigned or forged provider callback,
+   * and a burst of the second is an attack signal rather than a login problem
+   * (docs/SECURITY.md §8.2).
+   */
+  | 'PAYMENT_FAILED'
+  | 'PAYMENT_ALREADY_CAPTURED'
+  | 'PAYMENT_AMOUNT_MISMATCH'
+  | 'WEBHOOK_SIGNATURE_INVALID'
+  | 'REFUND_EXCEEDS_PAYMENT'
+  /**
+   * COD and cash-custody codes (docs/API_SPEC.md §11, §6.2).
+   *
+   * Named individually because each has a different remedy: a zone limit needs a
+   * different payment method, a driver over their cash limit needs to deposit, and an
+   * amount mismatch needs a variance recorded rather than a refused delivery.
+   */
+  | 'COD_NOT_AVAILABLE_IN_ZONE'
+  | 'COD_NOT_AVAILABLE_FOR_STORE'
+  | 'COD_LIMIT_EXCEEDED'
+  | 'COD_AMOUNT_MISMATCH'
+  | 'DRIVER_CASH_LIMIT_EXCEEDED'
+  | 'DEPOSIT_ALREADY_VERIFIED'
+  | 'DEPOSIT_AMOUNT_INVALID'
   // infrastructure
   | 'RATE_LIMITED'
   | 'PROVIDER_UNAVAILABLE'

@@ -1341,3 +1341,22 @@ Covered in §1. Restated here because it has the same shape: the schema typechec
 ### 15.3 `onConflictDoUpdate` and `onConflictDoNothing` take different predicate keys
 
 `onConflictDoUpdate` filters the conflict target with `targetWhere`; `onConflictDoNothing` uses `where`. Passing `where` to the former typechecks and silently changes which rows the upsert applies to.
+
+### 15.4 A `Date` inside a raw `sql` template is sent unconverted
+
+Drizzle converts a JS `Date` to the right wire format when it knows the column type. Inside a raw `sql` fragment it does not, so this:
+
+```ts
+// ⚠️ WRONG — do not copy
+authorizedAt: sql`coalesce(${payments.authorizedAt}, ${input.paidAt})`,
+```
+
+sends `Sat Aug 22 2026 15:20:47 GMT+0000` as a bare parameter and Postgres rejects the statement. It typechecks, and it fails only when the query reaches a server — in this case inside the payment-capture transaction, so the webhook returned 500 and the provider retried a payment that had already been taken.
+
+The rule: resolve the value in TypeScript from a row you already hold (the capture path locks the payment row anyway) rather than expressing the fallback in SQL.
+
+### 15.5 `inventory_transactions_order_movement_key` forbids a second movement of the same type
+
+The unique index on `(reference_id, variant_id, txn_type)` is what makes `RESERVE`, `RELEASE` and `SALE` idempotent per order — a retried queue message cannot move the same stock twice. The consequence is easy to miss: **an order can never have two `RESERVE` rows.**
+
+Failed-payment recovery has to re-take stock the failure released, and writing a second `RESERVE` row raised a unique violation that aborted the entire capture transaction. Recovery therefore records an `ADJUSTMENT` with the order's `reference_id` and a reason (`modules/order/order.repository.ts` → `reReserveStock`). Stock stays reproducible from the ledger, and the same index makes the re-reservation idempotent in its turn.

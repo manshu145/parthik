@@ -94,6 +94,36 @@ const serverSchema = z.object({
    */
   MAPS_PROVIDER: z.enum(['auto', 'google', 'mock']).default('auto'),
 
+  /**
+   * ---- Razorpay (D-13, TASK 011) ----
+   *
+   * Three separate optional values rather than one credential blob, because they fail
+   * independently and the failures need different answers. The key PAIR is needed to create
+   * a payment intent; the WEBHOOK SECRET is needed to trust an incoming callback. A
+   * deployment can legitimately have one and not the other mid-rollout, and the surface that
+   * breaks must be able to say which one is missing (see `lib/payments/config.ts`).
+   *
+   * The secret and the webhook secret are never sent to the browser, so they are server-only
+   * by placement. `RAZORPAY_KEY_ID` is safe to expose and is handed to the client through the
+   * intent response rather than through a NEXT_PUBLIC_* variable — that way a key rotation
+   * takes effect on the next request instead of requiring a rebuild.
+   */
+  RAZORPAY_KEY_ID: nonEmpty.optional(),
+  RAZORPAY_KEY_SECRET: nonEmpty.optional(),
+  RAZORPAY_WEBHOOK_SECRET: nonEmpty.optional(),
+
+  /**
+   * Payment provider selection, same shape as `MAPS_PROVIDER`.
+   *
+   * `auto` uses Razorpay when the credentials are present and a deterministic mock gateway
+   * when they are not, so the whole payment path — intent, signed webhook, capture, refund —
+   * is exercisable on a fresh clone with no merchant account. `auto` NEVER resolves to the
+   * mock in production: taking a real customer's money through a fake gateway is the one
+   * failure mode that must be impossible, so an unconfigured production deployment gets a
+   * typed 503 instead.
+   */
+  PAYMENTS_PROVIDER: z.enum(['auto', 'razorpay', 'mock']).default('auto'),
+
   // ---- Analytics (D-28) ----
   GA4_API_SECRET: nonEmpty.optional(),
 

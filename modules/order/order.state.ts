@@ -43,6 +43,14 @@ export type TransitionActor = 'CUSTOMER' | 'VENDOR' | 'DRIVER' | 'ADMIN' | 'SYST
 export type TransitionEffect =
   /** Return reserved units to sellable stock (D-16). */
   | 'RELEASE_STOCK'
+  /**
+   * Take the reservation BACK, for failed-payment recovery.
+   *
+   * A payment failure releases the stock immediately, so an order that later succeeds on a
+   * retry has nothing held for it. Without this the order would confirm against inventory it
+   * never reserved, and the sale would be deducted from a reservation that does not exist.
+   */
+  | 'RESERVE_STOCK'
   /** Convert the reservation to a sale. Only on delivery. */
   | 'CONSUME_STOCK'
   /** Mark the COD payment PAID and write the driver cash ledger entry. */
@@ -223,8 +231,18 @@ export const ORDER_TRANSITIONS: Readonly<Record<OrderStatus, readonly Transition
   ],
 
   PAYMENT_FAILED: [
-    // Failed-payment recovery: a retried payment can still confirm the order.
-    { to: 'CONFIRMED', actors: ['SYSTEM'], effects: ['NOTIFY_CUSTOMER', 'NOTIFY_VENDOR'] },
+    /**
+     * Failed-payment recovery: a retried payment can still confirm the order.
+     *
+     * RESERVE_STOCK is what makes this safe. The earlier failure gave the units back, so they
+     * have to be taken again — and if someone else bought them in the meantime, the shortfall
+     * is reported loudly rather than the order confirming against stock that is not there.
+     */
+    {
+      to: 'CONFIRMED',
+      actors: ['SYSTEM'],
+      effects: ['RESERVE_STOCK', 'NOTIFY_CUSTOMER', 'NOTIFY_VENDOR'],
+    },
     { to: 'CANCELLED', actors: ['CUSTOMER', 'SYSTEM', 'ADMIN'], effects: ['RELEASE_COUPON'] },
   ],
 

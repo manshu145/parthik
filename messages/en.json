@@ -577,7 +577,8 @@
       "timeline": "Order history",
       "track": "Track this order",
       "backToOrders": "Back to orders",
-      "cancelledReason": "Cancellation reason: {reason}"
+      "cancelledReason": "Cancellation reason: {reason}",
+      "completePayment": "Complete payment"
     },
     "cancel": {
       "action": "Cancel order",
@@ -610,6 +611,25 @@
       "settled": "This order is complete, so it is no longer being updated.",
       "stopped": "We could not refresh this. Try again when you are ready.",
       "notInProgress": "This order is not in progress."
+    }
+  },
+  "payments": {
+    "pageTitle": "Complete your payment",
+    "title": "Pay for order {number}",
+    "amountDue": "Amount due: {amount}",
+    "preparing": "Preparing a secure payment…",
+    "pay": "Pay now",
+    "verifying": "Checking with your bank…",
+    "verifyingNote": "We are confirming this with the payment provider. Do not close this page — it usually takes a few seconds.",
+    "safeToLeave": "Your order is saved. If the payment does not go through, you can try again from your orders.",
+    "failed": "That payment did not go through. You can try again.",
+    "problem": "We could not complete the payment",
+    "scriptFailed": "The payment window could not be opened. Check your connection and try again.",
+    "timeout": "We have not heard back about this payment yet. Try again, or check your orders shortly.",
+    "viewOrder": "View this order",
+    "mock": {
+      "title": "Online payment is not set up in this environment",
+      "description": "Your order has been placed and is waiting for payment. No payment provider is configured here, so this page cannot take money. Use cash on delivery instead, or ask an administrator to configure the payment provider."
     }
   },
   "addresses": {
