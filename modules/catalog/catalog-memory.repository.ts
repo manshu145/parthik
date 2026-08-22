@@ -555,6 +555,7 @@ export class InMemoryCatalogRepository implements CatalogRepository {
       // DEV_STORE is seeded OPEN and accepting orders.
       storeAcceptingOrders: DEV_STORE.status === 'OPEN',
       storeMinOrderPaise: DEV_STORE.minOrderPaise,
+      storeCodEnabled: DEV_STORE.codEnabled,
     };
   }
 

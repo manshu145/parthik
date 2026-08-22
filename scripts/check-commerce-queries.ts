@@ -15,7 +15,9 @@ import { products, productVariants } from '@/db/schema/catalog';
 import { coupons } from '@/db/schema/marketing';
 import { closeDb, getDb } from '@/lib/db/client';
 import { DrizzleCartStore } from '@/modules/cart/cart.repository';
+import { DrizzleCustomerRepository } from '@/modules/customer/customer.repository';
 import { DrizzleIdentityRepository } from '@/modules/identity/identity.repository';
+import { DrizzleSettingsRepository } from '@/modules/settings/settings.repository';
 
 let failures = 0;
 
@@ -36,6 +38,7 @@ async function main(): Promise<void> {
   const db = await getDb();
   const carts = new DrizzleCartStore({ db });
   const identity = new DrizzleIdentityRepository({ db });
+  const addresses = new DrizzleCustomerRepository({ db });
 
   console.log('\nCommerce queries against real PostgreSQL:\n');
 
@@ -182,6 +185,120 @@ async function main(): Promise<void> {
   });
 
   await check('cart.clear (idempotent when no cart exists)', () => carts.clear(user.id));
+
+  // ---- Address book ----
+  //
+  // The default-address rules are enforced by a PARTIAL unique index
+  // (`addresses_default_key ... where is_default = true and deleted_at is null`), so they
+  // can only be validated against a real database — an in-memory repository cannot fail
+  // the way Postgres would.
+  const ADDRESS = {
+    addressType: 'HOME' as const,
+    recipientName: 'Commerce Check',
+    recipientPhone: '+919876543210',
+    line1: '1 Test Street',
+    city: 'Indore',
+    state: 'Madhya Pradesh',
+    pincode: '452001',
+  };
+
+  let firstAddressId = '';
+  let secondAddressId = '';
+
+  await check('address.create (first becomes the default)', async () => {
+    const created = await addresses.create(user.id, ADDRESS, null);
+    firstAddressId = created.id;
+    if (!created.isDefault) throw new Error('the first address must be the default');
+    return created;
+  });
+
+  await check('address.create (second does not steal the default)', async () => {
+    const created = await addresses.create(user.id, { ...ADDRESS, label: 'Second' }, null);
+    secondAddressId = created.id;
+    if (created.isDefault) throw new Error('a later address must not become the default');
+    return created;
+  });
+
+  await check('address.setDefault (promotes and demotes in one transaction)', async () => {
+    await addresses.setDefault(user.id, secondAddressId);
+    const list = await addresses.listForUser(user.id);
+    const defaults = list.filter((a) => a.isDefault);
+    if (defaults.length !== 1)
+      throw new Error(`expected exactly 1 default, got ${defaults.length}`);
+    if (defaults[0]?.id !== secondAddressId) throw new Error('the wrong address is default');
+    return list;
+  });
+
+  await check('address.listForUser (default sorts first)', async () => {
+    const list = await addresses.listForUser(user.id);
+    if (list[0]?.id !== secondAddressId) throw new Error('the default must sort first');
+    return list;
+  });
+
+  await check('address.findForUser (scoped to the owner)', async () => {
+    const mine = await addresses.findForUser(user.id, firstAddressId);
+    if (!mine) throw new Error('the owner could not read their own address');
+
+    // Another user must get null, not a row — and not an error that reveals existence.
+    const admin = await identity.findUserByFirebaseUid('dev-firebase-uid-admin');
+    if (admin) {
+      const theirs = await addresses.findForUser(admin.id, firstAddressId);
+      if (theirs !== null) throw new Error('another customer could read this address');
+    }
+    return mine;
+  });
+
+  await check('address.softDelete (promotes a replacement default)', async () => {
+    await addresses.softDelete(user.id, secondAddressId);
+    const list = await addresses.listForUser(user.id);
+    if (list.length !== 1) throw new Error(`expected 1 remaining, got ${list.length}`);
+    if (!list[0]?.isDefault) throw new Error('the survivor must become the default');
+    return list;
+  });
+
+  await check('address.softDelete (deleted rows stay out of reads)', async () => {
+    const gone = await addresses.findForUser(user.id, secondAddressId);
+    if (gone !== null) throw new Error('a soft-deleted address is still readable');
+    return gone;
+  });
+
+  await check('address.update (round-trips and keeps the default)', async () => {
+    const updated = await addresses.update(
+      user.id,
+      firstAddressId,
+      { ...ADDRESS, line1: '2 Changed Street', landmark: 'Near the park' },
+      null
+    );
+    if (updated?.line1 !== '2 Changed Street') throw new Error('line1 did not round-trip');
+    if (!updated?.isDefault) throw new Error('updating must not clear the default');
+    return updated;
+  });
+
+  await check('address.update (rejects another owner)', async () => {
+    const admin = await identity.findUserByFirebaseUid('dev-firebase-uid-admin');
+    if (!admin) return null;
+    const result = await addresses.update(admin.id, firstAddressId, ADDRESS, null);
+    if (result !== null) throw new Error('another customer could update this address');
+    return result;
+  });
+
+  await check('address.softDelete (rejects another owner)', async () => {
+    const admin = await identity.findUserByFirebaseUid('dev-firebase-uid-admin');
+    if (!admin) return null;
+    const result = await addresses.softDelete(admin.id, firstAddressId);
+    if (result !== false) throw new Error('another customer could delete this address');
+    return result;
+  });
+
+  // ---- Settings ----
+  await check('settings.readMany (COD controls resolve from admin_settings)', async () => {
+    const rows = await new DrizzleSettingsRepository({ db }).readMany([
+      'cod.enabled',
+      'cod.max_order_value_paise',
+    ]);
+    if (rows.length === 0) throw new Error('COD settings are not seeded');
+    return rows;
+  });
 
   console.log(`\n${failures === 0 ? '✅' : '❌'} Commerce SQL: ${failures} failure(s).\n`);
   if (failures > 0) process.exitCode = 1;
