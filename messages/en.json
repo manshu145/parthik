@@ -611,6 +611,12 @@
       "settled": "This order is complete, so it is no longer being updated.",
       "stopped": "We could not refresh this. Try again when you are ready.",
       "notInProgress": "This order is not in progress."
+    },
+    "deliveryCode": {
+      "title": "Your delivery code",
+      "reveal": "Show delivery code",
+      "share": "Read this out to the delivery partner when they arrive.",
+      "replaceWarning": "Asking for a new code replaces this one, so only do that if the partner cannot use it."
     }
   },
   "payments": {
@@ -668,6 +674,112 @@
       "pincode": "PIN code",
       "instructions": "Delivery instructions (optional)",
       "setDefault": "Use as my default address"
+    }
+  },
+  "vendorOrders": {
+    "tabsLabel": "Order queue",
+    "tabs": {
+      "new": "New",
+      "accepted": "Accepted",
+      "preparing": "Preparing",
+      "ready": "Out for delivery",
+      "completed": "Completed",
+      "cancelled": "Cancelled"
+    },
+    "empty": "Nothing in this list right now.",
+    "cod": "Collect cash",
+    "itemSummary": "{count, plural, one {# item} other {# items}} · {name}",
+    "actions": {
+      "accept": "Accept",
+      "startPreparing": "Start preparing",
+      "markReady": "Ready for pickup",
+      "reject": "Cannot fulfil",
+      "confirmReject": "Reject this order"
+    },
+    "rejectPrompt": "Tell us why you cannot fulfil this order. The customer is told and any payment is reversed.",
+    "rejectPlaceholder": "For example: out of stock"
+  },
+  "driverConsole": {
+    "title": "Today",
+    "online": "You are online",
+    "offline": "You are offline",
+    "availabilityHint": "You only receive delivery offers while you are online.",
+    "goOnline": "Go online",
+    "goOffline": "Go offline",
+    "cashBlocked": "You are holding too much cash, so cash-on-delivery orders are paused. Deposit your cash to start receiving them again.",
+    "offersTitle": "Available deliveries",
+    "noOffers": "No deliveries available right now. This list updates on its own.",
+    "offlineNoOffers": "Go online to start receiving deliveries.",
+    "offerCod": "Collect {amount} in cash",
+    "offerPrepaid": "Already paid online",
+    "accept": "Accept",
+    "prepaid": "Already paid",
+    "collectCash": "Collect cash",
+    "pickup": "Pick up from",
+    "drop": "Deliver to",
+    "cashToCollect": "Collect {amount} in cash from the customer",
+    "steps": {
+      "reachedStore": "I have reached the store",
+      "pickup": "I have collected the order",
+      "enRoute": "On my way to the customer",
+      "reachedCustomer": "I have reached the customer"
+    },
+    "handover": "Complete the delivery",
+    "cashCollectedLabel": "Cash collected (₹)",
+    "cashCollectedPlaceholder": "Enter the amount you actually received",
+    "otpLabel": "6-digit code from the customer",
+    "otpAttempts": "{used, plural, one {# incorrect attempt so far} other {# incorrect attempts so far}}",
+    "completeDelivery": "Confirm delivery",
+    "cashMismatch": "Delivered. The amount you collected does not match the order, and the difference has been recorded for the office."
+  },
+  "cash": {
+    "inHandTitle": "Cash in hand",
+    "limitLine": "Limit {limit} · you can still collect {headroom}",
+    "blocked": "Cash-on-delivery orders are paused until you deposit your cash.",
+    "overdue": "You have been holding cash for more than {hours} hours. Please deposit it.",
+    "declareTitle": "Declare a deposit",
+    "declareNote": "Declaring is not the same as settling. Your cash in hand changes only after the office counts the money.",
+    "amountLabel": "Amount you are depositing (₹)",
+    "methodLabel": "How are you depositing it?",
+    "method": {
+      "OFFICE_CASH": "At the office",
+      "BANK_TRANSFER": "Bank transfer",
+      "UPI": "UPI"
+    },
+    "referenceLabel": "Reference or slip number",
+    "referencePlaceholder": "Optional, but it makes verification faster",
+    "declareAction": "Declare deposit",
+    "depositsTitle": "Your deposits",
+    "ledgerTitle": "Every movement",
+    "ledgerEmpty": "No cash movements yet.",
+    "variance": "Short by {amount}",
+    "status": {
+      "DECLARED": "Awaiting verification",
+      "VERIFIED": "Verified",
+      "PARTIAL": "Verified with a difference",
+      "REJECTED": "Rejected"
+    },
+    "entry": {
+      "COLLECTION": "Collected on delivery",
+      "DEPOSIT": "Deposited",
+      "ADJUSTMENT": "Adjustment",
+      "WRITE_OFF": "Written off"
+    },
+    "admin": {
+      "exposureTitle": "Cash exposure",
+      "outstanding": "Held by drivers right now",
+      "overLimit": "Drivers over the {limit} limit",
+      "blocked": "No cash orders",
+      "queueTitle": "Deposits awaiting verification",
+      "queueEmpty": "Nothing is waiting to be counted.",
+      "countedLabel": "Counted (₹)",
+      "verify": "Verify",
+      "reject": "Reject",
+      "readOnly": "You can see this queue but not settle it.",
+      "defaultRejectReason": "The deposit could not be located",
+      "driversTitle": "Cash in hand per driver",
+      "variancesTitle": "Collection differences",
+      "short": "Short by {amount}"
     }
   }
 }

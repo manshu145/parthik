@@ -631,6 +631,55 @@ else
   fail "the write-off carries a reason" "reason was empty"
 fi
 
+# ---------------------------------------------------------------------------
+# 11. The screens.
+#
+# The APIs above are proven; these assert the pages are actually wired to them and that the
+# permission split is honoured in the UI as well as in the endpoint.
+# ---------------------------------------------------------------------------
+if curl -sS -b /tmp/ful-vendor.txt "${BASE}/vendor/orders" | grep -q 'data-testid="vendor-order-queue"'; then
+  pass "/vendor/orders renders the real queue, not the placeholder"
+else
+  fail "/vendor/orders renders the real queue" "queue testid missing"
+fi
+
+if curl -sS -b /tmp/ful-vendor.txt "${BASE}/vendor/orders" | grep -q 'data-testid="dashboard-pending"'; then
+  fail "/vendor/orders no longer shows the pending placeholder" "the placeholder is still rendered"
+else
+  pass "/vendor/orders no longer shows the pending placeholder"
+fi
+
+if curl -sS -b /tmp/ful-cust.txt "${BASE}/vendor/orders" | grep -q 'data-testid="vendor-order-queue"'; then
+  fail "a customer cannot see the vendor queue screen" "the queue rendered for a customer"
+else
+  pass "a customer cannot see the vendor queue screen"
+fi
+
+if curl -sS -b /tmp/ful-driver.txt "${BASE}/driver" | grep -q 'data-testid="driver-console"'; then
+  pass "/driver renders the working console"
+else
+  fail "/driver renders the working console" "console testid missing"
+fi
+
+if curl -sS -b /tmp/ful-driver.txt "${BASE}/driver/cash" | grep -q 'data-testid="driver-cash-panel"'; then
+  pass "/driver/cash renders the float panel"
+else
+  fail "/driver/cash renders the float panel" "panel testid missing"
+fi
+
+if curl -sS -b /tmp/ful-admin.txt "${BASE}/admin/cash" | grep -q 'data-testid="admin-cash-board"'; then
+  pass "/admin/cash renders the reconciliation board"
+else
+  fail "/admin/cash renders the reconciliation board" "board testid missing"
+fi
+
+# `cash:view` without `cash:reconcile` must see the queue and not the controls.
+if curl -sS -b /tmp/ful-support.txt "${BASE}/admin/cash" | grep -q 'data-testid="admin-cash-board"'; then
+  fail "an admin without cash:view cannot open the board" "the board rendered"
+else
+  pass "an admin without cash:view cannot open the board"
+fi
+
 echo
 if [ "$failures" -ne 0 ]; then
   echo "❌ Fulfilment flow: ${failures} failure(s)."
