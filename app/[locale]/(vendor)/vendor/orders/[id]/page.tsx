@@ -103,9 +103,7 @@ export default async function VendorOrderDetailPage({
 
               <div className="border-border flex items-center justify-between border-t pt-3 font-semibold">
                 <span>{tOrders('summary.total')}</span>
-                <span data-testid="vendor-order-total">
-                  {money(detail.order.totalAmountPaise)}
-                </span>
+                <span data-testid="vendor-order-total">{money(detail.order.totalAmountPaise)}</span>
               </div>
 
               {detail.order.isCod && (
@@ -128,7 +126,9 @@ export default async function VendorOrderDetailPage({
                 <span>{tOrders(`detail.paymentMethod.${detail.order.paymentMethod}`)}</span>
               </div>
               <div className="flex items-center justify-between gap-3">
-                <span className="text-muted-foreground">{tOrders('detail.paymentStatusLabel')}</span>
+                <span className="text-muted-foreground">
+                  {tOrders('detail.paymentStatusLabel')}
+                </span>
                 <span>{detail.order.paymentStatus}</span>
               </div>
             </CardContent>
