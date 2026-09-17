@@ -1,11 +1,13 @@
 import type { Metadata } from 'next';
 import { getTranslations, setRequestLocale } from 'next-intl/server';
-import { DashboardPage } from '@/components/layout/dashboard-page';
+import { Badge } from '@/components/ui/badge';
+import { Card, CardContent } from '@/components/ui/card';
+import { requireCurrentActor } from '@/lib/auth/current-actor';
+import { getDeliveryService } from '@/modules/delivery';
 
-/**
- * Route is live, screen is pending. See components/layout/dashboard-page.tsx for
- * why a shared placeholder is the honest choice here.
- */
+/** Read-only driver identity/profile view. */
+
+export const dynamic = 'force-dynamic';
 
 export async function generateMetadata({
   params,
@@ -15,7 +17,6 @@ export async function generateMetadata({
   const { locale } = await params;
   const t = await getTranslations({ locale, namespace: 'driverNav' });
 
-  // Every dashboard route is noindex (docs/ROUTES.md §6–§8).
   return { title: t('profile'), robots: { index: false, follow: false } };
 }
 
@@ -23,14 +24,34 @@ export default async function Page({ params }: { params: Promise<{ locale: strin
   const { locale } = await params;
   setRequestLocale(locale);
 
-  const t = await getTranslations('driverNav');
-  const tDashboard = await getTranslations('dashboard');
+  const actor = await requireCurrentActor();
+  const service = await getDeliveryService();
+  const [driver, t] = await Promise.all([
+    service.requireDriver(actor.userId),
+    getTranslations('driverNav'),
+  ]);
 
   return (
-    <DashboardPage
-      title={t('profile')}
-      pendingLabel={tDashboard('pendingLabel')}
-      pendingDescription={tDashboard('pendingDescription')}
-    />
+    <div className="mx-auto flex max-w-2xl flex-col gap-4" data-testid="driver-profile">
+      <h1 className="text-xl font-semibold">{t('profile')}</h1>
+
+      <Card>
+        <CardContent className="flex flex-col gap-4 p-4">
+          <div>
+            <p className="text-lg font-semibold">{driver.fullName}</p>
+            <p className="text-muted-foreground text-sm">{driver.phone}</p>
+          </div>
+
+          <div className="flex flex-wrap gap-2">
+            <Badge variant={driver.status === 'APPROVED' ? 'success' : 'warning'}>
+              {driver.status.replaceAll('_', ' ')}
+            </Badge>
+            <Badge>{driver.availability.replaceAll('_', ' ')}</Badge>
+          </div>
+
+          <p className="text-muted-foreground text-sm">{driver.driverCode}</p>
+        </CardContent>
+      </Card>
+    </div>
   );
 }
