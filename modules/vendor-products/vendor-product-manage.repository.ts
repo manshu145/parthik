@@ -1,4 +1,4 @@
-import { and, asc, eq, isNull, sql } from 'drizzle-orm';
+import { and, asc, eq, isNull, ne, sql } from 'drizzle-orm';
 import {
   categories,
   categoryTranslations,
@@ -104,6 +104,7 @@ export async function createVendorProduct(
   return db.transaction(async (tx) => {
     await assertStoreOwnedByVendor(tx, vendorId, input.storeId);
     await assertCategoryAvailable(tx, input.categoryId);
+    await assertSkuAvailable(tx, vendorId, input.sku ?? null);
 
     const slug = `${slugify(input.name)}-${crypto.randomUUID().slice(0, 8)}`;
     const [product] = await tx
@@ -198,18 +199,37 @@ export async function updateVendorProduct(
     await assertCategoryAvailable(tx, input.categoryId);
 
     const [existing] = await tx
-      .select({ id: products.id })
+      .select({ id: products.id, storeId: products.storeId })
       .from(products)
       .where(
         and(eq(products.id, productId), eq(products.vendorId, vendorId), isNull(products.deletedAt))
       )
       .limit(1);
     if (!existing) throw new NotFoundError('Product not found.');
+    if (existing.storeId !== input.storeId) {
+      throw new ValidationError(
+        'A product cannot be moved to another store after creation. Create a new product for that store instead.'
+      );
+    }
+
+    const [variant] = await tx
+      .select({ id: productVariants.id })
+      .from(productVariants)
+      .where(
+        and(
+          eq(productVariants.productId, productId),
+          eq(productVariants.isDefault, true),
+          isNull(productVariants.deletedAt)
+        )
+      )
+      .limit(1);
+    if (!variant) throw new ConflictError('This product is missing its required default variant.');
+
+    await assertSkuAvailable(tx, vendorId, input.sku ?? null, variant.id);
 
     const [updated] = await tx
       .update(products)
       .set({
-        storeId: input.storeId,
         categoryId: input.categoryId,
         unitLabel: input.unitLabel,
         pricePaise: input.pricePaise,
@@ -245,19 +265,6 @@ export async function updateVendorProduct(
       .where(
         and(eq(productTranslations.productId, productId), eq(productTranslations.locale, 'en'))
       );
-
-    const [variant] = await tx
-      .select({ id: productVariants.id })
-      .from(productVariants)
-      .where(
-        and(
-          eq(productVariants.productId, productId),
-          eq(productVariants.isDefault, true),
-          isNull(productVariants.deletedAt)
-        )
-      )
-      .limit(1);
-    if (!variant) throw new ConflictError('This product is missing its required default variant.');
 
     await tx
       .update(productVariants)
@@ -297,7 +304,6 @@ export async function updateVendorProduct(
     await tx
       .update(inventory)
       .set({
-        storeId: input.storeId,
         quantityAvailable: input.quantityAvailable,
         lowStockThreshold: input.lowStockThreshold,
         trackInventory: input.trackInventory,
@@ -310,7 +316,7 @@ export async function updateVendorProduct(
     if (delta !== 0) {
       await tx.insert(inventoryTransactions).values({
         variantId: variant.id,
-        storeId: input.storeId,
+        storeId: existing.storeId,
         txnType: 'ADJUSTMENT',
         quantityDelta: delta,
         quantityAfter: input.quantityAvailable,
@@ -346,6 +352,34 @@ async function assertCategoryAvailable(tx: Awaited<ReturnType<typeof getDb>>, ca
     )
     .limit(1);
   if (!row) throw new ValidationError('Choose an active category.');
+}
+
+async function assertSkuAvailable(
+  tx: Awaited<ReturnType<typeof getDb>>,
+  vendorId: string,
+  sku: string | null,
+  excludeVariantId?: string
+) {
+  if (!sku) return;
+
+  const predicates = [
+    eq(products.vendorId, vendorId),
+    eq(productVariants.sku, sku),
+    isNull(products.deletedAt),
+    isNull(productVariants.deletedAt),
+  ];
+  if (excludeVariantId) predicates.push(ne(productVariants.id, excludeVariantId));
+
+  const [duplicate] = await tx
+    .select({ id: productVariants.id })
+    .from(productVariants)
+    .innerJoin(products, eq(products.id, productVariants.productId))
+    .where(and(...predicates))
+    .limit(1);
+
+  if (duplicate) {
+    throw new ConflictError('That SKU is already used by another product in this vendor account.');
+  }
 }
 
 function slugify(value: string) {
