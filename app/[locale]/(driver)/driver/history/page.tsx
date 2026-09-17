@@ -1,22 +1,22 @@
 import type { Metadata } from 'next';
 import { getFormatter, getTranslations, setRequestLocale } from 'next-intl/server';
-import { requireCurrentActor } from '@/lib/auth/current-actor';
-import { formatPaise, paise } from '@/lib/money';
 import { OrderStatusBadge } from '@/components/orders/order-status-badge';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
-import { getDeliveryService } from '@/modules/delivery';
+import { requireCurrentActor } from '@/lib/auth/current-actor';
+import { formatPaise, paise } from '@/lib/money';
+import { getDriverHistoryForUser } from '@/modules/driver-history/driver-history.repository';
 
 /**
  * Driver delivery history — REAL SCREEN (docs/ROUTES.md §7).
  *
- * The DRIVER role intentionally has no broad permissions. `DeliveryService.history()` resolves
- * the caller's driver record first and the repository scopes the query by that driver id, so a
- * driver cannot enumerate another driver's completed work.
+ * The DRIVER role intentionally has no broad permissions. The read model resolves the caller's
+ * driver record first and scopes every row to that driver id, so a driver cannot enumerate
+ * another driver's completed work.
  *
- * Pagination uses the delivery repository's opaque `(createdAt, id)` keyset cursor so rows that
- * share the same timestamp cannot disappear at a page boundary.
+ * Pagination uses an opaque `(createdAt, id)` descending keyset cursor so rows that share the same
+ * timestamp cannot disappear at a page boundary.
  *
  * This screen deliberately does not expose historical customer phone numbers or addresses. Those
  * fields are operationally necessary only while a delivery is active; keeping them visible in an
@@ -47,9 +47,8 @@ export default async function Page({
   setRequestLocale(locale);
 
   const actor = await requireCurrentActor();
-  const service = await getDeliveryService();
   const [{ items, nextCursor }, tNav, tConsole, format] = await Promise.all([
-    service.history({ userId: actor.userId, limit: 25, cursor: query.cursor }),
+    getDriverHistoryForUser({ userId: actor.userId, limit: 25, cursor: query.cursor }),
     getTranslations('driverNav'),
     getTranslations('driverConsole'),
     getFormatter(),
