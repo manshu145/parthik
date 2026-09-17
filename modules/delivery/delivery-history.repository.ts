@@ -114,8 +114,7 @@ export class StableHistoryDeliveryRepository extends DrizzleDeliveryRepository {
       order: {
         ...row.order,
         status: row.order.status as DeliveryWithOrder['order']['status'],
-        codAmountPaise:
-          row.order.codAmountPaise === null ? null : Number(row.order.codAmountPaise),
+        codAmountPaise: row.order.codAmountPaise === null ? null : Number(row.order.codAmountPaise),
         totalAmountPaise: Number(row.order.totalAmountPaise),
       },
     }));
@@ -126,7 +125,11 @@ export class StableHistoryDeliveryRepository extends DrizzleDeliveryRepository {
       items,
       nextCursor:
         hasMore && last
-          ? encodeCursor(HISTORY_CURSOR_KEY, last.delivery.createdAt.toISOString(), last.delivery.id)
+          ? encodeCursor(
+              HISTORY_CURSOR_KEY,
+              last.delivery.createdAt.toISOString(),
+              last.delivery.id
+            )
           : null,
     };
   }
