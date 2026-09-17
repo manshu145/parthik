@@ -132,7 +132,10 @@ export default async function Page({
           ) : (
             <ul className="mt-3 flex flex-col divide-y">
               {view.proofs.map((proof) => (
-                <li key={proof.id} className="flex flex-wrap items-center justify-between gap-3 py-3">
+                <li
+                  key={proof.id}
+                  className="flex flex-wrap items-center justify-between gap-3 py-3"
+                >
                   <div>
                     <p className="font-medium">{proof.proofType.replaceAll('_', ' ')}</p>
                     <p className="text-muted-foreground mt-1 text-xs">
