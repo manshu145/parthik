@@ -4,15 +4,16 @@ import { requireCurrentActor } from '@/lib/auth/current-actor';
 import { formatPaise, paise } from '@/lib/money';
 import { OrderStatusBadge } from '@/components/orders/order-status-badge';
 import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
-import { getDeliveryService } from '@/modules/delivery';
+import { getDriverHistoryRepository } from '@/modules/driver-history';
 
 /**
  * Driver delivery history — REAL SCREEN (docs/ROUTES.md §7).
  *
- * The DRIVER role intentionally has no broad permissions. `DeliveryService.history()` resolves
- * the caller's driver record first and the repository scopes the query by that driver id, so a
- * driver cannot enumerate another driver's completed work.
+ * Ownership is resolved from the authenticated user's driver record; the request never accepts a
+ * driver id. Pagination uses an opaque `(createdAt, id)` keyset cursor so rows that share the same
+ * timestamp cannot disappear at a page boundary.
  *
  * This screen deliberately does not expose historical customer phone numbers or addresses. Those
  * fields are operationally necessary only while a delivery is active; keeping them visible in an
@@ -32,14 +33,20 @@ export async function generateMetadata({
   return { title: t('history'), robots: { index: false, follow: false } };
 }
 
-export default async function Page({ params }: { params: Promise<{ locale: string }> }) {
-  const { locale } = await params;
+export default async function Page({
+  params,
+  searchParams,
+}: {
+  params: Promise<{ locale: string }>;
+  searchParams: Promise<{ cursor?: string }>;
+}) {
+  const [{ locale }, query] = await Promise.all([params, searchParams]);
   setRequestLocale(locale);
 
   const actor = await requireCurrentActor();
-  const service = await getDeliveryService();
-  const [{ items }, tNav, tConsole, format] = await Promise.all([
-    service.history({ userId: actor.userId, limit: 50 }),
+  const repository = await getDriverHistoryRepository();
+  const [{ items, nextCursor }, tNav, tConsole, format] = await Promise.all([
+    repository.listForUser(actor.userId, { limit: 25, cursor: query.cursor }),
     getTranslations('driverNav'),
     getTranslations('driverConsole'),
     getFormatter(),
@@ -54,60 +61,72 @@ export default async function Page({ params }: { params: Promise<{ locale: strin
       {items.length === 0 ? (
         <p className="text-muted-foreground text-sm">{tConsole('noOffers')}</p>
       ) : (
-        <ul className="flex flex-col gap-3">
-          {items.map(({ delivery, order }) => (
-            <li key={delivery.id}>
-              <Card>
-                <CardContent className="flex flex-col gap-3 p-4">
-                  <div className="flex flex-wrap items-start justify-between gap-3">
-                    <div>
-                      <p className="font-medium">{order.orderNumber}</p>
-                      <p className="text-muted-foreground mt-1 text-xs">
-                        {format.dateTime(delivery.createdAt, {
+        <>
+          <ul className="flex flex-col gap-3">
+            {items.map(({ delivery, order }) => (
+              <li key={delivery.id}>
+                <Card>
+                  <CardContent className="flex flex-col gap-3 p-4">
+                    <div className="flex flex-wrap items-start justify-between gap-3">
+                      <div>
+                        <p className="font-medium">{order.orderNumber}</p>
+                        <p className="text-muted-foreground mt-1 text-xs">
+                          {format.dateTime(delivery.createdAt, {
+                            dateStyle: 'medium',
+                            timeStyle: 'short',
+                          })}
+                        </p>
+                      </div>
+                      <OrderStatusBadge status={order.status} />
+                    </div>
+
+                    <div className="flex flex-wrap items-center gap-2 text-sm">
+                      {order.isCod ? (
+                        <Badge variant="warning">
+                          {tConsole('offerCod', {
+                            amount: formatPaise(
+                              paise(delivery.codExpectedPaise ?? order.codAmountPaise ?? 0),
+                              moneyLocale
+                            ),
+                          })}
+                        </Badge>
+                      ) : (
+                        <Badge>{tConsole('prepaid')}</Badge>
+                      )}
+
+                      <span className="text-muted-foreground">
+                        {formatPaise(paise(order.totalAmountPaise), moneyLocale)}
+                      </span>
+                    </div>
+
+                    {delivery.failedAt && delivery.failureReason && (
+                      <p className="text-destructive text-sm">{delivery.failureReason}</p>
+                    )}
+
+                    {delivery.deliveredAt && (
+                      <p className="text-muted-foreground text-xs">
+                        {format.dateTime(delivery.deliveredAt, {
                           dateStyle: 'medium',
                           timeStyle: 'short',
                         })}
                       </p>
-                    </div>
-                    <OrderStatusBadge status={order.status} />
-                  </div>
-
-                  <div className="flex flex-wrap items-center gap-2 text-sm">
-                    {order.isCod ? (
-                      <Badge variant="warning">
-                        {tConsole('offerCod', {
-                          amount: formatPaise(
-                            paise(delivery.codExpectedPaise ?? order.codAmountPaise ?? 0),
-                            moneyLocale
-                          ),
-                        })}
-                      </Badge>
-                    ) : (
-                      <Badge>{tConsole('prepaid')}</Badge>
                     )}
+                  </CardContent>
+                </Card>
+              </li>
+            ))}
+          </ul>
 
-                    <span className="text-muted-foreground">
-                      {formatPaise(paise(order.totalAmountPaise), moneyLocale)}
-                    </span>
-                  </div>
-
-                  {delivery.failedAt && delivery.failureReason && (
-                    <p className="text-destructive text-sm">{delivery.failureReason}</p>
-                  )}
-
-                  {delivery.deliveredAt && (
-                    <p className="text-muted-foreground text-xs">
-                      {format.dateTime(delivery.deliveredAt, {
-                        dateStyle: 'medium',
-                        timeStyle: 'short',
-                      })}
-                    </p>
-                  )}
-                </CardContent>
-              </Card>
-            </li>
-          ))}
-        </ul>
+          {nextCursor && (
+            <div className="flex justify-center pt-2">
+              <Button asChild variant="secondary">
+                <a href={`?cursor=${encodeURIComponent(nextCursor)}`}>
+                  {locale === 'hi' ? 'अगला पेज' : 'Next page'}
+                </a>
+              </Button>
+            </div>
+          )}
+        </>
       )}
     </div>
   );
