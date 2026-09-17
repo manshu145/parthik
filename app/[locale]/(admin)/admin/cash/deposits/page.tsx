@@ -38,10 +38,7 @@ export default async function Page({ params }: { params: Promise<{ locale: strin
   const rows = [...declared, ...partial, ...verified, ...rejected].sort(
     (a, b) => b.declaredAt.getTime() - a.declaredAt.getTime()
   );
-  const pendingPaise = declared.reduce(
-    (total, row) => total + Number(row.declaredAmountPaise),
-    0
-  );
+  const pendingPaise = declared.reduce((total, row) => total + Number(row.declaredAmountPaise), 0);
   const variancePaise = partial.reduce(
     (total, row) => total + Math.abs(Number(row.variancePaise ?? 0)),
     0
@@ -59,7 +56,10 @@ export default async function Page({ params }: { params: Promise<{ locale: strin
       </div>
 
       <div className="grid gap-3 sm:grid-cols-3">
-        <Metric label={locale === 'hi' ? 'सत्यापन लंबित' : 'Awaiting verification'} value={declared.length} />
+        <Metric
+          label={locale === 'hi' ? 'सत्यापन लंबित' : 'Awaiting verification'}
+          value={declared.length}
+        />
         <Metric
           label={locale === 'hi' ? 'लंबित राशि' : 'Pending declared amount'}
           value={format.number(pendingPaise / 100, { style: 'currency', currency: 'INR' })}
@@ -73,7 +73,9 @@ export default async function Page({ params }: { params: Promise<{ locale: strin
       {rows.length === 0 ? (
         <Card>
           <CardContent className="p-4 text-sm">
-            {locale === 'hi' ? 'अभी कोई cash deposit record नहीं है।' : 'No cash deposit records yet.'}
+            {locale === 'hi'
+              ? 'अभी कोई cash deposit record नहीं है।'
+              : 'No cash deposit records yet.'}
           </CardContent>
         </Card>
       ) : (

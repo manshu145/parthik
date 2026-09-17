@@ -55,7 +55,9 @@ export default async function Page({
       <div className="grid gap-4 md:grid-cols-3">
         <Card>
           <CardContent className="p-4 text-sm">
-            <p className="text-muted-foreground text-xs">{locale === 'hi' ? 'कुल ऑर्डर' : 'Total orders'}</p>
+            <p className="text-muted-foreground text-xs">
+              {locale === 'hi' ? 'कुल ऑर्डर' : 'Total orders'}
+            </p>
             <p className="mt-2 text-2xl font-semibold">{customer.totalOrders}</p>
           </CardContent>
         </Card>
@@ -72,7 +74,9 @@ export default async function Page({
         </Card>
         <Card>
           <CardContent className="p-4 text-sm">
-            <p className="text-muted-foreground text-xs">{locale === 'hi' ? 'अंतिम लॉगिन' : 'Last login'}</p>
+            <p className="text-muted-foreground text-xs">
+              {locale === 'hi' ? 'अंतिम लॉगिन' : 'Last login'}
+            </p>
             <p className="mt-2 font-medium">
               {customer.lastLoginAt
                 ? format.dateTime(customer.lastLoginAt, {
@@ -93,10 +97,7 @@ export default async function Page({
               <Row label="Preferred locale" value={customer.preferredLocale} />
               <Row label="Acquisition source" value={customer.acquisitionSource ?? '—'} />
               <Row label="Referral code" value={customer.referralCode ?? '—'} />
-              <Row
-                label="Phone verified"
-                value={customer.phoneVerifiedAt ? 'YES' : 'NO'}
-              />
+              <Row label="Phone verified" value={customer.phoneVerifiedAt ? 'YES' : 'NO'} />
               <Row
                 label="Joined"
                 value={format.dateTime(customer.createdAt, { dateStyle: 'medium' })}
@@ -107,7 +108,9 @@ export default async function Page({
 
         <Card>
           <CardContent className="p-4 text-sm">
-            <h2 className="font-semibold">{locale === 'hi' ? 'सहेजे गए पते' : 'Saved addresses'}</h2>
+            <h2 className="font-semibold">
+              {locale === 'hi' ? 'सहेजे गए पते' : 'Saved addresses'}
+            </h2>
             {addresses.length === 0 ? (
               <p className="text-muted-foreground mt-3">No saved addresses.</p>
             ) : (

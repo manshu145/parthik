@@ -32,10 +32,7 @@ export default async function Page({ params }: { params: Promise<{ locale: strin
     getFormatter(),
   ]);
 
-  const totalVariancePaise = rows.reduce(
-    (total, row) => total + Math.abs(row.variancePaise),
-    0
-  );
+  const totalVariancePaise = rows.reduce((total, row) => total + Math.abs(row.variancePaise), 0);
   const shortCollections = rows.filter((row) => row.variancePaise > 0).length;
   const overCollections = rows.filter((row) => row.variancePaise < 0).length;
 
@@ -117,9 +114,7 @@ export default async function Page({ params }: { params: Promise<{ locale: strin
                       })}
                     </td>
                     <td className="px-4 py-3">
-                      <Badge variant="warning">
-                        {row.variancePaise > 0 ? 'SHORT' : 'OVER'}
-                      </Badge>
+                      <Badge variant="warning">{row.variancePaise > 0 ? 'SHORT' : 'OVER'}</Badge>
                     </td>
                     <td className="text-muted-foreground px-4 py-3 text-xs">
                       {row.collectedAt
