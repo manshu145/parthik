@@ -1,8 +1,9 @@
 name: CI
 
 on:
+  # Run on every pull request, including stacked feature PRs. Restricting this to
+  # main/develop left stacked PRs completely unvalidated until they were retargeted.
   pull_request:
-    branches: [main, develop]
   push:
     branches: [main, develop]
 
