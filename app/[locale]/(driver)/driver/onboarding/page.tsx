@@ -35,7 +35,9 @@ export default async function Page({ params }: { params: Promise<{ locale: strin
   const expiredDocuments = documents.filter((document) => document.isExpired);
   const approvedDocuments = documents.filter((document) => document.kycStatus === 'APPROVED');
   const rejectedDocuments = documents.filter((document) => document.kycStatus === 'REJECTED');
-  const canOperate = driver.status === 'APPROVED' && expiredDocuments.length === 0;
+  const documentsNeedingAttention = documents.filter(
+    (document) => document.isExpired || document.kycStatus !== 'APPROVED'
+  );
 
   return (
     <div className="mx-auto flex max-w-2xl flex-col gap-4" data-testid="driver-onboarding">
@@ -61,13 +63,21 @@ export default async function Page({ params }: { params: Promise<{ locale: strin
           </div>
 
           <p className="text-muted-foreground text-sm">
-            {canOperate
+            {driver.status !== 'APPROVED'
               ? locale === 'hi'
-                ? 'प्रोफ़ाइल स्वीकृत है और कोई दस्तावेज़ समाप्त नहीं हुआ है।'
-                : 'Profile is approved and no document is expired.'
-              : locale === 'hi'
-                ? 'ऑनलाइन जाने से पहले लंबित या समाप्त KYC आइटम पूरे करें।'
-                : 'Complete pending or expired KYC items before going online.'}
+                ? 'आपकी ड्राइवर प्रोफ़ाइल अभी समीक्षा या कार्रवाई की स्थिति में है। नीचे दर्ज KYC स्थिति देखें।'
+                : 'Your driver profile is still under review or requires action. Check the recorded KYC status below.'
+              : documents.length === 0
+                ? locale === 'hi'
+                  ? 'प्रोफ़ाइल स्वीकृत है। अभी कोई KYC दस्तावेज़ रिकॉर्ड यहाँ उपलब्ध नहीं है।'
+                  : 'Profile is approved. No KYC document records are currently available here.'
+                : documentsNeedingAttention.length > 0
+                  ? locale === 'hi'
+                    ? 'प्रोफ़ाइल स्वीकृत है, लेकिन कुछ दर्ज KYC दस्तावेज़ों पर अभी ध्यान देने की आवश्यकता है।'
+                    : 'Profile is approved, but some recorded KYC documents still need attention.'
+                  : locale === 'hi'
+                    ? 'प्रोफ़ाइल स्वीकृत है और दर्ज KYC दस्तावेज़ वर्तमान हैं।'
+                    : 'Profile is approved and the recorded KYC documents are current.'}
           </p>
         </CardContent>
       </Card>
