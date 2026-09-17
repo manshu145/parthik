@@ -34,7 +34,7 @@ export default async function Page({ params }: { params: Promise<{ locale: strin
 
   const active = items.filter((item) => item.status === 'ACTIVE').length;
   const drafts = items.filter((item) => item.status === 'DRAFT').length;
-  const pending = items.filter((item) => item.status === 'PENDING_APPROVAL').length;
+  const pending = items.filter((item) => item.status === 'PENDING_REVIEW').length;
   const moneyLocale = locale === 'hi' ? 'hi' : 'en';
 
   return (
@@ -52,7 +52,7 @@ export default async function Page({ params }: { params: Promise<{ locale: strin
         <Metric label={locale === 'hi' ? 'कुल प्रोडक्ट' : 'Total products'} value={items.length} />
         <Metric label={locale === 'hi' ? 'सक्रिय' : 'Active'} value={active} />
         <Metric label={locale === 'hi' ? 'ड्राफ्ट' : 'Drafts'} value={drafts} />
-        <Metric label={locale === 'hi' ? 'स्वीकृति लंबित' : 'Pending approval'} value={pending} />
+        <Metric label={locale === 'hi' ? 'स्वीकृति लंबित' : 'Pending review'} value={pending} />
       </div>
 
       {items.length === 0 ? (
@@ -123,6 +123,6 @@ function Metric({ label, value }: { label: string; value: number }) {
 function statusVariant(status: string) {
   if (status === 'ACTIVE') return 'success' as const;
   if (status === 'REJECTED' || status === 'ARCHIVED') return 'danger' as const;
-  if (status === 'PENDING_APPROVAL') return 'warning' as const;
+  if (status === 'PENDING_REVIEW') return 'warning' as const;
   return 'neutral' as const;
 }
