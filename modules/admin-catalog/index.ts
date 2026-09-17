@@ -1,1 +1,5 @@
-export { listAdminInventory, listAdminProducts } from './admin-catalog.repository';
+export {
+  listAdminInventory,
+  listAdminProducts,
+  readAdminProductDetail,
+} from './admin-catalog.repository';
