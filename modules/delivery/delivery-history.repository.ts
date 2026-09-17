@@ -92,12 +92,15 @@ export class StableHistoryDeliveryRepository extends DrizzleDeliveryRepository {
 
     const hasMore = rows.length > page.limit;
     const visibleRows = hasMore ? rows.slice(0, page.limit) : rows;
-    const items = visibleRows.map((row) => ({
+    const items: DeliveryWithOrder[] = visibleRows.map((row) => ({
       delivery: {
         ...row.delivery,
         status: row.delivery.status as DeliveryWithOrder['delivery']['status'],
-        pickupAddressSnapshot: row.delivery.pickupAddressSnapshot ?? {},
-        dropAddressSnapshot: row.delivery.dropAddressSnapshot ?? {},
+        pickupAddressSnapshot: (row.delivery.pickupAddressSnapshot ?? {}) as Record<
+          string,
+          unknown
+        >,
+        dropAddressSnapshot: (row.delivery.dropAddressSnapshot ?? {}) as Record<string, unknown>,
         deliveryFeePaise: Number(row.delivery.deliveryFeePaise ?? 0),
         otpAttempts: Number(row.delivery.otpAttempts ?? 0),
         otpRegeneratedCount: Number(row.delivery.otpRegeneratedCount ?? 0),
