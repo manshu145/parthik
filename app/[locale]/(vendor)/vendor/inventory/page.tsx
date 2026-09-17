@@ -66,18 +66,25 @@ export default async function Page({ params }: { params: Promise<{ locale: strin
             <table className="w-full text-sm">
               <thead className="bg-muted/50 text-left">
                 <tr>
-                  <th className="px-4 py-3 font-medium">{locale === 'hi' ? 'प्रोडक्ट' : 'Product'}</th>
+                  <th className="px-4 py-3 font-medium">
+                    {locale === 'hi' ? 'प्रोडक्ट' : 'Product'}
+                  </th>
                   <th className="px-4 py-3 font-medium">SKU</th>
                   <th className="px-4 py-3 font-medium">{locale === 'hi' ? 'स्टोर' : 'Store'}</th>
-                  <th className="px-4 py-3 font-medium">{locale === 'hi' ? 'उपलब्ध' : 'Available'}</th>
-                  <th className="px-4 py-3 font-medium">{locale === 'hi' ? 'आरक्षित' : 'Reserved'}</th>
+                  <th className="px-4 py-3 font-medium">
+                    {locale === 'hi' ? 'उपलब्ध' : 'Available'}
+                  </th>
+                  <th className="px-4 py-3 font-medium">
+                    {locale === 'hi' ? 'आरक्षित' : 'Reserved'}
+                  </th>
                   <th className="px-4 py-3 font-medium">{locale === 'hi' ? 'स्थिति' : 'Status'}</th>
                   <th className="px-4 py-3 font-medium">{locale === 'hi' ? 'अपडेट' : 'Updated'}</th>
                 </tr>
               </thead>
               <tbody className="divide-y">
                 {items.map((item) => {
-                  const isLow = item.trackInventory && item.quantityAvailable <= item.lowStockThreshold;
+                  const isLow =
+                    item.trackInventory && item.quantityAvailable <= item.lowStockThreshold;
                   return (
                     <tr key={item.inventoryId}>
                       <td className="px-4 py-3">
@@ -102,7 +109,10 @@ export default async function Page({ params }: { params: Promise<{ locale: strin
                         )}
                       </td>
                       <td className="text-muted-foreground px-4 py-3 text-xs">
-                        {format.dateTime(item.updatedAt, { dateStyle: 'medium', timeStyle: 'short' })}
+                        {format.dateTime(item.updatedAt, {
+                          dateStyle: 'medium',
+                          timeStyle: 'short',
+                        })}
                       </td>
                     </tr>
                   );

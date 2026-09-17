@@ -57,12 +57,7 @@ export async function readAdminDashboard(): Promise<AdminDashboardSnapshot> {
     db
       .select({ count: countExpr() })
       .from(vendors)
-      .where(
-        and(
-          sql`${vendors.status} in ('APPLIED', 'UNDER_REVIEW')`,
-          isNull(vendors.deletedAt)
-        )
-      ),
+      .where(and(sql`${vendors.status} in ('APPLIED', 'UNDER_REVIEW')`, isNull(vendors.deletedAt))),
     db
       .select({ count: countExpr() })
       .from(drivers)

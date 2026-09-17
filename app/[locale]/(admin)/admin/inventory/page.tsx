@@ -8,7 +8,11 @@ import { listAdminInventory } from '@/modules/admin-catalog';
 
 export const dynamic = 'force-dynamic';
 
-export async function generateMetadata({ params }: { params: Promise<{ locale: string }> }): Promise<Metadata> {
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ locale: string }>;
+}): Promise<Metadata> {
   const { locale } = await params;
   const t = await getTranslations({ locale, namespace: 'adminNav' });
   return { title: t('inventory'), robots: { index: false, follow: false } };
@@ -38,18 +42,27 @@ export default async function Page({ params }: { params: Promise<{ locale: strin
       <div>
         <h1 className="text-xl font-semibold">{t('inventory')}</h1>
         <p className="text-muted-foreground mt-1 text-sm">
-          {locale === 'hi' ? 'सभी stores का stock, reservation और low-stock risk.' : 'Stock, reservations and low-stock risk across every store.'}
+          {locale === 'hi'
+            ? 'सभी stores का stock, reservation और low-stock risk.'
+            : 'Stock, reservations and low-stock risk across every store.'}
         </p>
       </div>
 
       <div className="grid gap-3 sm:grid-cols-3">
         <Metric label={locale === 'hi' ? 'कम स्टॉक' : 'Low stock'} value={lowStock} />
         <Metric label={locale === 'hi' ? 'स्टॉक खत्म' : 'Out of stock'} value={outOfStock} />
-        <Metric label={locale === 'hi' ? 'आरक्षित units' : 'Reserved units'} value={reservedUnits} />
+        <Metric
+          label={locale === 'hi' ? 'आरक्षित units' : 'Reserved units'}
+          value={reservedUnits}
+        />
       </div>
 
       {rows.length === 0 ? (
-        <Card><CardContent className="p-4 text-sm">{locale === 'hi' ? 'अभी inventory rows नहीं हैं।' : 'No inventory rows yet.'}</CardContent></Card>
+        <Card>
+          <CardContent className="p-4 text-sm">
+            {locale === 'hi' ? 'अभी inventory rows नहीं हैं।' : 'No inventory rows yet.'}
+          </CardContent>
+        </Card>
       ) : (
         <div className="overflow-hidden rounded-xl border">
           <div className="overflow-x-auto">
@@ -67,16 +80,45 @@ export default async function Page({ params }: { params: Promise<{ locale: strin
               </thead>
               <tbody className="divide-y">
                 {rows.map((row) => {
-                  const isLow = row.trackInventory && row.quantityAvailable <= row.lowStockThreshold;
+                  const isLow =
+                    row.trackInventory && row.quantityAvailable <= row.lowStockThreshold;
                   return (
                     <tr key={row.inventoryId} className="hover:bg-muted/30">
-                      <td className="px-4 py-3"><p className="font-medium">{row.productName}</p><p className="text-muted-foreground mt-1 text-xs">{row.productStatus}{row.unitLabel ? ` · ${row.unitLabel}` : ''}</p></td>
-                      <td className="px-4 py-3"><p>{row.vendorName}</p><p className="text-muted-foreground mt-1 text-xs">{row.storeName}</p></td>
+                      <td className="px-4 py-3">
+                        <p className="font-medium">{row.productName}</p>
+                        <p className="text-muted-foreground mt-1 text-xs">
+                          {row.productStatus}
+                          {row.unitLabel ? ` · ${row.unitLabel}` : ''}
+                        </p>
+                      </td>
+                      <td className="px-4 py-3">
+                        <p>{row.vendorName}</p>
+                        <p className="text-muted-foreground mt-1 text-xs">{row.storeName}</p>
+                      </td>
                       <td className="px-4 py-3">{row.sku ?? '—'}</td>
-                      <td className="px-4 py-3"><div className="flex items-center gap-2"><span className="font-medium">{row.quantityAvailable}</span>{isLow && <Badge variant={row.quantityAvailable === 0 ? 'danger' : 'warning'}>{row.quantityAvailable === 0 ? 'OUT' : 'LOW'}</Badge>}</div></td>
+                      <td className="px-4 py-3">
+                        <div className="flex items-center gap-2">
+                          <span className="font-medium">{row.quantityAvailable}</span>
+                          {isLow && (
+                            <Badge variant={row.quantityAvailable === 0 ? 'danger' : 'warning'}>
+                              {row.quantityAvailable === 0 ? 'OUT' : 'LOW'}
+                            </Badge>
+                          )}
+                        </div>
+                      </td>
                       <td className="px-4 py-3">{row.quantityReserved}</td>
-                      <td className="px-4 py-3">{row.lowStockThreshold}{row.allowBackorder ? <p className="text-muted-foreground mt-1 text-xs">Backorder</p> : null}</td>
-                      <td className="text-muted-foreground px-4 py-3 text-xs">{format.dateTime(row.updatedAt, { dateStyle: 'medium', timeStyle: 'short' })}</td>
+                      <td className="px-4 py-3">
+                        {row.lowStockThreshold}
+                        {row.allowBackorder ? (
+                          <p className="text-muted-foreground mt-1 text-xs">Backorder</p>
+                        ) : null}
+                      </td>
+                      <td className="text-muted-foreground px-4 py-3 text-xs">
+                        {format.dateTime(row.updatedAt, {
+                          dateStyle: 'medium',
+                          timeStyle: 'short',
+                        })}
+                      </td>
                     </tr>
                   );
                 })}
@@ -90,5 +132,12 @@ export default async function Page({ params }: { params: Promise<{ locale: strin
 }
 
 function Metric({ label, value }: { label: string; value: number }) {
-  return <Card><CardContent className="p-4"><p className="text-2xl font-semibold">{value}</p><p className="text-muted-foreground mt-1 text-xs">{label}</p></CardContent></Card>;
+  return (
+    <Card>
+      <CardContent className="p-4">
+        <p className="text-2xl font-semibold">{value}</p>
+        <p className="text-muted-foreground mt-1 text-xs">{label}</p>
+      </CardContent>
+    </Card>
+  );
 }

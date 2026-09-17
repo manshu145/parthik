@@ -9,7 +9,11 @@ import { listAdminProducts } from '@/modules/admin-catalog';
 
 export const dynamic = 'force-dynamic';
 
-export async function generateMetadata({ params }: { params: Promise<{ locale: string }> }): Promise<Metadata> {
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ locale: string }>;
+}): Promise<Metadata> {
   const { locale } = await params;
   const t = await getTranslations({ locale, namespace: 'adminNav' });
   return { title: t('products'), robots: { index: false, follow: false } };
@@ -33,12 +37,18 @@ export default async function Page({ params }: { params: Promise<{ locale: strin
       <div>
         <h1 className="text-xl font-semibold">{t('products')}</h1>
         <p className="text-muted-foreground mt-1 text-sm">
-          {locale === 'hi' ? 'सभी vendors का live catalog और publishing status.' : 'Live catalog and publishing status across all vendors.'}
+          {locale === 'hi'
+            ? 'सभी vendors का live catalog और publishing status.'
+            : 'Live catalog and publishing status across all vendors.'}
         </p>
       </div>
 
       {products.length === 0 ? (
-        <Card><CardContent className="p-4 text-sm">{locale === 'hi' ? 'अभी कोई product नहीं है।' : 'No products yet.'}</CardContent></Card>
+        <Card>
+          <CardContent className="p-4 text-sm">
+            {locale === 'hi' ? 'अभी कोई product नहीं है।' : 'No products yet.'}
+          </CardContent>
+        </Card>
       ) : (
         <div className="overflow-hidden rounded-xl border">
           <div className="overflow-x-auto">
@@ -56,12 +66,50 @@ export default async function Page({ params }: { params: Promise<{ locale: strin
               <tbody className="divide-y">
                 {products.map((product) => (
                   <tr key={product.id} className="hover:bg-muted/30">
-                    <td className="px-4 py-3"><Link href={`/admin/products/${product.id}`} className="font-medium hover:underline">{product.name}</Link><p className="text-muted-foreground mt-1 text-xs">/{product.slug}</p></td>
-                    <td className="px-4 py-3"><p>{product.vendorName}</p><p className="text-muted-foreground mt-1 text-xs">{product.storeName}</p></td>
-                    <td className="px-4 py-3"><Badge variant={productStatusVariant(product.status)}>{product.status}</Badge></td>
-                    <td className="px-4 py-3"><p className="font-medium">{format.number(product.pricePaise / 100, { style: 'currency', currency: 'INR' })}</p>{product.mrpPaise !== product.pricePaise && <p className="text-muted-foreground mt-1 text-xs line-through">{format.number(product.mrpPaise / 100, { style: 'currency', currency: 'INR' })}</p>}</td>
-                    <td className="px-4 py-3">{product.soldCount}{product.ratingAvg ? <p className="text-muted-foreground mt-1 text-xs">★ {product.ratingAvg}</p> : null}</td>
-                    <td className="text-muted-foreground px-4 py-3 text-xs">{format.dateTime(product.updatedAt, { dateStyle: 'medium', timeStyle: 'short' })}</td>
+                    <td className="px-4 py-3">
+                      <Link
+                        href={`/admin/products/${product.id}`}
+                        className="font-medium hover:underline"
+                      >
+                        {product.name}
+                      </Link>
+                      <p className="text-muted-foreground mt-1 text-xs">/{product.slug}</p>
+                    </td>
+                    <td className="px-4 py-3">
+                      <p>{product.vendorName}</p>
+                      <p className="text-muted-foreground mt-1 text-xs">{product.storeName}</p>
+                    </td>
+                    <td className="px-4 py-3">
+                      <Badge variant={productStatusVariant(product.status)}>{product.status}</Badge>
+                    </td>
+                    <td className="px-4 py-3">
+                      <p className="font-medium">
+                        {format.number(product.pricePaise / 100, {
+                          style: 'currency',
+                          currency: 'INR',
+                        })}
+                      </p>
+                      {product.mrpPaise !== product.pricePaise && (
+                        <p className="text-muted-foreground mt-1 text-xs line-through">
+                          {format.number(product.mrpPaise / 100, {
+                            style: 'currency',
+                            currency: 'INR',
+                          })}
+                        </p>
+                      )}
+                    </td>
+                    <td className="px-4 py-3">
+                      {product.soldCount}
+                      {product.ratingAvg ? (
+                        <p className="text-muted-foreground mt-1 text-xs">★ {product.ratingAvg}</p>
+                      ) : null}
+                    </td>
+                    <td className="text-muted-foreground px-4 py-3 text-xs">
+                      {format.dateTime(product.updatedAt, {
+                        dateStyle: 'medium',
+                        timeStyle: 'short',
+                      })}
+                    </td>
                   </tr>
                 ))}
               </tbody>

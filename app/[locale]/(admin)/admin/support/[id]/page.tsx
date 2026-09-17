@@ -8,13 +8,21 @@ import { readAdminSupportTicket } from '@/modules/admin-support';
 
 export const dynamic = 'force-dynamic';
 
-export async function generateMetadata({ params }: { params: Promise<{ locale: string }> }): Promise<Metadata> {
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ locale: string }>;
+}): Promise<Metadata> {
   const { locale } = await params;
   const t = await getTranslations({ locale, namespace: 'adminNav' });
   return { title: t('ticketDetail'), robots: { index: false, follow: false } };
 }
 
-export default async function Page({ params }: { params: Promise<{ locale: string; id: string }> }) {
+export default async function Page({
+  params,
+}: {
+  params: Promise<{ locale: string; id: string }>;
+}) {
   const { locale, id } = await params;
   setRequestLocale(locale);
 
@@ -32,7 +40,9 @@ export default async function Page({ params }: { params: Promise<{ locale: strin
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <h1 className="text-xl font-semibold">{ticket.subject}</h1>
-          <p className="text-muted-foreground mt-1 text-sm">{ticket.ticketNumber} · {t('ticketDetail')}</p>
+          <p className="text-muted-foreground mt-1 text-sm">
+            {ticket.ticketNumber} · {t('ticketDetail')}
+          </p>
         </div>
         <div className="flex gap-2">
           <Badge variant={statusVariant(ticket.status)}>{ticket.status.replaceAll('_', ' ')}</Badge>
@@ -47,10 +57,22 @@ export default async function Page({ params }: { params: Promise<{ locale: strin
             <Row label="User" value={ticket.userId} />
             <Row label="Order" value={ticket.orderId ?? '—'} />
             <Row label="Assignee" value={ticket.assignedToUserId ?? '—'} />
-            <Row label="Created" value={format.dateTime(ticket.createdAt, { dateStyle: 'medium', timeStyle: 'short' })} />
-            <Row label="SLA" value={ticket.slaDueAt ? format.dateTime(ticket.slaDueAt, { dateStyle: 'medium', timeStyle: 'short' }) : '—'} />
+            <Row
+              label="Created"
+              value={format.dateTime(ticket.createdAt, { dateStyle: 'medium', timeStyle: 'short' })}
+            />
+            <Row
+              label="SLA"
+              value={
+                ticket.slaDueAt
+                  ? format.dateTime(ticket.slaDueAt, { dateStyle: 'medium', timeStyle: 'short' })
+                  : '—'
+              }
+            />
           </dl>
-          {ticket.resolutionNote && <p className="text-muted-foreground mt-4 border-t pt-3">{ticket.resolutionNote}</p>}
+          {ticket.resolutionNote && (
+            <p className="text-muted-foreground mt-4 border-t pt-3">{ticket.resolutionNote}</p>
+          )}
         </CardContent>
       </Card>
 
@@ -58,16 +80,33 @@ export default async function Page({ params }: { params: Promise<{ locale: strin
         <CardContent className="p-4">
           <h2 className="font-semibold">{locale === 'hi' ? 'बातचीत' : 'Conversation'}</h2>
           {messages.length === 0 ? (
-            <p className="text-muted-foreground mt-3 text-sm">{locale === 'hi' ? 'अभी कोई message नहीं है।' : 'No messages yet.'}</p>
+            <p className="text-muted-foreground mt-3 text-sm">
+              {locale === 'hi' ? 'अभी कोई message नहीं है।' : 'No messages yet.'}
+            </p>
           ) : (
             <ol className="mt-3 flex flex-col gap-3">
               {messages.map((message) => (
-                <li key={message.id} className={message.isInternalNote ? 'rounded-lg border border-dashed p-3' : 'rounded-lg border p-3'}>
+                <li
+                  key={message.id}
+                  className={
+                    message.isInternalNote
+                      ? 'rounded-lg border border-dashed p-3'
+                      : 'rounded-lg border p-3'
+                  }
+                >
                   <div className="flex flex-wrap items-center justify-between gap-2">
-                    <p className="text-sm font-medium">{message.authorRole ?? 'USER'}{message.isInternalNote ? ' · INTERNAL NOTE' : ''}</p>
-                    <p className="text-muted-foreground text-xs">{format.dateTime(message.createdAt, { dateStyle: 'medium', timeStyle: 'short' })}</p>
+                    <p className="text-sm font-medium">
+                      {message.authorRole ?? 'USER'}
+                      {message.isInternalNote ? ' · INTERNAL NOTE' : ''}
+                    </p>
+                    <p className="text-muted-foreground text-xs">
+                      {format.dateTime(message.createdAt, {
+                        dateStyle: 'medium',
+                        timeStyle: 'short',
+                      })}
+                    </p>
                   </div>
-                  <p className="mt-2 whitespace-pre-wrap text-sm">{message.message}</p>
+                  <p className="mt-2 text-sm whitespace-pre-wrap">{message.message}</p>
                 </li>
               ))}
             </ol>
@@ -79,7 +118,12 @@ export default async function Page({ params }: { params: Promise<{ locale: strin
 }
 
 function Row({ label, value }: { label: string; value: string }) {
-  return <div><dt className="text-muted-foreground text-xs">{label}</dt><dd className="mt-1 break-all font-medium">{value}</dd></div>;
+  return (
+    <div>
+      <dt className="text-muted-foreground text-xs">{label}</dt>
+      <dd className="mt-1 font-medium break-all">{value}</dd>
+    </div>
+  );
 }
 
 function statusVariant(status: string): BadgeVariant {

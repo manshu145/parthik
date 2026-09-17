@@ -25,10 +25,7 @@ export default async function Page({ params }: { params: Promise<{ locale: strin
   const access = await checkPagePermission('dashboard:view');
   if (access.status !== 'ok') return <AccessDenied decision={access} />;
 
-  const [snapshot, t] = await Promise.all([
-    readAdminDashboard(),
-    getTranslations('adminNav'),
-  ]);
+  const [snapshot, t] = await Promise.all([readAdminDashboard(), getTranslations('adminNav')]);
 
   const currency = new Intl.NumberFormat(locale === 'hi' ? 'hi-IN' : 'en-IN', {
     style: 'currency',

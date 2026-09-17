@@ -36,7 +36,14 @@ export default async function Page({
   ]);
 
   const address = detail.order.deliveryAddressSnapshot as Record<string, unknown>;
-  const addressText = [address.line1, address.line2, address.landmark, address.city, address.state, address.pincode]
+  const addressText = [
+    address.line1,
+    address.line2,
+    address.landmark,
+    address.city,
+    address.state,
+    address.pincode,
+  ]
     .filter((value): value is string => typeof value === 'string' && value.trim().length > 0)
     .join(', ');
 
@@ -66,8 +73,13 @@ export default async function Page({
           <CardContent className="p-4 text-sm">
             <h2 className="font-semibold">{locale === 'hi' ? 'भुगतान' : 'Payment'}</h2>
             <div className="mt-2 flex flex-col gap-1">
-              <p>{detail.order.paymentMethod}{detail.order.isCod ? ' · COD' : ''}</p>
-              <p className="text-muted-foreground">{detail.order.paymentStatus.replaceAll('_', ' ')}</p>
+              <p>
+                {detail.order.paymentMethod}
+                {detail.order.isCod ? ' · COD' : ''}
+              </p>
+              <p className="text-muted-foreground">
+                {detail.order.paymentStatus.replaceAll('_', ' ')}
+              </p>
               <p className="mt-2 text-lg font-semibold">
                 {format.number(detail.order.totalAmountPaise / 100, {
                   style: 'currency',
@@ -88,7 +100,9 @@ export default async function Page({
                 <div>
                   <p className="font-medium">{line.productNameSnapshot}</p>
                   {line.variantLabelSnapshot && (
-                    <p className="text-muted-foreground mt-1 text-xs">{line.variantLabelSnapshot}</p>
+                    <p className="text-muted-foreground mt-1 text-xs">
+                      {line.variantLabelSnapshot}
+                    </p>
                   )}
                   <p className="text-muted-foreground mt-1 text-xs">Qty {line.quantity}</p>
                 </div>
@@ -112,7 +126,9 @@ export default async function Page({
                   {format.dateTime(event.createdAt, { dateStyle: 'medium', timeStyle: 'short' })}
                   {event.changedByRole ? ` · ${event.changedByRole}` : ''}
                 </p>
-                {event.reason && <p className="text-muted-foreground mt-1 text-xs">{event.reason}</p>}
+                {event.reason && (
+                  <p className="text-muted-foreground mt-1 text-xs">{event.reason}</p>
+                )}
               </li>
             ))}
           </ol>

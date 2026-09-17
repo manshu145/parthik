@@ -59,7 +59,9 @@ export default async function Page({ params }: { params: Promise<{ locale: strin
                   <th className="px-4 py-3 font-medium">{locale === 'hi' ? 'ऑर्डर' : 'Order'}</th>
                   <th className="px-4 py-3 font-medium">{locale === 'hi' ? 'स्टोर' : 'Store'}</th>
                   <th className="px-4 py-3 font-medium">{locale === 'hi' ? 'स्थिति' : 'Status'}</th>
-                  <th className="px-4 py-3 font-medium">{locale === 'hi' ? 'भुगतान' : 'Payment'}</th>
+                  <th className="px-4 py-3 font-medium">
+                    {locale === 'hi' ? 'भुगतान' : 'Payment'}
+                  </th>
                   <th className="px-4 py-3 font-medium">{locale === 'hi' ? 'कुल' : 'Total'}</th>
                   <th className="px-4 py-3 font-medium">{locale === 'hi' ? 'समय' : 'Created'}</th>
                 </tr>
@@ -68,14 +70,19 @@ export default async function Page({ params }: { params: Promise<{ locale: strin
                 {orders.map((order) => (
                   <tr key={order.id} className="hover:bg-muted/30">
                     <td className="px-4 py-3">
-                      <Link href={`/admin/orders/${order.id}`} className="font-medium hover:underline">
+                      <Link
+                        href={`/admin/orders/${order.id}`}
+                        className="font-medium hover:underline"
+                      >
                         {order.orderNumber}
                       </Link>
                       <p className="text-muted-foreground mt-1 text-xs">{order.vendorName}</p>
                     </td>
                     <td className="px-4 py-3">{order.storeName}</td>
                     <td className="px-4 py-3">
-                      <Badge variant={statusVariant(order.status)}>{order.status.replaceAll('_', ' ')}</Badge>
+                      <Badge variant={statusVariant(order.status)}>
+                        {order.status.replaceAll('_', ' ')}
+                      </Badge>
                     </td>
                     <td className="px-4 py-3">
                       <p>{order.paymentMethod}</p>
