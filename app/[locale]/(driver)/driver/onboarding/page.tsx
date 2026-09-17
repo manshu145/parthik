@@ -32,10 +32,7 @@ export default async function Page({ params }: { params: Promise<{ locale: strin
     getFormatter(),
   ]);
 
-  const now = Date.now();
-  const expiredDocuments = documents.filter(
-    (document) => document.expiresAt && document.expiresAt.getTime() <= now
-  );
+  const expiredDocuments = documents.filter((document) => document.isExpired);
   const approvedDocuments = documents.filter((document) => document.kycStatus === 'APPROVED');
   const rejectedDocuments = documents.filter((document) => document.kycStatus === 'REJECTED');
   const canOperate = driver.status === 'APPROVED' && expiredDocuments.length === 0;
@@ -102,43 +99,46 @@ export default async function Page({ params }: { params: Promise<{ locale: strin
             </p>
           ) : (
             <ul className="mt-3 flex flex-col divide-y">
-              {documents.map((document) => {
-                const expired = Boolean(
-                  document.expiresAt && document.expiresAt.getTime() <= now
-                );
+              {documents.map((document) => (
+                <li
+                  key={document.id}
+                  className="flex flex-wrap items-start justify-between gap-3 py-3"
+                >
+                  <div className="min-w-0">
+                    <p className="font-medium">{document.docType.replaceAll('_', ' ')}</p>
+                    {document.fileName && (
+                      <p className="text-muted-foreground mt-1 truncate text-xs">
+                        {document.fileName}
+                      </p>
+                    )}
+                    {document.expiresAt && (
+                      <p
+                        className={
+                          document.isExpired
+                            ? 'text-danger mt-1 text-xs'
+                            : 'text-muted-foreground mt-1 text-xs'
+                        }
+                      >
+                        {document.isExpired
+                          ? locale === 'hi'
+                            ? 'समाप्त'
+                            : 'Expired'
+                          : locale === 'hi'
+                            ? 'समाप्ति'
+                            : 'Expires'}:{' '}
+                        {format.dateTime(document.expiresAt, { dateStyle: 'medium' })}
+                      </p>
+                    )}
+                    {document.rejectionReason && (
+                      <p className="text-danger mt-1 text-xs">{document.rejectionReason}</p>
+                    )}
+                  </div>
 
-                return (
-                  <li key={document.id} className="flex flex-wrap items-start justify-between gap-3 py-3">
-                    <div className="min-w-0">
-                      <p className="font-medium">{document.docType.replaceAll('_', ' ')}</p>
-                      {document.fileName && (
-                        <p className="text-muted-foreground mt-1 truncate text-xs">
-                          {document.fileName}
-                        </p>
-                      )}
-                      {document.expiresAt && (
-                        <p className={expired ? 'text-danger mt-1 text-xs' : 'text-muted-foreground mt-1 text-xs'}>
-                          {expired
-                            ? locale === 'hi'
-                              ? 'समाप्त'
-                              : 'Expired'
-                            : locale === 'hi'
-                              ? 'समाप्ति'
-                              : 'Expires'}:{' '}
-                          {format.dateTime(document.expiresAt, { dateStyle: 'medium' })}
-                        </p>
-                      )}
-                      {document.rejectionReason && (
-                        <p className="text-danger mt-1 text-xs">{document.rejectionReason}</p>
-                      )}
-                    </div>
-
-                    <Badge variant={documentStatusVariant(document.kycStatus, expired)}>
-                      {expired ? 'EXPIRED' : document.kycStatus.replaceAll('_', ' ')}
-                    </Badge>
-                  </li>
-                );
-              })}
+                  <Badge variant={documentStatusVariant(document.kycStatus, document.isExpired)}>
+                    {document.isExpired ? 'EXPIRED' : document.kycStatus.replaceAll('_', ' ')}
+                  </Badge>
+                </li>
+              ))}
             </ul>
           )}
         </CardContent>
