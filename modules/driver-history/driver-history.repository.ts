@@ -3,6 +3,7 @@ import { deliveries, drivers, orders } from '@/db/schema';
 import type { Database } from '@/lib/db/client';
 import { decodeCursor, encodeCursor } from '@/lib/db/cursor';
 import { NotFoundError } from '@/lib/errors';
+import type { OrderStatus } from '@/modules/order';
 
 const CURSOR_KEY = 'createdAt';
 
@@ -18,7 +19,7 @@ export interface DriverHistoryItem {
   };
   order: {
     orderNumber: string;
-    status: string;
+    status: OrderStatus;
     isCod: boolean;
     codAmountPaise: number | null;
     totalAmountPaise: number;
@@ -88,7 +89,7 @@ export class DriverHistoryRepository {
       .limit(limit + 1);
 
     const hasMore = rows.length > limit;
-    const items = hasMore ? rows.slice(0, limit) : rows;
+    const items = (hasMore ? rows.slice(0, limit) : rows) as DriverHistoryItem[];
     const last = items.at(-1);
 
     return {
