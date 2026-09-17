@@ -84,7 +84,7 @@ export function AvailabilitySettings({
             <Button
               key={option}
               type="button"
-              variant={availability === option ? 'default' : 'secondary'}
+              variant={availability === option ? 'primary' : 'secondary'}
               disabled={busy || locked || availability === option}
               onClick={() => void updateAvailability(option)}
             >
@@ -93,7 +93,11 @@ export function AvailabilitySettings({
           ))}
         </div>
 
-        {message && <p className="text-muted-foreground text-sm" role="status">{message}</p>}
+        {message && (
+          <p className="text-muted-foreground text-sm" role="status">
+            {message}
+          </p>
+        )}
       </CardContent>
     </Card>
   );
