@@ -50,7 +50,11 @@ export async function getDeliveryProofForDriverUser(
     .from(deliveries)
     .innerJoin(
       drivers,
-      and(eq(drivers.id, deliveries.driverId), eq(drivers.userId, userId), isNull(drivers.deletedAt))
+      and(
+        eq(drivers.id, deliveries.driverId),
+        eq(drivers.userId, userId),
+        isNull(drivers.deletedAt)
+      )
     )
     .where(eq(deliveries.id, deliveryId))
     .limit(1);
