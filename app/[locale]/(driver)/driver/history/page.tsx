@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { requireCurrentActor } from '@/lib/auth/current-actor';
 import { formatPaise, paise } from '@/lib/money';
-import { getDriverHistoryForUser } from '@/modules/driver-history/driver-history.repository';
+import { getDriverHistoryForUser } from '@/modules/driver-history';
 
 /**
  * Driver delivery history — REAL SCREEN (docs/ROUTES.md §7).
