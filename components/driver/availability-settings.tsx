@@ -14,10 +14,7 @@ interface AvailabilitySettingsProps {
 
 const OPTIONS: Array<Exclude<AvailabilityValue, 'ON_DELIVERY'>> = ['ONLINE', 'ON_BREAK', 'OFFLINE'];
 
-export function AvailabilitySettings({
-  initialAvailability,
-  locale,
-}: AvailabilitySettingsProps) {
+export function AvailabilitySettings({ initialAvailability, locale }: AvailabilitySettingsProps) {
   const [availability, setAvailability] = useState<AvailabilityValue>(initialAvailability);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
@@ -52,7 +49,9 @@ export function AvailabilitySettings({
       setAvailability(payload.data?.availability ?? next);
       setMessage(locale === 'hi' ? 'स्थिति अपडेट हो गई।' : 'Availability updated.');
     } catch {
-      setMessage(locale === 'hi' ? 'स्थिति अपडेट नहीं हो सकी।' : 'Availability could not be updated.');
+      setMessage(
+        locale === 'hi' ? 'स्थिति अपडेट नहीं हो सकी।' : 'Availability could not be updated.'
+      );
     } finally {
       setBusy(false);
     }
@@ -65,7 +64,9 @@ export function AvailabilitySettings({
           <CardTitle className="text-base">
             {locale === 'hi' ? 'काम की स्थिति' : 'Work availability'}
           </CardTitle>
-          <Badge variant={availabilityVariant(availability)}>{availability.replaceAll('_', ' ')}</Badge>
+          <Badge variant={availabilityVariant(availability)}>
+            {availability.replaceAll('_', ' ')}
+          </Badge>
         </div>
       </CardHeader>
       <CardContent className="flex flex-col gap-3">
@@ -110,10 +111,7 @@ function availabilityVariant(value: AvailabilityValue) {
   return 'neutral' as const;
 }
 
-function availabilityLabel(
-  value: Exclude<AvailabilityValue, 'ON_DELIVERY'>,
-  locale: 'en' | 'hi'
-) {
+function availabilityLabel(value: Exclude<AvailabilityValue, 'ON_DELIVERY'>, locale: 'en' | 'hi') {
   if (locale === 'hi') {
     if (value === 'ONLINE') return 'ऑनलाइन';
     if (value === 'ON_BREAK') return 'ब्रेक';
