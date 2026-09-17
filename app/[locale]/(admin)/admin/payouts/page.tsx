@@ -88,7 +88,9 @@ export default async function Page({ params }: { params: Promise<{ locale: strin
                   <tr key={row.id} className="hover:bg-muted/30">
                     <td className="px-4 py-3">
                       <p className="font-medium">{row.payeeType}</p>
-                      <p className="text-muted-foreground mt-1 max-w-48 truncate text-xs">{row.payeeId}</p>
+                      <p className="text-muted-foreground mt-1 max-w-48 truncate text-xs">
+                        {row.payeeId}
+                      </p>
                     </td>
                     <td className="px-4 py-3 text-xs">
                       {row.periodStart} → {row.periodEnd}

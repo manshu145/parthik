@@ -61,7 +61,10 @@ export default async function Page({ params }: { params: Promise<{ locale: strin
       </div>
 
       <div className="grid gap-3 sm:grid-cols-4">
-        <Metric label={locale === 'hi' ? 'असाइनमेंट लंबित' : 'Awaiting assignment'} value={waiting} />
+        <Metric
+          label={locale === 'hi' ? 'असाइनमेंट लंबित' : 'Awaiting assignment'}
+          value={waiting}
+        />
         <Metric label={locale === 'hi' ? 'सक्रिय डिलीवरी' : 'Active deliveries'} value={active} />
         <Metric label={locale === 'hi' ? 'असफल' : 'Failed'} value={failed} />
         <Metric
@@ -104,7 +107,9 @@ export default async function Page({ params }: { params: Promise<{ locale: strin
                         {delivery.status.replaceAll('_', ' ')}
                       </Badge>
                       {delivery.failureReason ? (
-                        <p className="text-danger mt-1 max-w-56 text-xs">{delivery.failureReason}</p>
+                        <p className="text-danger mt-1 max-w-56 text-xs">
+                          {delivery.failureReason}
+                        </p>
                       ) : null}
                     </td>
                     <td className="px-4 py-3">

@@ -135,7 +135,9 @@ export default async function Page({
               <p className="mt-3 font-medium">{product.shortDescription}</p>
             ) : null}
             {product.description ? (
-              <p className="text-muted-foreground mt-2 whitespace-pre-wrap">{product.description}</p>
+              <p className="text-muted-foreground mt-2 whitespace-pre-wrap">
+                {product.description}
+              </p>
             ) : null}
           </CardContent>
         </Card>
@@ -144,7 +146,9 @@ export default async function Page({
       <Card>
         <CardContent className="p-4">
           <div className="flex items-center justify-between gap-3">
-            <h2 className="font-semibold">{locale === 'hi' ? 'Variants और stock' : 'Variants and stock'}</h2>
+            <h2 className="font-semibold">
+              {locale === 'hi' ? 'Variants और stock' : 'Variants and stock'}
+            </h2>
             <span className="text-muted-foreground text-xs">{variants.length} variants</span>
           </div>
 
@@ -168,7 +172,9 @@ export default async function Page({
                     {variants.map((variant) => (
                       <tr key={variant.id}>
                         <td className="px-4 py-3 font-medium">{variant.sku ?? '—'}</td>
-                        <td className="px-4 py-3">{variant.unitLabel ?? product.unitLabel ?? '—'}</td>
+                        <td className="px-4 py-3">
+                          {variant.unitLabel ?? product.unitLabel ?? '—'}
+                        </td>
                         <td className="px-4 py-3">
                           {format.number(variant.pricePaise / 100, {
                             style: 'currency',
@@ -187,7 +193,9 @@ export default async function Page({
                             variant.quantityAvailable !== null &&
                             variant.lowStockThreshold !== null &&
                             variant.quantityAvailable <= variant.lowStockThreshold ? (
-                              <Badge variant={variant.quantityAvailable === 0 ? 'danger' : 'warning'}>
+                              <Badge
+                                variant={variant.quantityAvailable === 0 ? 'danger' : 'warning'}
+                              >
                                 {variant.quantityAvailable === 0 ? 'OUT' : 'LOW'}
                               </Badge>
                             ) : null}
