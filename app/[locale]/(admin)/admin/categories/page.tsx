@@ -40,7 +40,9 @@ export default async function Page({ params }: { params: Promise<{ locale: strin
       </div>
 
       {rows.length === 0 ? (
-        <Card><CardContent className="p-4 text-sm">No categories configured.</CardContent></Card>
+        <Card>
+          <CardContent className="p-4 text-sm">No categories configured.</CardContent>
+        </Card>
       ) : (
         <div className="overflow-hidden rounded-xl border">
           <div className="overflow-x-auto">
@@ -61,7 +63,9 @@ export default async function Page({ params }: { params: Promise<{ locale: strin
                       <p className="font-medium">{row.name}</p>
                       <p className="text-muted-foreground mt-1 text-xs">/{row.slug}</p>
                     </td>
-                    <td className="px-4 py-3">{row.parentId ? names.get(row.parentId) ?? 'Parent category' : 'Root'}</td>
+                    <td className="px-4 py-3">
+                      {row.parentId ? (names.get(row.parentId) ?? 'Parent category') : 'Root'}
+                    </td>
                     <td className="px-4 py-3">{row.productCount}</td>
                     <td className="px-4 py-3">{row.displayOrder}</td>
                     <td className="px-4 py-3">

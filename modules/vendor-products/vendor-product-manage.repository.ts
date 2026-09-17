@@ -348,7 +348,11 @@ async function assertCategoryAvailable(tx: Awaited<ReturnType<typeof getDb>>, ca
     .select({ id: categories.id })
     .from(categories)
     .where(
-      and(eq(categories.id, categoryId), eq(categories.isActive, true), isNull(categories.deletedAt))
+      and(
+        eq(categories.id, categoryId),
+        eq(categories.isActive, true),
+        isNull(categories.deletedAt)
+      )
     )
     .limit(1);
   if (!row) throw new ValidationError('Choose an active category.');

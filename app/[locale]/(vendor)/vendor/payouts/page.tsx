@@ -108,7 +108,15 @@ export default async function Page({ params }: { params: Promise<{ locale: strin
                       })}
                     </td>
                     <td className="px-4 py-3">
-                      <Badge variant={row.status === 'PAID' ? 'success' : row.status === 'FAILED' ? 'danger' : 'warning'}>
+                      <Badge
+                        variant={
+                          row.status === 'PAID'
+                            ? 'success'
+                            : row.status === 'FAILED'
+                              ? 'danger'
+                              : 'warning'
+                        }
+                      >
                         {row.status}
                       </Badge>
                     </td>

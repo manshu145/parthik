@@ -42,7 +42,9 @@ export default async function Page({ params }: { params: Promise<{ locale: strin
 
       {options.categories.length === 0 ? (
         <Card>
-          <CardContent className="p-4 text-sm">No active categories are currently available.</CardContent>
+          <CardContent className="p-4 text-sm">
+            No active categories are currently available.
+          </CardContent>
         </Card>
       ) : (
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">

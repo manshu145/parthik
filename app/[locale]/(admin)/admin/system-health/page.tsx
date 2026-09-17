@@ -27,7 +27,9 @@ export default async function Page({ params }: { params: Promise<{ locale: strin
 
   const [report, t] = await Promise.all([getHealthReport(), getTranslations('adminNav')]);
   const configured = report.components.filter((component) => component.state === 'ok').length;
-  const missing = report.components.filter((component) => component.state === 'not_configured').length;
+  const missing = report.components.filter(
+    (component) => component.state === 'not_configured'
+  ).length;
   const unhealthy = report.components.filter(
     (component) => component.state === 'degraded' || component.state === 'error'
   ).length;
@@ -43,7 +45,11 @@ export default async function Page({ params }: { params: Promise<{ locale: strin
               : 'Live snapshot of runtime configuration and external provider readiness. Secret values are never displayed.'}
           </p>
         </div>
-        <Badge variant={report.status === 'ok' ? 'success' : report.status === 'degraded' ? 'warning' : 'danger'}>
+        <Badge
+          variant={
+            report.status === 'ok' ? 'success' : report.status === 'degraded' ? 'warning' : 'danger'
+          }
+        >
           {report.status.toUpperCase()}
         </Badge>
       </div>
@@ -79,7 +85,8 @@ export default async function Page({ params }: { params: Promise<{ locale: strin
       </div>
 
       <p className="text-muted-foreground text-xs">
-        Snapshot generated {report.timestamp}. This page reports configuration readiness; it does not expose credentials.
+        Snapshot generated {report.timestamp}. This page reports configuration readiness; it does
+        not expose credentials.
       </p>
     </div>
   );

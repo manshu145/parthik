@@ -4,10 +4,7 @@ import { getTranslations, setRequestLocale } from 'next-intl/server';
 import { AccessDenied } from '@/app/_components/access-denied';
 import { VendorProductForm } from '@/components/vendor/product-form';
 import { checkVendorPage } from '@/lib/auth/vendor-page';
-import {
-  listVendorProductFormOptions,
-  readVendorProductForEdit,
-} from '@/modules/vendor-products';
+import { listVendorProductFormOptions, readVendorProductForEdit } from '@/modules/vendor-products';
 
 export const dynamic = 'force-dynamic';
 

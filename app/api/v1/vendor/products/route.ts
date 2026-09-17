@@ -12,7 +12,10 @@ export async function POST(request: Request) {
     const { actor, vendorId } = await requireVendorActor('product:manage');
     const parsed = vendorProductInputSchema.safeParse(await request.json());
     if (!parsed.success) {
-      throw new ValidationError('Check the product details and try again.', parsed.error.flatten().fieldErrors);
+      throw new ValidationError(
+        'Check the product details and try again.',
+        parsed.error.flatten().fieldErrors
+      );
     }
 
     const product = await createVendorProduct(vendorId, actor.userId, parsed.data);

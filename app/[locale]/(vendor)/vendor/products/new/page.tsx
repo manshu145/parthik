@@ -39,11 +39,7 @@ export default async function Page({ params }: { params: Promise<{ locale: strin
             : 'Create a new draft product. Pricing, the default variant and opening stock are saved in one transaction.'}
         </p>
       </div>
-      <VendorProductForm
-        locale={locale}
-        stores={options.stores}
-        categories={options.categories}
-      />
+      <VendorProductForm locale={locale} stores={options.stores} categories={options.categories} />
     </div>
   );
 }

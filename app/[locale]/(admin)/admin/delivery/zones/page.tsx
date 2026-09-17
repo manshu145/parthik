@@ -81,7 +81,9 @@ export default async function Page({ params }: { params: Promise<{ locale: strin
                     <MoneyCell value={zone.freeDeliveryThresholdPaise} format={format} />
                     <MoneyCell value={zone.minOrderPaise} format={format} />
                     <MoneyCell value={zone.perKmFeePaise} format={format} />
-                    <td className="px-4 py-3">{zone.avgDeliveryMinutes ? `${zone.avgDeliveryMinutes} min` : '—'}</td>
+                    <td className="px-4 py-3">
+                      {zone.avgDeliveryMinutes ? `${zone.avgDeliveryMinutes} min` : '—'}
+                    </td>
                     <td className="px-4 py-3">
                       <Badge variant={zone.isActive ? 'success' : 'neutral'}>
                         {zone.isActive ? 'ACTIVE' : 'INACTIVE'}

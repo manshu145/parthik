@@ -54,7 +54,10 @@ export async function listAdminCategories() {
       categoryTranslations,
       sql`${categoryTranslations.categoryId} = ${categories.id} and ${categoryTranslations.locale} = 'en'`
     )
-    .leftJoin(products, sql`${products.categoryId} = ${categories.id} and ${products.deletedAt} is null`)
+    .leftJoin(
+      products,
+      sql`${products.categoryId} = ${categories.id} and ${products.deletedAt} is null`
+    )
     .where(sql`${categories.deletedAt} is null`)
     .groupBy(categories.id, categoryTranslations.name, categoryTranslations.description)
     .orderBy(asc(categories.displayOrder), asc(categoryTranslations.name));

@@ -115,7 +115,13 @@ export function VendorProductForm({
         </div>
 
         <Field label="Product name">
-          <Input name="name" required minLength={2} maxLength={160} defaultValue={initial?.name ?? ''} />
+          <Input
+            name="name"
+            required
+            minLength={2}
+            maxLength={160}
+            defaultValue={initial?.name ?? ''}
+          />
         </Field>
 
         <Field label="Short description">
@@ -169,7 +175,13 @@ export function VendorProductForm({
         </Field>
 
         <Field label="Unit label">
-          <Input name="unitLabel" required maxLength={60} defaultValue={initial?.unitLabel ?? ''} placeholder="500 g" />
+          <Input
+            name="unitLabel"
+            required
+            maxLength={60}
+            defaultValue={initial?.unitLabel ?? ''}
+            placeholder="500 g"
+          />
         </Field>
 
         <Field label="SKU">

@@ -10,7 +10,4 @@ export {
   vendorProductInputSchema,
   vendorProductUpdateSchema,
 } from './vendor-product-manage.schema';
-export type {
-  VendorProductInput,
-  VendorProductUpdateInput,
-} from './vendor-product-manage.schema';
+export type { VendorProductInput, VendorProductUpdateInput } from './vendor-product-manage.schema';

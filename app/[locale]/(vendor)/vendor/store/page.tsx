@@ -55,7 +55,10 @@ export default async function Page({ params }: { params: Promise<{ locale: strin
           <Field label="Business" value={summary.vendor.businessName} />
           <Field label="Legal name" value={summary.vendor.legalName ?? '—'} />
           <Field label="Vendor status" value={summary.vendor.status} />
-          <Field label="Contact" value={summary.vendor.contactPhone ?? summary.vendor.contactEmail ?? '—'} />
+          <Field
+            label="Contact"
+            value={summary.vendor.contactPhone ?? summary.vendor.contactEmail ?? '—'}
+          />
         </CardContent>
       </Card>
 
@@ -68,7 +71,9 @@ export default async function Page({ params }: { params: Promise<{ locale: strin
                   <h2 className="font-semibold">{store.name}</h2>
                   <p className="text-muted-foreground mt-1 text-xs">/{store.slug}</p>
                 </div>
-                <Badge variant={store.status === 'OPEN' ? 'success' : 'neutral'}>{store.status}</Badge>
+                <Badge variant={store.status === 'OPEN' ? 'success' : 'neutral'}>
+                  {store.status}
+                </Badge>
               </div>
 
               {store.description ? (
@@ -120,7 +125,9 @@ export default async function Page({ params }: { params: Promise<{ locale: strin
 
       {summary.stores.length === 0 ? (
         <Card>
-          <CardContent className="p-4 text-sm">No stores are linked to this vendor yet.</CardContent>
+          <CardContent className="p-4 text-sm">
+            No stores are linked to this vendor yet.
+          </CardContent>
         </Card>
       ) : null}
     </div>
