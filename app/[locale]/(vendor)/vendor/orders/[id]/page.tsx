@@ -103,12 +103,15 @@ export default async function VendorOrderDetailPage({
 
               <div className="border-border flex items-center justify-between border-t pt-3 font-semibold">
                 <span>{tOrders('summary.total')}</span>
-                <span data-testid="vendor-order-total">{money(detail.order.totalAmountPaise)}</span>
+                <span data-testid="vendor-order-total">
+                  {money(detail.order.totalAmountPaise)}
+                </span>
               </div>
 
               {detail.order.isCod && (
                 <p className="text-muted-foreground text-sm">
-                  {tVendor('cod')} · {money(detail.order.codAmountPaise ?? detail.order.totalAmountPaise)}
+                  {tVendor('cod')} ·{' '}
+                  {money(detail.order.codAmountPaise ?? detail.order.totalAmountPaise)}
                 </p>
               )}
             </CardContent>
