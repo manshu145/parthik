@@ -135,8 +135,8 @@ export default async function Page({ params }: { params: Promise<{ locale: strin
                             : 'Expired'
                           : locale === 'hi'
                             ? 'समाप्ति'
-                            : 'Expires'}:{' '}
-                        {format.dateTime(document.expiresAt, { dateStyle: 'medium' })}
+                            : 'Expires'}
+                        : {format.dateTime(document.expiresAt, { dateStyle: 'medium' })}
                       </p>
                     )}
                     {document.rejectionReason && (
