@@ -76,6 +76,6 @@ export default async function Page({ params }: { params: Promise<{ locale: strin
 function productStatusVariant(status: string): BadgeVariant {
   if (status === 'ACTIVE') return 'success';
   if (status === 'REJECTED' || status === 'ARCHIVED') return 'danger';
-  if (status === 'PENDING_APPROVAL') return 'warning';
+  if (status === 'PENDING_REVIEW') return 'warning';
   return 'neutral';
 }
