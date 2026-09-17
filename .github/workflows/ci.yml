@@ -45,7 +45,17 @@ jobs:
         run: pnpm lint
 
       - name: Format check
+        id: format
         run: pnpm format:check
+
+      # Keep formatter failures actionable in remote/stacked-PR workflows. The
+      # write happens only in the disposable runner checkout; the following diff
+      # shows the exact patch a contributor must commit.
+      - name: Show formatter diff
+        if: failure() && steps.format.outcome == 'failure'
+        run: |
+          pnpm exec prettier --write .
+          git --no-pager diff -- . ':(exclude)pnpm-lock.yaml'
 
       # ---- Tests -----------------------------------------------------------
       # Unit tests need no services. Integration tests arrive with TASK 002 and
