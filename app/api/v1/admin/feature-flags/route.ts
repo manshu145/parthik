@@ -5,7 +5,12 @@ import { apiError, apiSuccess, requestIdFrom } from '@/lib/http/api-response';
 import { createAdminFeatureFlag } from '@/modules/admin-access';
 
 const schema = z.object({
-  key: z.string().trim().min(2).max(120).regex(/^[a-z0-9._-]+$/),
+  key: z
+    .string()
+    .trim()
+    .min(2)
+    .max(120)
+    .regex(/^[a-z0-9._-]+$/),
   description: z.string().trim().max(1000).nullable(),
   isEnabled: z.boolean(),
   rolloutPercentage: z.number().int().min(0).max(100),
@@ -25,10 +30,10 @@ export async function POST(request: Request) {
       );
     }
 
-    return apiSuccess(
-      await createAdminFeatureFlag(parsed.data, actor.userId),
-      { status: 201, meta: { requestId } }
-    );
+    return apiSuccess(await createAdminFeatureFlag(parsed.data, actor.userId), {
+      status: 201,
+      meta: { requestId },
+    });
   } catch (error) {
     return apiError(error, { requestId });
   }
