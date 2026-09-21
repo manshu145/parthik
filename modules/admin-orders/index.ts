@@ -1,1 +1,5 @@
-export { listAdminOrders, type AdminOrderListItem } from './admin-orders.repository';
+export {
+  listAdminOrders,
+  updateAdminOrderNote,
+  type AdminOrderListItem,
+} from './admin-orders.repository';

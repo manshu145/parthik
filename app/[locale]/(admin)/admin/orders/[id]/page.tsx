@@ -1,8 +1,10 @@
 import type { Metadata } from 'next';
 import { getFormatter, getTranslations, setRequestLocale } from 'next-intl/server';
 import { AccessDenied } from '@/app/_components/access-denied';
+import { AdminOrderOperations } from '@/components/admin/order-operations';
 import { Badge, type BadgeVariant } from '@/components/ui/badge';
 import { Card, CardContent } from '@/components/ui/card';
+import { currentActorCan } from '@/lib/auth/current-actor';
 import { checkPagePermission } from '@/lib/auth/page-guard';
 import { getOrderService } from '@/modules/order';
 
@@ -29,11 +31,17 @@ export default async function Page({
   const access = await checkPagePermission('order:view');
   if (access.status !== 'ok') return <AccessDenied decision={access} />;
 
-  const [detail, t, format] = await Promise.all([
-    getOrderService().then((service) => service.getForOperations(id)),
+  const service = await getOrderService();
+  const [detail, t, format, canUpdate, canCancel, canNote, canRefund] = await Promise.all([
+    service.getForOperations(id),
     getTranslations('adminNav'),
     getFormatter(),
+    currentActorCan('order:update_status'),
+    currentActorCan('order:cancel'),
+    currentActorCan('order:note'),
+    currentActorCan('refund:manage'),
   ]);
+  const nextStatuses = canUpdate ? service.nextActionsFor(detail.order.status, 'ADMIN') : [];
 
   const address = detail.order.deliveryAddressSnapshot as Record<string, unknown>;
   const addressText = [
@@ -58,6 +66,17 @@ export default async function Page({
           {detail.order.status.replaceAll('_', ' ')}
         </Badge>
       </div>
+
+      <AdminOrderOperations
+        orderId={detail.order.id}
+        status={detail.order.status}
+        internalNote={detail.order.internalNote}
+        nextStatuses={nextStatuses}
+        canCancel={canCancel}
+        canNote={canNote}
+        canRefund={canRefund}
+        totalAmountPaise={detail.order.totalAmountPaise}
+      />
 
       <div className="grid gap-3 md:grid-cols-2">
         <Card>
