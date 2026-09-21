@@ -8,10 +8,7 @@ const schema = z.object({
   permissionKeys: z.array(z.string().min(1).max(100)).max(200),
 });
 
-export async function PATCH(
-  request: Request,
-  { params }: { params: Promise<{ roleId: string }> }
-) {
+export async function PATCH(request: Request, { params }: { params: Promise<{ roleId: string }> }) {
   const requestId = requestIdFrom(request);
   try {
     const actor = await requireCurrentPermission('role:manage');
