@@ -26,10 +26,6 @@ export async function readSupportTicketForUser(userId: string, ticketId: string)
   return readTicket(userId, ticketId);
 }
 
-export async function replySupportTicketForUser(
-  userId: string,
-  ticketId: string,
-  message: string
-) {
+export async function replySupportTicketForUser(userId: string, ticketId: string, message: string) {
   return replyTicket(userId, ticketId, message);
 }
