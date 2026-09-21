@@ -9,7 +9,7 @@ services:
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-parthik} -d ${POSTGRES_DB:-parthik}"]
+      test: ['CMD-SHELL', 'pg_isready -U ${POSTGRES_USER:-parthik} -d ${POSTGRES_DB:-parthik}']
       interval: 10s
       timeout: 5s
       retries: 10
@@ -26,7 +26,7 @@ services:
       postgres:
         condition: service_healthy
     networks: [internal]
-    restart: "no"
+    restart: 'no'
 
   app:
     build:
@@ -52,7 +52,7 @@ services:
       PUBLIC_APP_URL: https://parthik.com
       NEXT_PUBLIC_APP_URL: https://parthik.com
       DATABASE_URL: postgresql://${POSTGRES_USER:-parthik}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-parthik}
-      DEV_AUTH_ENABLED: "false"
+      DEV_AUTH_ENABLED: 'false'
       TEMP_AUTH_ENABLED: ${TEMP_AUTH_ENABLED:-false}
       TEMP_AUTH_PASSWORD: ${TEMP_AUTH_PASSWORD:-}
     depends_on:
@@ -61,7 +61,11 @@ services:
       migrate:
         condition: service_completed_successfully
     healthcheck:
-      test: ["CMD-SHELL", "node -e \"fetch('http://127.0.0.1:3000/api/v1/health').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))\""]
+      test:
+        [
+          'CMD-SHELL',
+          'node -e "fetch(''http://127.0.0.1:3000/api/v1/health'').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))"',
+        ]
       interval: 15s
       timeout: 5s
       retries: 10
@@ -72,9 +76,9 @@ services:
     image: caddy:2.10-alpine
     restart: unless-stopped
     ports:
-      - "80:80"
-      - "443:443"
-      - "443:443/udp"
+      - '80:80'
+      - '443:443'
+      - '443:443/udp'
     volumes:
       - ./Caddyfile:/etc/caddy/Caddyfile:ro
       - caddy_data:/data
