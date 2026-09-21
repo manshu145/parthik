@@ -33,9 +33,7 @@ const actionSchema = z.object({
   driverId: z.string().uuid().optional(),
   message: z.string().trim().max(5000).optional(),
   internal: z.boolean().optional(),
-  status: z
-    .enum(['OPEN', 'IN_PROGRESS', 'WAITING_ON_CUSTOMER', 'RESOLVED', 'CLOSED'])
-    .optional(),
+  status: z.enum(['OPEN', 'IN_PROGRESS', 'WAITING_ON_CUSTOMER', 'RESOLVED', 'CLOSED']).optional(),
   priority: z.enum(['LOW', 'MEDIUM', 'HIGH', 'URGENT']).optional(),
   assignedToUserId: z.string().uuid().nullable().optional(),
   resolutionNote: z.string().trim().max(5000).nullable().optional(),
