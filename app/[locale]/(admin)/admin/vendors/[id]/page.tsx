@@ -2,7 +2,9 @@ import type { Metadata } from 'next';
 import { getFormatter, getTranslations, setRequestLocale } from 'next-intl/server';
 import { AccessDenied } from '@/app/_components/access-denied';
 import { Badge, type BadgeVariant } from '@/components/ui/badge';
+import { EntityActions } from '@/components/admin/entity-actions';
 import { Card, CardContent } from '@/components/ui/card';
+import { currentActorCan } from '@/lib/auth/current-actor';
 import { checkPagePermission } from '@/lib/auth/page-guard';
 import { readAdminVendorDetail } from '@/modules/admin-people';
 
@@ -34,6 +36,10 @@ export default async function Page({
     getTranslations('adminNav'),
     getFormatter(),
   ]);
+  const canAct =
+    vendor.status === 'APPLIED' || vendor.status === 'UNDER_REVIEW'
+      ? await currentActorCan('vendor:approve')
+      : await currentActorCan('vendor:suspend');
 
   return (
     <div className="mx-auto flex max-w-4xl flex-col gap-4" data-testid="admin-vendor-detail">
@@ -46,6 +52,8 @@ export default async function Page({
         </div>
         <Badge variant={statusVariant(vendor.status)}>{vendor.status.replaceAll('_', ' ')}</Badge>
       </div>
+
+      <EntityActions resource="vendor" id={vendor.id} status={vendor.status} allowed={canAct} />
 
       <div className="grid gap-3 md:grid-cols-2">
         <Card>

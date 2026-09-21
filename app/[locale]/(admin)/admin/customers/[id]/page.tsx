@@ -3,7 +3,9 @@ import { notFound } from 'next/navigation';
 import { getFormatter, getTranslations, setRequestLocale } from 'next-intl/server';
 import { AccessDenied } from '@/app/_components/access-denied';
 import { Badge, type BadgeVariant } from '@/components/ui/badge';
+import { EntityActions } from '@/components/admin/entity-actions';
 import { Card, CardContent } from '@/components/ui/card';
+import { currentActorCan } from '@/lib/auth/current-actor';
 import { checkPagePermission } from '@/lib/auth/page-guard';
 import { readAdminCustomerDetail } from '@/modules/admin-customers';
 
@@ -39,6 +41,7 @@ export default async function Page({
   if (!detail) notFound();
 
   const { customer, addresses, recentOrders } = detail;
+  const canSuspend = await currentActorCan('customer:suspend');
 
   return (
     <div className="mx-auto flex max-w-6xl flex-col gap-4" data-testid="admin-customer-detail">
@@ -51,6 +54,13 @@ export default async function Page({
         </div>
         <Badge variant={statusVariant(customer.status)}>{customer.status}</Badge>
       </div>
+
+      <EntityActions
+        resource="customer"
+        id={customer.id}
+        status={customer.status}
+        allowed={canSuspend}
+      />
 
       <div className="grid gap-4 md:grid-cols-3">
         <Card>

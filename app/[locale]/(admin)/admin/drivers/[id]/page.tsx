@@ -2,7 +2,9 @@ import type { Metadata } from 'next';
 import { getFormatter, getTranslations, setRequestLocale } from 'next-intl/server';
 import { AccessDenied } from '@/app/_components/access-denied';
 import { Badge, type BadgeVariant } from '@/components/ui/badge';
+import { EntityActions } from '@/components/admin/entity-actions';
 import { Card, CardContent } from '@/components/ui/card';
+import { currentActorCan } from '@/lib/auth/current-actor';
 import { checkPagePermission } from '@/lib/auth/page-guard';
 import { readAdminDriverDetail } from '@/modules/admin-people';
 
@@ -34,6 +36,10 @@ export default async function Page({
     getTranslations('adminNav'),
     getFormatter(),
   ]);
+  const canAct =
+    driver.status === 'APPLIED' || driver.status === 'UNDER_REVIEW'
+      ? await currentActorCan('driver:approve')
+      : await currentActorCan('driver:suspend');
 
   return (
     <div className="mx-auto flex max-w-4xl flex-col gap-4" data-testid="admin-driver-detail">
@@ -51,6 +57,8 @@ export default async function Page({
           </Badge>
         </div>
       </div>
+
+      <EntityActions resource="driver" id={driver.id} status={driver.status} allowed={canAct} />
 
       <div className="grid gap-3 md:grid-cols-2">
         <Card>

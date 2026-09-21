@@ -3,7 +3,9 @@ import { notFound } from 'next/navigation';
 import { getFormatter, getTranslations, setRequestLocale } from 'next-intl/server';
 import { AccessDenied } from '@/app/_components/access-denied';
 import { Badge, type BadgeVariant } from '@/components/ui/badge';
+import { EntityActions } from '@/components/admin/entity-actions';
 import { Card, CardContent } from '@/components/ui/card';
+import { currentActorCan } from '@/lib/auth/current-actor';
 import { checkPagePermission } from '@/lib/auth/page-guard';
 import { readAdminProductDetail } from '@/modules/admin-catalog';
 
@@ -39,6 +41,10 @@ export default async function Page({
   if (!detail) notFound();
 
   const { product, variants } = detail;
+  const canAct =
+    product.status === 'DRAFT' || product.status === 'PENDING_REVIEW'
+      ? await currentActorCan('product:approve')
+      : await currentActorCan('product:manage');
 
   return (
     <div className="mx-auto flex max-w-6xl flex-col gap-4" data-testid="admin-product-detail">
@@ -53,6 +59,8 @@ export default async function Page({
           {product.status.replaceAll('_', ' ')}
         </Badge>
       </div>
+
+      <EntityActions resource="product" id={product.id} status={product.status} allowed={canAct} />
 
       <div className="grid gap-4 lg:grid-cols-3">
         <Card>
