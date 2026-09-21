@@ -48,16 +48,8 @@ export async function listSupportTicketsForUser(
     .limit(Math.min(Math.max(limit, 1), 100));
 }
 
-
 export type SupportTicketCategory =
-  | 'PAYMENT'
-  | 'DELIVERY'
-  | 'PRODUCT'
-  | 'REFUND'
-  | 'COUPON'
-  | 'ACCOUNT'
-  | 'VENDOR'
-  | 'OTHER';
+  'PAYMENT' | 'DELIVERY' | 'PRODUCT' | 'REFUND' | 'COUPON' | 'ACCOUNT' | 'VENDOR' | 'OTHER';
 
 export async function createSupportTicketForUser(
   userId: string,
@@ -151,11 +143,7 @@ export async function readSupportTicketForUser(userId: string, ticketId: string)
   return { ticket, messages };
 }
 
-export async function replySupportTicketForUser(
-  userId: string,
-  ticketId: string,
-  message: string
-) {
+export async function replySupportTicketForUser(userId: string, ticketId: string, message: string) {
   const text = message.trim();
   if (!text) {
     throw new ValidationError('Reply cannot be empty.', { message: ['Enter a reply.'] });
@@ -188,8 +176,7 @@ export async function replySupportTicketForUser(
       })
       .returning({ id: ticketMessages.id, createdAt: ticketMessages.createdAt });
 
-    const shouldReopen =
-      ticket.status === 'WAITING_ON_CUSTOMER' || ticket.status === 'RESOLVED';
+    const shouldReopen = ticket.status === 'WAITING_ON_CUSTOMER' || ticket.status === 'RESOLVED';
     if (shouldReopen) {
       await tx
         .update(supportTickets)
