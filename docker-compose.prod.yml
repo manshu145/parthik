@@ -53,6 +53,8 @@ services:
       NEXT_PUBLIC_APP_URL: https://parthik.com
       DATABASE_URL: postgresql://${POSTGRES_USER:-parthik}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-parthik}
       DEV_AUTH_ENABLED: "false"
+      TEMP_AUTH_ENABLED: ${TEMP_AUTH_ENABLED:-false}
+      TEMP_AUTH_PASSWORD: ${TEMP_AUTH_PASSWORD:-}
     depends_on:
       postgres:
         condition: service_healthy
