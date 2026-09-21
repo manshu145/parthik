@@ -2,8 +2,6 @@ import type { Metadata } from 'next';
 import { getTranslations, setRequestLocale } from 'next-intl/server';
 import { AccessDenied } from '@/app/_components/access-denied';
 import { CategoryEditor } from '@/components/admin/master-data-editors';
-import { Badge } from '@/components/ui/badge';
-import { Card, CardContent } from '@/components/ui/card';
 import { checkPagePermission } from '@/lib/auth/page-guard';
 import { listAdminCategories } from '@/modules/admin-configuration';
 
@@ -27,7 +25,6 @@ export default async function Page({ params }: { params: Promise<{ locale: strin
   if (access.status !== 'ok') return <AccessDenied decision={access} />;
 
   const [rows, t] = await Promise.all([listAdminCategories(), getTranslations('adminNav')]);
-  const names = new Map(rows.map((row) => [row.id, row.name]));
 
   return (
     <div className="mx-auto flex max-w-6xl flex-col gap-4" data-testid="admin-categories">
