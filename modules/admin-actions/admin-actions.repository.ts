@@ -410,7 +410,10 @@ export async function assignDelivery(
     if (!delivery) throw new NotFoundError('Delivery could not be found.');
 
     if (['DELIVERED', 'FAILED', 'CANCELLED', 'RETURNED_TO_STORE'].includes(delivery.status)) {
-      throw new ConflictError('A terminal delivery cannot be reassigned.', 'INVALID_STATUS_TRANSITION');
+      throw new ConflictError(
+        'A terminal delivery cannot be reassigned.',
+        'INVALID_STATUS_TRANSITION'
+      );
     }
 
     const [driver] = await tx
@@ -583,7 +586,9 @@ export async function updateSupportTicket(
     const nextAssignee =
       input.assignedToUserId === undefined ? before.assignedToUserId : input.assignedToUserId;
     const nextResolution =
-      input.resolutionNote === undefined ? before.resolutionNote : input.resolutionNote?.trim() || null;
+      input.resolutionNote === undefined
+        ? before.resolutionNote
+        : input.resolutionNote?.trim() || null;
 
     await tx
       .update(supportTickets)
@@ -592,8 +597,8 @@ export async function updateSupportTicket(
         priority: nextPriority,
         assignedToUserId: nextAssignee,
         resolutionNote: nextResolution,
-        resolvedAt: nextStatus === 'RESOLVED' ? before.resolvedAt ?? now : before.resolvedAt,
-        closedAt: nextStatus === 'CLOSED' ? before.closedAt ?? now : before.closedAt,
+        resolvedAt: nextStatus === 'RESOLVED' ? (before.resolvedAt ?? now) : before.resolvedAt,
+        closedAt: nextStatus === 'CLOSED' ? (before.closedAt ?? now) : before.closedAt,
         updatedAt: now,
       })
       .where(eq(supportTickets.id, ticketId));
