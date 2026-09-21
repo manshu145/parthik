@@ -665,6 +665,7 @@ export class DrizzleCatalogRepository implements CatalogRepository {
       .from(productVariants)
       .innerJoin(products, eq(products.id, productVariants.productId))
       .innerJoin(stores, eq(stores.id, products.storeId))
+      .innerJoin(vendors, eq(vendors.id, products.vendorId))
       .leftJoin(
         translationRequested,
         and(
