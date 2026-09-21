@@ -30,7 +30,9 @@ export async function listAdminDeliveryZones() {
       maxDeliveryFeePaise: deliveryZones.maxDeliveryFeePaise,
       avgDeliveryMinutes: deliveryZones.avgDeliveryMinutes,
       pincodeCount: sql<number>`count(${zonePincodes.id}) filter (where ${zonePincodes.isActive} = true)::int`,
-      pincodes: sql<string[]>`coalesce(array_agg(${zonePincodes.pincode} order by ${zonePincodes.pincode}) filter (where ${zonePincodes.isActive} = true), '{}')`,
+      pincodes: sql<
+        string[]
+      >`coalesce(array_agg(${zonePincodes.pincode} order by ${zonePincodes.pincode}) filter (where ${zonePincodes.isActive} = true), '{}')`,
     })
     .from(deliveryZones)
     .leftJoin(zonePincodes, eq(zonePincodes.deliveryZoneId, deliveryZones.id))
@@ -87,7 +89,6 @@ export async function listAdminBrands() {
     .groupBy(brands.id, brandTranslations.name)
     .orderBy(asc(brandTranslations.name));
 }
-
 
 export interface CategoryWriteInput {
   name: string;
@@ -224,7 +225,15 @@ export async function updateAdminCategory(
       entityId: id,
       before,
       after: { slug: input.slug, parentId: input.parentId, isActive: input.isActive },
-      changedFields: ['slug', 'name', 'description', 'parentId', 'displayOrder', 'isActive', 'isFeatured'],
+      changedFields: [
+        'slug',
+        'name',
+        'description',
+        'parentId',
+        'displayOrder',
+        'isActive',
+        'isFeatured',
+      ],
       reason: 'Admin category updated',
     });
 
@@ -343,7 +352,12 @@ export async function createAdminDeliveryZone(input: ZoneWriteInput, actorUserId
       action: 'CREATE',
       entityType: 'delivery_zone',
       entityId: created.id,
-      after: { code: input.code, city: input.city, state: input.state, pincodes: input.pincodes.length },
+      after: {
+        code: input.code,
+        city: input.city,
+        state: input.state,
+        pincodes: input.pincodes.length,
+      },
       changedFields: ['name', 'code', 'city', 'state', 'fees', 'pincodes', 'isActive'],
       reason: 'Admin delivery zone created',
     });
@@ -402,7 +416,13 @@ export async function updateAdminDeliveryZone(
       entityType: 'delivery_zone',
       entityId: id,
       before,
-      after: { code: input.code, city: input.city, state: input.state, isActive: input.isActive, pincodes: input.pincodes.length },
+      after: {
+        code: input.code,
+        city: input.city,
+        state: input.state,
+        isActive: input.isActive,
+        pincodes: input.pincodes.length,
+      },
       changedFields: ['name', 'code', 'city', 'state', 'fees', 'pincodes', 'isActive'],
       reason: 'Admin delivery zone updated',
     });
@@ -418,7 +438,11 @@ async function assertCategorySlugAvailable(
 ) {
   const predicates = [eq(categories.slug, slug), isNull(categories.deletedAt)];
   if (excludeId) predicates.push(ne(categories.id, excludeId));
-  const [row] = await tx.select({ id: categories.id }).from(categories).where(and(...predicates)).limit(1);
+  const [row] = await tx
+    .select({ id: categories.id })
+    .from(categories)
+    .where(and(...predicates))
+    .limit(1);
   if (row) throw new ConflictError('That category slug is already in use.');
 }
 
@@ -446,7 +470,11 @@ async function assertBrandSlugAvailable(
 ) {
   const predicates = [eq(brands.slug, slug), isNull(brands.deletedAt)];
   if (excludeId) predicates.push(ne(brands.id, excludeId));
-  const [row] = await tx.select({ id: brands.id }).from(brands).where(and(...predicates)).limit(1);
+  const [row] = await tx
+    .select({ id: brands.id })
+    .from(brands)
+    .where(and(...predicates))
+    .limit(1);
   if (row) throw new ConflictError('That brand slug is already in use.');
 }
 
@@ -457,7 +485,11 @@ async function assertZoneCodeAvailable(
 ) {
   const predicates = [eq(deliveryZones.code, code)];
   if (excludeId) predicates.push(ne(deliveryZones.id, excludeId));
-  const [row] = await tx.select({ id: deliveryZones.id }).from(deliveryZones).where(and(...predicates)).limit(1);
+  const [row] = await tx
+    .select({ id: deliveryZones.id })
+    .from(deliveryZones)
+    .where(and(...predicates))
+    .limit(1);
   if (row) throw new ConflictError('That delivery zone code is already in use.');
 }
 
