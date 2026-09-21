@@ -1,7 +1,7 @@
 import { getDb, isDatabaseConfigured } from '@/lib/db/client';
 import { ConfigurationError } from '@/lib/errors';
 import { getCashService } from '@/modules/cash';
-import { DrizzleDeliveryRepository } from './delivery.repository';
+import { StableHistoryDeliveryRepository } from './delivery-history.repository';
 import { DeliveryService } from './delivery.service';
 
 /**
@@ -25,13 +25,14 @@ export async function getDeliveryService(): Promise<DeliveryService> {
   const [db, cash] = await Promise.all([getDb(), getCashService()]);
 
   return new DeliveryService({
-    repository: new DrizzleDeliveryRepository({ db }),
+    repository: new StableHistoryDeliveryRepository({ db }),
     cashInHandPaise: (driverId) => cash.cashInHandPaise(driverId),
   });
 }
 
 export { DeliveryService, createDeliveryService } from './delivery.service';
 export type { DeliveryServiceDeps, OfferView } from './delivery.service';
+export { StableHistoryDeliveryRepository } from './delivery-history.repository';
 export { DrizzleDeliveryRepository, createDeliveryRepository } from './delivery.repository';
 export {
   generateOtp,

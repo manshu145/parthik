@@ -33,7 +33,7 @@ export default async function Page({ params }: { params: Promise<{ locale: strin
   const t = await getTranslations('driverConsole');
 
   return (
-    <div className="mx-auto flex max-w-2xl flex-col gap-4">
+    <div className="mx-auto flex max-w-2xl flex-col gap-4" data-testid="driver-console">
       <h1 className="text-xl font-semibold">{t('title')}</h1>
       <DriverConsole />
     </div>
