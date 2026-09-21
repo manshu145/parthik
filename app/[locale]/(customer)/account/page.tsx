@@ -1,6 +1,6 @@
 import type { Metadata } from 'next';
 import { getTranslations, setRequestLocale } from 'next-intl/server';
-import { PageShell, ShellPlaceholderNotice } from '@/components/layout/page-shell';
+import { PageShell } from '@/components/layout/page-shell';
 import { AccountNav } from '@/components/layout/account-nav';
 
 /**
@@ -27,12 +27,10 @@ export default async function AccountPage({ params }: { params: Promise<{ locale
   setRequestLocale(locale);
 
   const t = await getTranslations('pages.account');
-  const tShell = await getTranslations('shell');
-
   return (
     <PageShell title={t('heading')}>
       <div className="flex max-w-2xl flex-col gap-6">
-        <ShellPlaceholderNotice label={tShell('placeholderNotice')} />
+        <p className="text-muted-foreground text-sm">Manage your profile, saved addresses, preferences, security and support from one place.</p>
         <AccountNav />
       </div>
     </PageShell>

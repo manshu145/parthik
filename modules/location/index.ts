@@ -2,6 +2,9 @@ import { getServerEnv } from '@/lib/config/env';
 import { getDb, isDatabaseConfigured } from '@/lib/db/client';
 import { logger } from '@/lib/logger';
 import { resolveMapsProvider } from '@/lib/maps/provider-factory';
+import { GoogleMapsProvider } from '@/lib/maps/google-provider';
+import { mockMapsProvider } from '@/lib/maps/mock-provider';
+import { readProviderSetting } from '@/modules/provider-settings';
 import { DrizzleLocationRepository } from './location.repository';
 import {
   InMemoryLocationRepository,
@@ -61,7 +64,15 @@ async function createLocationRepository(): Promise<LocationRepository> {
 
 export async function getLocationService(): Promise<LocationService> {
   const repository = await createLocationRepository();
-  const { provider } = resolveMapsProvider();
+  const [configuredProvider, configuredKey] = await Promise.all([
+    readProviderSetting('maps.provider'),
+    readProviderSetting('maps.google_server_key'),
+  ]);
+  const provider = configuredProvider === 'mock'
+    ? mockMapsProvider
+    : configuredKey
+      ? new GoogleMapsProvider(configuredKey)
+      : resolveMapsProvider().provider;
 
   return new LocationService({ repository, maps: provider });
 }

@@ -3,6 +3,9 @@ import { ConfigurationError } from '@/lib/errors';
 import { resolvePaymentProvider, type PaymentProviderName } from '@/lib/payments/provider-factory';
 import { DrizzlePaymentRepository } from './payment.repository';
 import { PaymentService } from './payment.service';
+import { readProviderSetting } from '@/modules/provider-settings';
+import { MockPaymentProvider } from '@/lib/payments/mock-provider';
+import { RazorpayProvider } from '@/lib/payments/razorpay-provider';
 
 /**
  * Payment module composition root.
@@ -25,7 +28,17 @@ export async function getPaymentService(): Promise<PaymentService> {
   }
 
   const db = await getDb();
-  const { provider } = resolvePaymentProvider();
+  const [selected, keyId, keySecret, webhookSecret] = await Promise.all([
+    readProviderSetting('payments.provider'),
+    readProviderSetting('payments.razorpay_key_id'),
+    readProviderSetting('payments.razorpay_key_secret'),
+    readProviderSetting('payments.razorpay_webhook_secret'),
+  ]);
+  const provider = selected === 'mock'
+    ? new MockPaymentProvider()
+    : keyId && keySecret
+      ? new RazorpayProvider({ keyId, keySecret, webhookSecret })
+      : resolvePaymentProvider().provider;
 
   return new PaymentService({
     repository: new DrizzlePaymentRepository({ db }),

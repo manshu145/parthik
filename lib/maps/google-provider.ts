@@ -34,13 +34,15 @@ const REGION = 'in';
 /** Hard ceiling on a matrix request so a bug cannot produce a huge bill. */
 const MAX_MATRIX_ELEMENTS = 100;
 
-class GoogleMapsProvider implements MapsProvider {
+export class GoogleMapsProvider implements MapsProvider {
+  constructor(private readonly keyOverride?: string) {}
+
   isConfigured(): boolean {
-    return Boolean(getServerEnv().GOOGLE_MAPS_SERVER_KEY);
+    return Boolean(this.keyOverride ?? getServerEnv().GOOGLE_MAPS_SERVER_KEY);
   }
 
   private key(): string {
-    const key = getServerEnv().GOOGLE_MAPS_SERVER_KEY;
+    const key = this.keyOverride ?? getServerEnv().GOOGLE_MAPS_SERVER_KEY;
     if (!key) {
       throw new ConfigurationError(
         'GOOGLE_MAPS_SERVER_KEY is not configured. Location features are unavailable.'

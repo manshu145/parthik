@@ -51,12 +51,14 @@ const MAX_EVENT_AGE_MS = 24 * 60 * 60 * 1000;
 export class RazorpayProvider implements PaymentProvider {
   readonly name = 'razorpay';
 
+  constructor(private readonly configured?: { keyId: string; keySecret: string; webhookSecret?: string | null }) {}
+
   isConfigured(): boolean {
-    return getRazorpayKeyPairOrNull() !== null;
+    return Boolean(this.configured ?? getRazorpayKeyPairOrNull());
   }
 
   canVerifyWebhooks(): boolean {
-    return getRazorpayWebhookSecretOrNull() !== null;
+    return Boolean(this.configured?.webhookSecret ?? getRazorpayWebhookSecretOrNull());
   }
 
   async createIntent(input: CreateIntentInput): Promise<CreateIntentResult> {
@@ -98,7 +100,7 @@ export class RazorpayProvider implements PaymentProvider {
   }
 
   async verifyWebhook(input: WebhookRequest): Promise<WebhookVerification> {
-    const secret = getRazorpayWebhookSecretOrNull();
+    const secret = this.configured?.webhookSecret ?? getRazorpayWebhookSecretOrNull();
     // Refused rather than skipped. "We could not check the signature" must never resolve to
     // "the signature was fine".
     if (!secret) return { ok: false, reason: 'NOT_CONFIGURED' };
@@ -165,7 +167,7 @@ export class RazorpayProvider implements PaymentProvider {
   }
 
   private credentials() {
-    const pair = getRazorpayKeyPairOrNull();
+    const pair = this.configured ?? getRazorpayKeyPairOrNull();
 
     if (!pair) {
       // Thrown at the point of USE, not at construction, so an unconfigured deployment still

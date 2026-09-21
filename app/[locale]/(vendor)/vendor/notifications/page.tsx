@@ -1,6 +1,11 @@
 import type { Metadata } from 'next';
 import { getTranslations, setRequestLocale } from 'next-intl/server';
-import { DashboardPage } from '@/components/layout/dashboard-page';
+import { AccessDenied } from '@/app/_components/access-denied';
+import { Card, CardContent } from '@/components/ui/card';
+import { checkVendorPage } from '@/lib/auth/vendor-page';
+import { listVendorNotifications } from '@/modules/vendor-operations';
+
+export const dynamic = 'force-dynamic';
 
 /**
  * Route is live, screen is pending. See components/layout/dashboard-page.tsx for
@@ -24,13 +29,11 @@ export default async function Page({ params }: { params: Promise<{ locale: strin
   setRequestLocale(locale);
 
   const t = await getTranslations('vendorNav');
-  const tDashboard = await getTranslations('dashboard');
+  const access = await checkVendorPage('product:list');
+  if (access.status !== 'ok' || !access.vendorId) return <AccessDenied decision={access} />;
+  const rows = await listVendorNotifications(access.vendorId);
 
   return (
-    <DashboardPage
-      title={t('notifications')}
-      pendingLabel={tDashboard('pendingLabel')}
-      pendingDescription={tDashboard('pendingDescription')}
-    />
+    <div className="mx-auto flex max-w-4xl flex-col gap-4"><h1 className="text-xl font-semibold">{t('notifications')}</h1>{rows.length === 0 ? <Card><CardContent className="p-4 text-sm">No notifications yet.</CardContent></Card> : rows.map((row) => <Card key={row.id}><CardContent className="p-4"><div className="flex justify-between gap-3"><p className="font-medium">{row.title ?? row.channel}</p><span className="text-muted-foreground text-xs">{row.status}</span></div><p className="mt-2 text-sm">{row.body}</p><p className="text-muted-foreground mt-2 text-xs">{row.createdAt.toLocaleString()}</p></CardContent></Card>)}</div>
   );
 }
