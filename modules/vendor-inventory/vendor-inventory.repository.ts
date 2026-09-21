@@ -82,7 +82,6 @@ export async function listVendorInventory(
     .limit(Math.min(Math.max(limit, 1), 500));
 }
 
-
 export async function adjustVendorInventory(
   vendorId: string,
   inventoryId: string,
