@@ -55,7 +55,10 @@ export function DashboardPage({
       {children}
 
       {!children ? (
-        <div className="border-border rounded-[var(--radius-card)] border border-dashed p-4" data-testid="dashboard-pending">
+        <div
+          className="border-border rounded-[var(--radius-card)] border border-dashed p-4"
+          data-testid="dashboard-pending"
+        >
           <p className="text-sm font-medium">{pendingLabel}</p>
           <p className="text-muted-foreground mt-1 text-sm">{pendingDescription}</p>
         </div>

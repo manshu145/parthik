@@ -103,9 +103,7 @@ export async function POST(request: Request) {
           roles: [...new Set(result.actor.roles.map((grant) => grant.roleKey))],
         },
         landingPath: result.landingPath,
-        notice: temporaryAuthEnabled
-          ? 'Temporary credential session.'
-          : 'Development session.',
+        notice: temporaryAuthEnabled ? 'Temporary credential session.' : 'Development session.',
       },
       { status: 201, meta: { requestId } }
     );
