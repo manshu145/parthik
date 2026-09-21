@@ -171,9 +171,12 @@ export default async function Page({ params }: { params: Promise<{ locale: strin
                           deliveryId={delivery.id}
                           currentDriverId={delivery.driverId}
                           drivers={approvedDrivers}
-                          disabled={['DELIVERED', 'FAILED', 'CANCELLED', 'RETURNED_TO_STORE'].includes(
-                            delivery.status
-                          )}
+                          disabled={[
+                            'DELIVERED',
+                            'FAILED',
+                            'CANCELLED',
+                            'RETURNED_TO_STORE',
+                          ].includes(delivery.status)}
                         />
                       </td>
                     ) : null}
