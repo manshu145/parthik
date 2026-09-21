@@ -5,7 +5,16 @@ import { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 
-const CATEGORIES = ['PAYMENT', 'DELIVERY', 'PRODUCT', 'REFUND', 'COUPON', 'ACCOUNT', 'VENDOR', 'OTHER'] as const;
+const CATEGORIES = [
+  'PAYMENT',
+  'DELIVERY',
+  'PRODUCT',
+  'REFUND',
+  'COUPON',
+  'ACCOUNT',
+  'VENDOR',
+  'OTHER',
+] as const;
 
 export function CreateSupportTicketForm() {
   const router = useRouter();
