@@ -48,7 +48,10 @@ export async function PATCH(
     const { orderId } = await params;
     const parsed = bodySchema.safeParse(await request.json().catch(() => null));
     if (!parsed.success) {
-      throw new ValidationError('Check the order action and try again.', parsed.error.flatten().fieldErrors);
+      throw new ValidationError(
+        'Check the order action and try again.',
+        parsed.error.flatten().fieldErrors
+      );
     }
 
     if (parsed.data.action === 'note') {
