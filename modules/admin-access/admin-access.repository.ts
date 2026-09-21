@@ -12,11 +12,7 @@ import {
 } from '@/db/schema';
 import { getDb } from '@/lib/db/client';
 import { ConflictError, NotFoundError, ValidationError } from '@/lib/errors';
-import {
-  isPermissionKey,
-  isRoleKey,
-  type RoleKey,
-} from '@/modules/identity';
+import { isPermissionKey, isRoleKey, type RoleKey } from '@/modules/identity';
 
 const EDITABLE_ROLE_KEYS: readonly RoleKey[] = [
   'ADMIN',
@@ -99,9 +95,7 @@ export async function updateAdminRolePermissions(
 
     if (!role) throw new NotFoundError('Role not found.');
     if (!EDITABLE_ROLE_KEYS.includes(role.key as RoleKey)) {
-      throw new ConflictError(
-        'Core customer, vendor, driver roles and SUPER_ADMIN are protected.'
-      );
+      throw new ConflictError('Core customer, vendor, driver roles and SUPER_ADMIN are protected.');
     }
 
     const uniqueKeys = [...new Set(permissionKeys)];
@@ -173,10 +167,7 @@ export async function listAdminUserManagement(limit = 300) {
       scopeId: userRoles.scopeId,
     })
     .from(users)
-    .leftJoin(
-      userRoles,
-      and(eq(userRoles.userId, users.id), isNull(userRoles.revokedAt))
-    )
+    .leftJoin(userRoles, and(eq(userRoles.userId, users.id), isNull(userRoles.revokedAt)))
     .leftJoin(roles, eq(roles.id, userRoles.roleId))
     .where(isNull(users.deletedAt))
     .orderBy(desc(users.createdAt))
@@ -301,9 +292,7 @@ export async function updateAdminUserAccess(
         );
 
       if (Number(countRow?.count ?? 0) <= 1) {
-        throw new ConflictError(
-          'The last active SUPER_ADMIN cannot be removed or suspended.'
-        );
+        throw new ConflictError('The last active SUPER_ADMIN cannot be removed or suspended.');
       }
     }
 
@@ -315,10 +304,7 @@ export async function updateAdminUserAccess(
     for (const grant of currentGrants) {
       const key = grant.roleKey as RoleKey;
       if (MANAGEABLE_ADMIN_ROLE_KEYS.includes(key) && !desired.includes(key)) {
-        await tx
-          .update(userRoles)
-          .set({ revokedAt: now })
-          .where(eq(userRoles.id, grant.grantId));
+        await tx.update(userRoles).set({ revokedAt: now }).where(eq(userRoles.id, grant.grantId));
       }
     }
 
