@@ -66,6 +66,7 @@ export const VENDOR_DETAIL_ROUTES: readonly DashboardDetailRoute[] = [
   { path: '/vendor/products/import', labelKey: 'productImport' },
   // The onboarding gate: APPLIED / UNDER_REVIEW / REJECTED land here.
   { path: '/vendor/onboarding', labelKey: 'onboarding' },
+  { path: '/vendor/support/[id]', labelKey: 'support' },
 ] as const;
 
 // ---------------------------------------------------------------------------
@@ -90,6 +91,7 @@ export const DRIVER_DETAIL_ROUTES: readonly DashboardDetailRoute[] = [
   { path: '/driver/active/[deliveryId]/proof', labelKey: 'proof' },
   { path: '/driver/cash/deposits/new', labelKey: 'depositNew' },
   { path: '/driver/onboarding', labelKey: 'onboarding' },
+  { path: '/driver/support/[id]', labelKey: 'support' },
 ] as const;
 
 // ---------------------------------------------------------------------------
