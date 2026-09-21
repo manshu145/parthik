@@ -9,10 +9,7 @@ const schema = z.object({
   adminRoleKeys: z.array(z.string().min(1).max(50)).max(5),
 });
 
-export async function PATCH(
-  request: Request,
-  { params }: { params: Promise<{ userId: string }> }
-) {
+export async function PATCH(request: Request, { params }: { params: Promise<{ userId: string }> }) {
   const requestId = requestIdFrom(request);
   try {
     const actor = await requireCurrentPermission('admin_user:manage');
@@ -22,10 +19,9 @@ export async function PATCH(
       throw new ValidationError('Check the admin user access settings.');
     }
 
-    return apiSuccess(
-      await updateAdminUserAccess(userId, parsed.data, actor.userId),
-      { meta: { requestId } }
-    );
+    return apiSuccess(await updateAdminUserAccess(userId, parsed.data, actor.userId), {
+      meta: { requestId },
+    });
   } catch (error) {
     return apiError(error, { requestId });
   }
