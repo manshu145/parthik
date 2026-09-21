@@ -130,8 +130,7 @@ export function RoleManagement({
 
             {selected.wildcard ? (
               <p className="mt-4 rounded-lg border p-3 text-sm">
-                SUPER_ADMIN always receives every permission and cannot be reduced from this
-                screen.
+                SUPER_ADMIN always receives every permission and cannot be reduced from this screen.
               </p>
             ) : (
               <div className="mt-4 grid gap-4 md:grid-cols-2">
@@ -345,13 +344,7 @@ type Flag = {
 
 type Zone = { id: string; name: string; code: string };
 
-export function FeatureFlagManagement({
-  flags,
-  zones,
-}: {
-  flags: Flag[];
-  zones: Zone[];
-}) {
+export function FeatureFlagManagement({ flags, zones }: { flags: Flag[]; zones: Zone[] }) {
   const router = useRouter();
   const empty = {
     key: '',
