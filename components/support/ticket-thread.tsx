@@ -62,7 +62,7 @@ export function SupportTicketThread({
                   {new Date(message.createdAt).toLocaleString()}
                 </time>
               </div>
-              <p className="mt-2 whitespace-pre-wrap text-sm">{message.message}</p>
+              <p className="mt-2 text-sm whitespace-pre-wrap">{message.message}</p>
             </li>
           ))}
         </ol>
