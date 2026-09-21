@@ -1,9 +1,7 @@
 import type { Metadata } from 'next';
-import { getFormatter, getTranslations, setRequestLocale } from 'next-intl/server';
+import { getTranslations, setRequestLocale } from 'next-intl/server';
 import { AccessDenied } from '@/app/_components/access-denied';
 import { ZoneEditor } from '@/components/admin/master-data-editors';
-import { Badge } from '@/components/ui/badge';
-import { Card, CardContent } from '@/components/ui/card';
 import { checkPagePermission } from '@/lib/auth/page-guard';
 import { listAdminDeliveryZones } from '@/modules/admin-configuration';
 
@@ -26,10 +24,9 @@ export default async function Page({ params }: { params: Promise<{ locale: strin
   const access = await checkPagePermission('zone:manage');
   if (access.status !== 'ok') return <AccessDenied decision={access} />;
 
-  const [zones, t, format] = await Promise.all([
+  const [zones, t] = await Promise.all([
     listAdminDeliveryZones(),
     getTranslations('adminNav'),
-    getFormatter(),
   ]);
 
   return (
@@ -45,24 +42,5 @@ export default async function Page({ params }: { params: Promise<{ locale: strin
 
       <ZoneEditor rows={zones} />
     </div>
-  );
-}
-
-function MoneyCell({
-  value,
-  format,
-}: {
-  value: number | null;
-  format: Awaited<ReturnType<typeof getFormatter>>;
-}) {
-  return (
-    <td className="px-4 py-3">
-      {value === null
-        ? '—'
-        : format.number(value / 100, {
-            style: 'currency',
-            currency: 'INR',
-          })}
-    </td>
   );
 }
