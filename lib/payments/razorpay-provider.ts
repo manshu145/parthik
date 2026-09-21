@@ -51,7 +51,13 @@ const MAX_EVENT_AGE_MS = 24 * 60 * 60 * 1000;
 export class RazorpayProvider implements PaymentProvider {
   readonly name = 'razorpay';
 
-  constructor(private readonly configured?: { keyId: string; keySecret: string; webhookSecret?: string | null }) {}
+  constructor(
+    private readonly configured?: {
+      keyId: string;
+      keySecret: string;
+      webhookSecret?: string | null;
+    }
+  ) {}
 
   isConfigured(): boolean {
     return Boolean(this.configured ?? getRazorpayKeyPairOrNull());

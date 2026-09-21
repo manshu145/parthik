@@ -1,1 +1,5 @@
-export { readAdminOperation, updateAdminOperation, type OperationSnapshot } from './admin-operations.repository';
+export {
+  readAdminOperation,
+  updateAdminOperation,
+  type OperationSnapshot,
+} from './admin-operations.repository';
