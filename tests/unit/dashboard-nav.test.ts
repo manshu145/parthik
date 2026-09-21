@@ -69,13 +69,13 @@ describe('nav manifest and filesystem agree', () => {
 
     // Sanity check the sweep itself — a glob that matches nothing would make this
     // assertion pass while proving nothing.
-    expect(found.length).toBe(77);
+    expect(found.length).toBe(79);
     expect(found.filter((file) => !declared.has(file))).toEqual([]);
   });
 
-  it('covers all 77 documented dashboard routes', () => {
-    // docs/ROUTES.md §6 (18) + §7 (13) + §8 (46).
-    expect(allDashboardRoutes()).toHaveLength(77);
+  it('covers all 79 dashboard routes', () => {
+    // Includes support ticket detail routes added to vendor and driver surfaces.
+    expect(allDashboardRoutes()).toHaveLength(79);
   });
 });
 
