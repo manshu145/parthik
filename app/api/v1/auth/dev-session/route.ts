@@ -42,9 +42,15 @@ export const dynamic = 'force-dynamic';
 
 // Derived from the canonical persona list, so this endpoint cannot reference a uid that
 // neither the seed nor the in-memory backend actually creates.
+const personaSchema = z.enum(DEMO_PERSONA_REFS as [DemoPersonaRef, ...DemoPersonaRef[]]);
+
 const bodySchema = z.object({
-  username: z.enum(DEMO_PERSONA_REFS as [DemoPersonaRef, ...DemoPersonaRef[]]),
-  password: z.string().min(1),
+  username: personaSchema.optional(),
+  // Backward-compatible alias used by the CI/dev scripts. It is accepted only
+  // because the endpoint itself is still gated by DEV_AUTH_ENABLED outside
+  // production; temporary credential mode continues to require a password.
+  role: personaSchema.optional(),
+  password: z.string().min(1).optional(),
 });
 
 export async function POST(request: Request) {
@@ -66,14 +72,22 @@ export async function POST(request: Request) {
 
     const parsed = bodySchema.safeParse(await request.json().catch(() => null));
     if (!parsed.success) {
-      throw new ValidationError('A valid username and password are required.');
+      throw new ValidationError('A valid development persona is required.');
     }
 
-    if (temporaryAuthEnabled && parsed.data.password !== env.TEMP_AUTH_PASSWORD) {
+    const personaRef = parsed.data.username ?? parsed.data.role;
+    if (!personaRef) {
+      throw new ValidationError('A valid development persona is required.');
+    }
+
+    if (
+      temporaryAuthEnabled &&
+      (!parsed.data.password || parsed.data.password !== env.TEMP_AUTH_PASSWORD)
+    ) {
       return apiError(new ValidationError('Invalid username or password.'), { requestId });
     }
 
-    const firebaseUid = demoPersona(parsed.data.username).firebaseUid;
+    const firebaseUid = demoPersona(personaRef).firebaseUid;
     const service = await getIdentityService();
 
     const result = await service.createDevelopmentSession({
@@ -89,14 +103,14 @@ export async function POST(request: Request) {
     }
 
     logger.warn('Development session issued', {
-      role: parsed.data.username,
+      role: personaRef,
       userId: result.actor.userId,
       appEnv: env.APP_ENV,
     });
 
     const response = apiSuccess(
       {
-        role: parsed.data.username,
+        role: personaRef,
         user: {
           id: result.actor.userId,
           phone: result.actor.phone,
@@ -139,6 +153,7 @@ export function GET() {
       phone: persona.phone,
       roles: persona.roles.map((role) => role.roleKey),
     })),
-    notice: 'Development only. POST { "role": "admin" } to sign in as that persona.',
+    notice:
+      'Development only. With DEV_AUTH_ENABLED, POST { "role": "admin" }. Temporary credential mode uses { "username": "admin", "password": "…" }.',
   });
 }
