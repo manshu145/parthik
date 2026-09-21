@@ -77,9 +77,9 @@ export default async function Page({ params }: { params: Promise<{ locale: strin
             <div className="mb-4">
               <h2 className="font-semibold">External API configuration</h2>
               <p className="text-muted-foreground mt-1 text-sm">
-                Missing credentials stay visible as “Not configured”. Server-side Maps and
-                Razorpay changes are consumed by new requests; secret values are encrypted and are
-                never returned to the browser.
+                Missing credentials stay visible as “Not configured”. Server-side Maps and Razorpay
+                changes are consumed by new requests; secret values are encrypted and are never
+                returned to the browser.
               </p>
             </div>
             <ProviderSettingsForm initial={providerSettings} />
