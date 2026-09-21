@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { requireCurrentPermission } from '@/lib/auth/current-actor';
+import { requireCurrentPermission, requireSurface } from '@/lib/auth/current-actor';
 import { ValidationError } from '@/lib/errors';
 import { apiError, apiSuccess, requestIdFrom } from '@/lib/http/api-response';
 import type { PermissionKey } from '@/modules/identity';
@@ -82,6 +82,7 @@ export async function PATCH(
 
     const { id } = routeParams;
     const input = parsed.data;
+    await requireSurface('admin');
     const actor = await requireCurrentPermission(permissionFor(resourceResult.data, input.action));
 
     let result: unknown;
