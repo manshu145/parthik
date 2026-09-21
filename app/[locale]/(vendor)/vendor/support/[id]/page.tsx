@@ -1,5 +1,7 @@
 import type { Metadata } from 'next';
 import { SupportTicketDetail } from '@/components/support/ticket-detail';
+import { requireCurrentActor } from '@/lib/auth/current-actor';
+import { readSupportTicketForUser } from '@/modules/support';
 
 export const dynamic = 'force-dynamic';
 
@@ -14,5 +16,23 @@ export default async function Page({
   params: Promise<{ locale: string; id: string }>;
 }) {
   const { locale, id } = await params;
-  return <SupportTicketDetail ticketId={id} backHref={`/${locale}/vendor/support`} />;
+  const actor = await requireCurrentActor();
+  const { ticket, messages } = await readSupportTicketForUser(actor.userId, id);
+
+  return (
+    <SupportTicketDetail
+      backHref={'/' + locale + '/vendor/support'}
+      ticket={{
+        ...ticket,
+        createdAt: ticket.createdAt.toISOString(),
+        updatedAt: ticket.updatedAt.toISOString(),
+      }}
+      messages={messages.map((message) => ({
+        id: message.id,
+        authorRole: message.authorRole,
+        message: message.message,
+        createdAt: message.createdAt.toISOString(),
+      }))}
+    />
+  );
 }

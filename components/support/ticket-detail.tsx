@@ -2,19 +2,36 @@ import Link from 'next/link';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent } from '@/components/ui/card';
 import { SupportTicketThread } from '@/components/support/ticket-thread';
-import { requireCurrentActor } from '@/lib/auth/current-actor';
-import { readSupportTicketForUser } from '@/modules/support';
 
-export async function SupportTicketDetail({
-  ticketId,
+type Ticket = {
+  id: string;
+  ticketNumber: string;
+  orderId: string | null;
+  category: string;
+  subject: string;
+  status: 'OPEN' | 'IN_PROGRESS' | 'WAITING_ON_CUSTOMER' | 'RESOLVED' | 'CLOSED';
+  priority: string;
+  resolutionNote: string | null;
+  createdAt: string;
+  updatedAt: string;
+};
+
+type Message = {
+  id: string;
+  authorRole: string | null;
+  message: string;
+  createdAt: string;
+};
+
+export function SupportTicketDetail({
+  ticket,
+  messages,
   backHref,
 }: {
-  ticketId: string;
+  ticket: Ticket;
+  messages: Message[];
   backHref: string;
 }) {
-  const actor = await requireCurrentActor();
-  const { ticket, messages } = await readSupportTicketForUser(actor.userId, ticketId);
-
   return (
     <div className="mx-auto flex max-w-3xl flex-col gap-4">
       <div>
@@ -48,8 +65,8 @@ export async function SupportTicketDetail({
         <CardContent className="grid gap-3 p-4 text-sm sm:grid-cols-2">
           <Field label="Priority" value={ticket.priority} />
           <Field label="Order" value={ticket.orderId ?? '—'} />
-          <Field label="Created" value={ticket.createdAt.toLocaleString()} />
-          <Field label="Updated" value={ticket.updatedAt.toLocaleString()} />
+          <Field label="Created" value={new Date(ticket.createdAt).toLocaleString()} />
+          <Field label="Updated" value={new Date(ticket.updatedAt).toLocaleString()} />
           {ticket.resolutionNote ? (
             <div className="sm:col-span-2">
               <p className="text-muted-foreground text-xs">Resolution</p>
@@ -59,16 +76,7 @@ export async function SupportTicketDetail({
         </CardContent>
       </Card>
 
-      <SupportTicketThread
-        ticketId={ticket.id}
-        status={ticket.status}
-        messages={messages.map((message) => ({
-          id: message.id,
-          authorRole: message.authorRole,
-          message: message.message,
-          createdAt: message.createdAt.toISOString(),
-        }))}
-      />
+      <SupportTicketThread ticketId={ticket.id} status={ticket.status} messages={messages} />
     </div>
   );
 }
