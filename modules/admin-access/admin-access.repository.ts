@@ -15,7 +15,6 @@ import { ConflictError, NotFoundError, ValidationError } from '@/lib/errors';
 import {
   isPermissionKey,
   isRoleKey,
-  type PermissionKey,
   type RoleKey,
 } from '@/modules/identity';
 
