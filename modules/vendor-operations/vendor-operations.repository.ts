@@ -1,5 +1,15 @@
 import { and, desc, eq, isNull, sql } from 'drizzle-orm';
-import { coupons, couponRestrictions, notifications, orders, payoutBatches, products, stores, vendorUsers, vendors } from '@/db/schema';
+import {
+  coupons,
+  couponRestrictions,
+  notifications,
+  orders,
+  payoutBatches,
+  products,
+  stores,
+  vendorUsers,
+  vendors,
+} from '@/db/schema';
 import { getDb } from '@/lib/db/client';
 
 export async function readVendorAnalytics(vendorId: string) {
@@ -129,16 +139,46 @@ export async function readVendorStoreSummary(vendorId: string) {
 
 export async function listVendorCoupons(vendorId: string) {
   const db = await getDb();
-  return db.select({ id: coupons.id, code: coupons.code, couponType: coupons.couponType, discountValue: coupons.discountValue, minCartPaise: coupons.minCartPaise, usedCount: coupons.usedCount, usageLimitTotal: coupons.usageLimitTotal, validUntil: coupons.validUntil, isActive: coupons.isActive })
-    .from(coupons).leftJoin(couponRestrictions, eq(couponRestrictions.couponId, coupons.id))
-    .where(and(isNull(coupons.deletedAt), sql`(${couponRestrictions.id} is null or (${couponRestrictions.restrictionType} = 'VENDOR' and ${couponRestrictions.restrictionId} = ${vendorId}::uuid))`))
-    .groupBy(coupons.id).orderBy(desc(coupons.createdAt)).limit(100);
+  return db
+    .select({
+      id: coupons.id,
+      code: coupons.code,
+      couponType: coupons.couponType,
+      discountValue: coupons.discountValue,
+      minCartPaise: coupons.minCartPaise,
+      usedCount: coupons.usedCount,
+      usageLimitTotal: coupons.usageLimitTotal,
+      validUntil: coupons.validUntil,
+      isActive: coupons.isActive,
+    })
+    .from(coupons)
+    .leftJoin(couponRestrictions, eq(couponRestrictions.couponId, coupons.id))
+    .where(
+      and(
+        isNull(coupons.deletedAt),
+        sql`(${couponRestrictions.id} is null or (${couponRestrictions.restrictionType} = 'VENDOR' and ${couponRestrictions.restrictionId} = ${vendorId}::uuid))`
+      )
+    )
+    .groupBy(coupons.id)
+    .orderBy(desc(coupons.createdAt))
+    .limit(100);
 }
 
 export async function listVendorNotifications(vendorId: string) {
   const db = await getDb();
-  return db.select({ id: notifications.id, title: notifications.title, body: notifications.body, channel: notifications.channel, status: notifications.status, readAt: notifications.readAt, createdAt: notifications.createdAt })
-    .from(notifications).innerJoin(vendorUsers, eq(vendorUsers.userId, notifications.userId))
+  return db
+    .select({
+      id: notifications.id,
+      title: notifications.title,
+      body: notifications.body,
+      channel: notifications.channel,
+      status: notifications.status,
+      readAt: notifications.readAt,
+      createdAt: notifications.createdAt,
+    })
+    .from(notifications)
+    .innerJoin(vendorUsers, eq(vendorUsers.userId, notifications.userId))
     .where(and(eq(vendorUsers.vendorId, vendorId), isNull(vendorUsers.removedAt)))
-    .orderBy(desc(notifications.createdAt)).limit(100);
+    .orderBy(desc(notifications.createdAt))
+    .limit(100);
 }
