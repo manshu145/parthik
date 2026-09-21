@@ -6,10 +6,7 @@ import { readSupportTicketForUser, replySupportTicketForUser } from '@/modules/s
 
 const replySchema = z.object({ message: z.string().trim().min(1).max(5000) });
 
-export async function GET(
-  request: Request,
-  { params }: { params: Promise<{ ticketId: string }> }
-) {
+export async function GET(request: Request, { params }: { params: Promise<{ ticketId: string }> }) {
   const requestId = requestIdFrom(request);
   try {
     const actor = await requireCurrentActor();
