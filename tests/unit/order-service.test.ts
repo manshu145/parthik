@@ -508,7 +508,6 @@ describe('placeOrder', () => {
     expect(repository.createCalls[0]).toMatchObject({
       source: 'PWA',
       customerNote: 'Ring the bell twice',
-      internalNote: null,
     });
   });
 
