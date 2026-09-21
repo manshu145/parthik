@@ -90,17 +90,15 @@ export async function updateAdminOperation(
       default:
         throw new Error('This operation is read-only.');
     }
-    await tx
-      .insert(auditLogs)
-      .values({
-        actorUserId,
-        actorRole: 'SUPER_ADMIN',
-        action: 'UPDATE',
-        entityType,
-        entityId: id,
-        changedFields: [action],
-        reason: 'Admin dashboard operation',
-      });
+    await tx.insert(auditLogs).values({
+      actorUserId,
+      actorRole: 'SUPER_ADMIN',
+      action: 'UPDATE',
+      entityType,
+      entityId: id,
+      changedFields: [action],
+      reason: 'Admin dashboard operation',
+    });
   });
 }
 
