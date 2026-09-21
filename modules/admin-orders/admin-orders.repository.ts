@@ -42,7 +42,6 @@ export async function listAdminOrders(limit = 100): Promise<AdminOrderListItem[]
     .limit(Math.min(Math.max(limit, 1), 200));
 }
 
-
 export async function updateAdminOrderNote(
   orderId: string,
   note: string | null,
