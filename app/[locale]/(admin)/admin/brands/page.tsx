@@ -2,8 +2,6 @@ import type { Metadata } from 'next';
 import { getTranslations, setRequestLocale } from 'next-intl/server';
 import { AccessDenied } from '@/app/_components/access-denied';
 import { BrandEditor } from '@/components/admin/master-data-editors';
-import { Badge } from '@/components/ui/badge';
-import { Card, CardContent } from '@/components/ui/card';
 import { checkPagePermission } from '@/lib/auth/page-guard';
 import { listAdminBrands } from '@/modules/admin-configuration';
 
