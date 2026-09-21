@@ -34,6 +34,26 @@ export default async function Page({ params }: { params: Promise<{ locale: strin
   const rows = await listVendorNotifications(access.vendorId);
 
   return (
-    <div className="mx-auto flex max-w-4xl flex-col gap-4"><h1 className="text-xl font-semibold">{t('notifications')}</h1>{rows.length === 0 ? <Card><CardContent className="p-4 text-sm">No notifications yet.</CardContent></Card> : rows.map((row) => <Card key={row.id}><CardContent className="p-4"><div className="flex justify-between gap-3"><p className="font-medium">{row.title ?? row.channel}</p><span className="text-muted-foreground text-xs">{row.status}</span></div><p className="mt-2 text-sm">{row.body}</p><p className="text-muted-foreground mt-2 text-xs">{row.createdAt.toLocaleString()}</p></CardContent></Card>)}</div>
+    <div className="mx-auto flex max-w-4xl flex-col gap-4">
+      <h1 className="text-xl font-semibold">{t('notifications')}</h1>
+      {rows.length === 0 ? (
+        <Card>
+          <CardContent className="p-4 text-sm">No notifications yet.</CardContent>
+        </Card>
+      ) : (
+        rows.map((row) => (
+          <Card key={row.id}>
+            <CardContent className="p-4">
+              <div className="flex justify-between gap-3">
+                <p className="font-medium">{row.title ?? row.channel}</p>
+                <span className="text-muted-foreground text-xs">{row.status}</span>
+              </div>
+              <p className="mt-2 text-sm">{row.body}</p>
+              <p className="text-muted-foreground mt-2 text-xs">{row.createdAt.toLocaleString()}</p>
+            </CardContent>
+          </Card>
+        ))
+      )}
+    </div>
   );
 }

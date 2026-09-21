@@ -34,6 +34,9 @@ export default async function Page({ params }: { params: Promise<{ locale: strin
   const options = await listVendorProductFormOptions(access.vendorId);
 
   return (
-    <div className="mx-auto flex max-w-4xl flex-col gap-4"><h1 className="text-xl font-semibold">{t('productImport')}</h1><ProductImport stores={options.stores} categories={options.categories} /></div>
+    <div className="mx-auto flex max-w-4xl flex-col gap-4">
+      <h1 className="text-xl font-semibold">{t('productImport')}</h1>
+      <ProductImport stores={options.stores} categories={options.categories} />
+    </div>
   );
 }

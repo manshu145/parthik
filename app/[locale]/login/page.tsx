@@ -66,18 +66,24 @@ export default async function LoginPage({
     <main className="mx-auto flex min-h-dvh max-w-md items-center justify-center p-6">
       <Card className="w-full">
         <CardHeader>
-          <CardTitle>{temporaryAuthEnabled ? 'Sign in to Parthik' : readiness.ready ? t('title') : t('unavailable.title')}</CardTitle>
+          <CardTitle>
+            {temporaryAuthEnabled
+              ? 'Sign in to Parthik'
+              : readiness.ready
+                ? t('title')
+                : t('unavailable.title')}
+          </CardTitle>
           <CardDescription>
             {temporaryAuthEnabled
               ? 'Use your temporary dashboard username and password.'
               : readiness.ready
-              ? t('subtitle')
-              : /**
-                 * Names the missing variables rather than saying "unavailable".
-                 * A developer on a fresh clone needs to know WHICH credential is
-                 * absent; an opaque message costs an afternoon.
-                 */
-                t('unavailable.description', { missing: readiness.missing.join(', ') })}
+                ? t('subtitle')
+                : /**
+                   * Names the missing variables rather than saying "unavailable".
+                   * A developer on a fresh clone needs to know WHICH credential is
+                   * absent; an opaque message costs an afternoon.
+                   */
+                  t('unavailable.description', { missing: readiness.missing.join(', ') })}
           </CardDescription>
         </CardHeader>
         <CardContent>

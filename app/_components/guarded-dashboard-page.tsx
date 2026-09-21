@@ -39,7 +39,9 @@ export async function GuardedDashboardPage({
     return <AccessDenied decision={decision} />;
   }
 
-  const liveChildren = children ?? <OperationSnapshot permission={permission} snapshot={await readAdminOperation(permission)} />;
+  const liveChildren = children ?? (
+    <OperationSnapshot permission={permission} snapshot={await readAdminOperation(permission)} />
+  );
 
   return (
     <DashboardPage
