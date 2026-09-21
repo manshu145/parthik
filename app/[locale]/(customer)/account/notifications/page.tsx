@@ -2,7 +2,52 @@ import { revalidatePath } from 'next/cache';
 import { PageShell } from '@/components/layout/page-shell';
 import { Button } from '@/components/ui/button';
 import { requireCurrentActor } from '@/lib/auth/current-actor';
-import { listCustomerNotifications, readNotificationPreferences, savePromotionPreference } from '@/modules/customer-account';
+import {
+  listCustomerNotifications,
+  readNotificationPreferences,
+  savePromotionPreference,
+} from '@/modules/customer-account';
 
 export const dynamic = 'force-dynamic';
-export default async function Page() { const actor = await requireCurrentActor(); const [items, preferences] = await Promise.all([listCustomerNotifications(actor.userId), readNotificationPreferences(actor.userId)]); const enabled = preferences.find((item) => item.category === 'PROMOTION')?.enabled ?? true; async function save(formData: FormData) { 'use server'; const current = await requireCurrentActor(); await savePromotionPreference(current.userId, formData.get('promotions') === 'on'); revalidatePath('/account/notifications'); } return <PageShell title="Notifications"><div className="space-y-5"><form action={save} className="flex items-center justify-between rounded-xl border p-4"><label className="flex items-center gap-2 text-sm"><input name="promotions" type="checkbox" defaultChecked={enabled} />Promotional notifications</label><Button type="submit" size="sm">Save preference</Button></form>{items.length === 0 ? <p className="text-muted-foreground text-sm">No notifications yet.</p> : items.map((item) => <article key={item.id} className="rounded-xl border p-4"><p className="font-medium">{item.title ?? 'Notification'}</p><p className="mt-1 text-sm">{item.body}</p><p className="text-muted-foreground mt-2 text-xs">{item.createdAt.toLocaleString()}</p></article>)}</div></PageShell>; }
+export default async function Page() {
+  const actor = await requireCurrentActor();
+  const [items, preferences] = await Promise.all([
+    listCustomerNotifications(actor.userId),
+    readNotificationPreferences(actor.userId),
+  ]);
+  const enabled = preferences.find((item) => item.category === 'PROMOTION')?.enabled ?? true;
+  async function save(formData: FormData) {
+    'use server';
+    const current = await requireCurrentActor();
+    await savePromotionPreference(current.userId, formData.get('promotions') === 'on');
+    revalidatePath('/account/notifications');
+  }
+  return (
+    <PageShell title="Notifications">
+      <div className="space-y-5">
+        <form action={save} className="flex items-center justify-between rounded-xl border p-4">
+          <label className="flex items-center gap-2 text-sm">
+            <input name="promotions" type="checkbox" defaultChecked={enabled} />
+            Promotional notifications
+          </label>
+          <Button type="submit" size="sm">
+            Save preference
+          </Button>
+        </form>
+        {items.length === 0 ? (
+          <p className="text-muted-foreground text-sm">No notifications yet.</p>
+        ) : (
+          items.map((item) => (
+            <article key={item.id} className="rounded-xl border p-4">
+              <p className="font-medium">{item.title ?? 'Notification'}</p>
+              <p className="mt-1 text-sm">{item.body}</p>
+              <p className="text-muted-foreground mt-2 text-xs">
+                {item.createdAt.toLocaleString()}
+              </p>
+            </article>
+          ))
+        )}
+      </div>
+    </PageShell>
+  );
+}
