@@ -57,7 +57,7 @@ export default async function Page({ params }: { params: Promise<{ locale: strin
               <Link
                 key={ticket.id}
                 href={`/${locale}/driver/support/${ticket.id}`}
-                className="block rounded-xl border p-4 transition-colors hover:bg-muted/30"
+                className="hover:bg-muted/30 block rounded-xl border p-4 transition-colors"
               >
                 <div className="flex flex-wrap items-start justify-between gap-3">
                   <div className="min-w-0">
