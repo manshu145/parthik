@@ -34,11 +34,12 @@ export async function getPaymentService(): Promise<PaymentService> {
     readProviderSetting('payments.razorpay_key_secret'),
     readProviderSetting('payments.razorpay_webhook_secret'),
   ]);
-  const provider = selected === 'mock'
-    ? new MockPaymentProvider()
-    : keyId && keySecret
-      ? new RazorpayProvider({ keyId, keySecret, webhookSecret })
-      : resolvePaymentProvider().provider;
+  const provider =
+    selected === 'mock'
+      ? new MockPaymentProvider()
+      : keyId && keySecret
+        ? new RazorpayProvider({ keyId, keySecret, webhookSecret })
+        : resolvePaymentProvider().provider;
 
   return new PaymentService({
     repository: new DrizzlePaymentRepository({ db }),
