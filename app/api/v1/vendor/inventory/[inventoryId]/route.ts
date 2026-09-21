@@ -5,7 +5,12 @@ import { requireVendorActor } from '@/lib/http/vendor-scope';
 import { adjustVendorInventory } from '@/modules/vendor-inventory';
 
 const inputSchema = z.object({
-  delta: z.number().int().min(-1000000).max(1000000).refine((value) => value !== 0),
+  delta: z
+    .number()
+    .int()
+    .min(-1000000)
+    .max(1000000)
+    .refine((value) => value !== 0),
   reason: z.string().trim().min(1).max(1000),
 });
 
@@ -19,7 +24,10 @@ export async function PATCH(
     const { inventoryId } = await params;
     const parsed = inputSchema.safeParse(await request.json());
     if (!parsed.success) {
-      throw new ValidationError('Check the stock adjustment and try again.', parsed.error.flatten().fieldErrors);
+      throw new ValidationError(
+        'Check the stock adjustment and try again.',
+        parsed.error.flatten().fieldErrors
+      );
     }
 
     const result = await adjustVendorInventory(
