@@ -125,7 +125,12 @@ export function AdminOrderOperations({
                 size="sm"
                 variant="secondary"
                 disabled={busy !== null}
-                onClick={() => void action({ action: 'transition', to: next, reason: reason.trim() || undefined }, next)}
+                onClick={() =>
+                  void action(
+                    { action: 'transition', to: next, reason: reason.trim() || undefined },
+                    next
+                  )
+                }
               >
                 {busy === next ? 'Working…' : 'Move to ' + next.replaceAll('_', ' ')}
               </Button>
@@ -198,7 +203,11 @@ export function AdminOrderOperations({
         </div>
       ) : null}
 
-      {error ? <p className="text-danger text-sm" role="alert">{error}</p> : null}
+      {error ? (
+        <p className="text-danger text-sm" role="alert">
+          {error}
+        </p>
+      ) : null}
       {message ? <p className="text-success text-sm">{message}</p> : null}
     </div>
   );
