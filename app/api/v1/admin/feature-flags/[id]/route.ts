@@ -12,10 +12,7 @@ const schema = z.object({
   enabledForZones: z.array(z.string().uuid()).max(500),
 });
 
-export async function PATCH(
-  request: Request,
-  { params }: { params: Promise<{ id: string }> }
-) {
+export async function PATCH(request: Request, { params }: { params: Promise<{ id: string }> }) {
   const requestId = requestIdFrom(request);
   try {
     const actor = await requireCurrentPermission('flag:manage');
@@ -28,10 +25,9 @@ export async function PATCH(
       );
     }
 
-    return apiSuccess(
-      await updateAdminFeatureFlag(id, parsed.data, actor.userId),
-      { meta: { requestId } }
-    );
+    return apiSuccess(await updateAdminFeatureFlag(id, parsed.data, actor.userId), {
+      meta: { requestId },
+    });
   } catch (error) {
     return apiError(error, { requestId });
   }
