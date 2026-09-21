@@ -1,10 +1,11 @@
 import type { Metadata } from 'next';
 import { getTranslations, setRequestLocale } from 'next-intl/server';
-import { DashboardPage } from '@/components/layout/dashboard-page';
+import { DriverConsole } from '@/components/driver/driver-console';
+import { requireCurrentActor } from '@/lib/auth/current-actor';
 
 /**
- * Route is live, screen is pending. See components/layout/dashboard-page.tsx for
- * why a shared placeholder is the honest choice here.
+ * The offer list. Renders the same console as /driver: showing a driver an "offers" page while
+ * they are mid-delivery would be a dead end, so the console decides what is relevant.
  */
 
 export async function generateMetadata({
@@ -15,7 +16,6 @@ export async function generateMetadata({
   const { locale } = await params;
   const t = await getTranslations({ locale, namespace: 'driverNav' });
 
-  // Every dashboard route is noindex (docs/ROUTES.md §6–§8).
   return { title: t('available'), robots: { index: false, follow: false } };
 }
 
@@ -23,14 +23,14 @@ export default async function Page({ params }: { params: Promise<{ locale: strin
   const { locale } = await params;
   setRequestLocale(locale);
 
+  await requireCurrentActor();
+
   const t = await getTranslations('driverNav');
-  const tDashboard = await getTranslations('dashboard');
 
   return (
-    <DashboardPage
-      title={t('available')}
-      pendingLabel={tDashboard('pendingLabel')}
-      pendingDescription={tDashboard('pendingDescription')}
-    />
+    <div className="mx-auto flex max-w-2xl flex-col gap-4">
+      <h1 className="text-xl font-semibold">{t('available')}</h1>
+      <DriverConsole />
+    </div>
   );
 }

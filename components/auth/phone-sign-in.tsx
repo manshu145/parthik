@@ -83,7 +83,9 @@ export function PhoneSignIn({ nextPath }: PhoneSignInProps) {
   const ensureVerifier = useCallback(async () => {
     if (verifierRef.current) return verifierRef.current;
 
-    const auth = getFirebaseAuth();
+    // Awaited: the SDK is fetched on demand so it stays out of the server bundle and off
+    // the critical path for anyone who is only reading the page.
+    const auth = await getFirebaseAuth();
     if (!auth || !recaptchaHostRef.current) return null;
 
     const { RecaptchaVerifier } = await import('firebase/auth');
@@ -107,7 +109,7 @@ export function PhoneSignIn({ nextPath }: PhoneSignInProps) {
 
       setBusy(true);
       try {
-        const auth = getFirebaseAuth();
+        const auth = await getFirebaseAuth();
         const verifier = await ensureVerifier();
         if (!auth || !verifier) {
           setError(t('errors.recaptcha'));

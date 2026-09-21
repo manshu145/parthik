@@ -201,6 +201,18 @@ export interface OrderRepository {
   }>;
 
   /**
+   * The vendor's own queue.
+   *
+   * Scoped by `vendor_id` IN THE QUERY, not filtered afterwards: a vendor must never be able to
+   * read another vendor's orders, and a WHERE clause is the only version of that guarantee a
+   * caller cannot forget (docs/SECURITY.md §5.3).
+   */
+  listForVendor(
+    vendorId: string,
+    page: { limit: number; cursor?: string | undefined; statuses?: readonly OrderStatus[] }
+  ): Promise<{ items: OrderListItem[]; nextCursor: string | null }>;
+
+  /**
    * Applies a validated transition and its effects in ONE transaction.
    *
    * The state machine has already decided the move is legal; this performs it — the status

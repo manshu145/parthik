@@ -4,6 +4,7 @@ import { getTranslations, setRequestLocale } from 'next-intl/server';
 import { Link } from '@/i18n/navigation';
 import { isLocale } from '@/i18n/routing';
 import { PageShell } from '@/components/layout/page-shell';
+import { DeliveryCodeButton } from '@/components/orders/delivery-code-button';
 import { OrderTracker } from '@/components/orders/order-tracker';
 import { Button } from '@/components/ui/button';
 import { requireCurrentActor } from '@/lib/auth/current-actor';
@@ -67,6 +68,16 @@ export default async function TrackOrderPage({
             timeline: detail.timeline,
           }}
         />
+
+        {/*
+          The code appears only once a driver could plausibly be at the door.
+          Offering it at CONFIRMED would invite a customer to reveal a code hours early and then
+          reveal it again on arrival — every reveal replaces the last one, so the earlier taps are
+          pure noise.
+        */}
+        {(detail.order.status === 'PICKED_UP' || detail.order.status === 'OUT_FOR_DELIVERY') && (
+          <DeliveryCodeButton orderId={detail.order.id} />
+        )}
 
         <Button asChild variant="secondary" className="self-start">
           <Link href={`/orders/${detail.order.id}`}>{t('track.backToOrder')}</Link>

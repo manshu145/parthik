@@ -18,6 +18,7 @@ import { OrderService } from '@/modules/order/order.service';
 import type {
   CreateOrderInput,
   OrderDetail,
+  OrderListItem,
   OrderRecord,
   OrderRepository,
   OrderStatusEvent,
@@ -192,6 +193,29 @@ class FakeOrderRepository implements OrderRepository {
     }));
 
     return { items, nextCursor: mine.length > page.limit ? 'more' : null };
+  }
+
+  async listForVendor(
+    vendorId: string,
+    page: { limit: number; cursor?: string | undefined }
+  ): Promise<{ items: OrderListItem[]; nextCursor: string | null }> {
+    // Scoped the same way the SQL scopes it, so a leak would fail here too.
+    const theirs = [...this.orders.values()].filter((detail) => detail.order.vendorId === vendorId);
+
+    return {
+      items: theirs.slice(0, page.limit).map((detail) => ({
+        id: detail.order.id,
+        orderNumber: detail.order.orderNumber,
+        status: detail.order.status,
+        totalAmountPaise: detail.order.totalAmountPaise,
+        itemCount: detail.lines.reduce((sum, line) => sum + line.quantity, 0),
+        thumbnailKey: detail.lines[0]?.imageKeySnapshot ?? null,
+        firstItemName: detail.lines[0]?.productNameSnapshot ?? '',
+        createdAt: detail.order.createdAt,
+        isCod: detail.order.isCod,
+      })),
+      nextCursor: null,
+    };
   }
 
   async applyTransition(input: TransitionInput): Promise<OrderRecord> {
