@@ -100,6 +100,7 @@ export interface OrderRecord {
   cancelledByRole: string | null;
   estimatedDeliveryAt: Date | null;
   customerNote: string | null;
+  internalNote: string | null;
   createdAt: Date;
 }
 
