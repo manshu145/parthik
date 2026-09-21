@@ -1,8 +1,10 @@
 import type { Metadata } from 'next';
 import { getFormatter, getTranslations, setRequestLocale } from 'next-intl/server';
 import { AccessDenied } from '@/app/_components/access-denied';
+import { SupportActions } from '@/components/admin/support-actions';
 import { Badge, type BadgeVariant } from '@/components/ui/badge';
 import { Card, CardContent } from '@/components/ui/card';
+import { currentActorCan } from '@/lib/auth/current-actor';
 import { checkPagePermission } from '@/lib/auth/page-guard';
 import { readAdminSupportTicket } from '@/modules/admin-support';
 
@@ -29,10 +31,12 @@ export default async function Page({
   const access = await checkPagePermission('ticket:view');
   if (access.status !== 'ok') return <AccessDenied decision={access} />;
 
-  const [{ ticket, messages }, t, format] = await Promise.all([
+  const [{ ticket, messages }, t, format, canReply, canManage] = await Promise.all([
     readAdminSupportTicket(id),
     getTranslations('adminNav'),
     getFormatter(),
+    currentActorCan('ticket:reply'),
+    currentActorCan('ticket:manage'),
   ]);
 
   return (
@@ -75,6 +79,14 @@ export default async function Page({
           )}
         </CardContent>
       </Card>
+
+      <SupportActions
+        ticketId={ticket.id}
+        status={ticket.status}
+        priority={ticket.priority}
+        canReply={canReply}
+        canManage={canManage}
+      />
 
       <Card>
         <CardContent className="p-4">

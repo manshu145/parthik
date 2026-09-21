@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import { getFormatter, getTranslations, setRequestLocale } from 'next-intl/server';
 import { AccessDenied } from '@/app/_components/access-denied';
+import { PayoutActions } from '@/components/admin/payout-actions';
 import { Badge, type BadgeVariant } from '@/components/ui/badge';
 import { Card, CardContent } from '@/components/ui/card';
 import { checkPagePermission } from '@/lib/auth/page-guard';
@@ -81,6 +82,7 @@ export default async function Page({ params }: { params: Promise<{ locale: strin
                   <th className="px-4 py-3 font-medium">Net</th>
                   <th className="px-4 py-3 font-medium">Status</th>
                   <th className="px-4 py-3 font-medium">Reference</th>
+                  <th className="px-4 py-3 font-medium">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y">
@@ -118,6 +120,9 @@ export default async function Page({ params }: { params: Promise<{ locale: strin
                     </td>
                     <td className="text-muted-foreground px-4 py-3 text-xs">
                       {row.referenceNumber ?? '—'}
+                    </td>
+                    <td className="px-4 py-3">
+                      <PayoutActions payoutId={row.id} status={row.status} />
                     </td>
                   </tr>
                 ))}

@@ -1,8 +1,10 @@
 import type { Metadata } from 'next';
 import { getFormatter, getTranslations, setRequestLocale } from 'next-intl/server';
 import { AccessDenied } from '@/app/_components/access-denied';
+import { InventoryAdjustment } from '@/components/admin/inventory-adjustment';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent } from '@/components/ui/card';
+import { currentActorCan } from '@/lib/auth/current-actor';
 import { checkPagePermission } from '@/lib/auth/page-guard';
 import { listAdminInventory } from '@/modules/admin-catalog';
 
@@ -25,10 +27,11 @@ export default async function Page({ params }: { params: Promise<{ locale: strin
   const access = await checkPagePermission('inventory:view');
   if (access.status !== 'ok') return <AccessDenied decision={access} />;
 
-  const [rows, t, format] = await Promise.all([
+  const [rows, t, format, canManage] = await Promise.all([
     listAdminInventory(),
     getTranslations('adminNav'),
     getFormatter(),
+    currentActorCan('inventory:manage'),
   ]);
 
   const lowStock = rows.filter(
@@ -76,6 +79,7 @@ export default async function Page({ params }: { params: Promise<{ locale: strin
                   <th className="px-4 py-3 font-medium">Reserved</th>
                   <th className="px-4 py-3 font-medium">Threshold</th>
                   <th className="px-4 py-3 font-medium">Updated</th>
+                  {canManage ? <th className="px-4 py-3 font-medium">Actions</th> : null}
                 </tr>
               </thead>
               <tbody className="divide-y">
@@ -119,6 +123,11 @@ export default async function Page({ params }: { params: Promise<{ locale: strin
                           timeStyle: 'short',
                         })}
                       </td>
+                      {canManage ? (
+                        <td className="px-4 py-3">
+                          <InventoryAdjustment inventoryId={row.inventoryId} />
+                        </td>
+                      ) : null}
                     </tr>
                   );
                 })}

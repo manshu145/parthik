@@ -1,10 +1,13 @@
 import type { Metadata } from 'next';
 import { getFormatter, getTranslations, setRequestLocale } from 'next-intl/server';
 import { AccessDenied } from '@/app/_components/access-denied';
+import { DeliveryAssignment } from '@/components/admin/delivery-assignment';
 import { Badge, type BadgeVariant } from '@/components/ui/badge';
 import { Card, CardContent } from '@/components/ui/card';
+import { currentActorCan } from '@/lib/auth/current-actor';
 import { checkPagePermission } from '@/lib/auth/page-guard';
 import { listAdminDeliveries } from '@/modules/admin-delivery';
+import { listAdminDrivers } from '@/modules/admin-people';
 
 export const dynamic = 'force-dynamic';
 
@@ -25,11 +28,16 @@ export default async function Page({ params }: { params: Promise<{ locale: strin
   const access = await checkPagePermission('delivery:view');
   if (access.status !== 'ok') return <AccessDenied decision={access} />;
 
-  const [deliveries, t, format] = await Promise.all([
+  const [deliveries, t, format, canAssign, allDrivers] = await Promise.all([
     listAdminDeliveries(),
     getTranslations('adminNav'),
     getFormatter(),
+    currentActorCan('delivery:assign'),
+    listAdminDrivers(200),
   ]);
+  const approvedDrivers = allDrivers
+    .filter((driver) => driver.status === 'APPROVED')
+    .map((driver) => ({ id: driver.id, label: driver.fullName + ' · ' + driver.driverCode }));
 
   const waiting = deliveries.filter((delivery) => delivery.status === 'PENDING_ASSIGNMENT').length;
   const active = deliveries.filter((delivery) =>
@@ -92,6 +100,7 @@ export default async function Page({ params }: { params: Promise<{ locale: strin
                   <th className="px-4 py-3 font-medium">Distance</th>
                   <th className="px-4 py-3 font-medium">COD</th>
                   <th className="px-4 py-3 font-medium">Created</th>
+                  {canAssign ? <th className="px-4 py-3 font-medium">Assignment</th> : null}
                 </tr>
               </thead>
               <tbody className="divide-y">
@@ -156,6 +165,18 @@ export default async function Page({ params }: { params: Promise<{ locale: strin
                         timeStyle: 'short',
                       })}
                     </td>
+                    {canAssign ? (
+                      <td className="px-4 py-3">
+                        <DeliveryAssignment
+                          deliveryId={delivery.id}
+                          currentDriverId={delivery.driverId}
+                          drivers={approvedDrivers}
+                          disabled={['DELIVERED', 'FAILED', 'CANCELLED', 'RETURNED_TO_STORE'].includes(
+                            delivery.status
+                          )}
+                        />
+                      </td>
+                    ) : null}
                   </tr>
                 ))}
               </tbody>
