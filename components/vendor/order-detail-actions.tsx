@@ -63,11 +63,7 @@ export function VendorOrderDetailActions({
       <p className="text-sm font-semibold">Order actions</p>
       <div className="mt-3 flex flex-wrap gap-2">
         {primary ? (
-          <Button
-            size="sm"
-            disabled={busy !== null}
-            onClick={() => void run(primary.action)}
-          >
+          <Button size="sm" disabled={busy !== null} onClick={() => void run(primary.action)}>
             {busy === primary.action ? 'Working…' : primary.label}
           </Button>
         ) : null}
