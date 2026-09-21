@@ -25,9 +25,11 @@ export function TemporarySignIn({ nextPath }: { nextPath?: string | undefined })
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ username, password }),
       });
-      const payload = (await response.json().catch(() => null)) as
-        | { success?: boolean; data?: { landingPath?: string }; error?: { message?: string } }
-        | null;
+      const payload = (await response.json().catch(() => null)) as {
+        success?: boolean;
+        data?: { landingPath?: string };
+        error?: { message?: string };
+      } | null;
 
       if (!response.ok || !payload?.success) {
         setError(payload?.error?.message ?? 'Invalid username or password.');
@@ -46,7 +48,9 @@ export function TemporarySignIn({ nextPath }: { nextPath?: string | undefined })
   return (
     <form onSubmit={submit} className="space-y-4" data-testid="temporary-signin-form">
       <div className="space-y-2">
-        <label htmlFor="username" className="block text-sm font-medium">Dashboard</label>
+        <label htmlFor="username" className="block text-sm font-medium">
+          Dashboard
+        </label>
         <select
           id="username"
           className="border-input bg-background h-10 w-full rounded-md border px-3 text-sm"
@@ -55,12 +59,16 @@ export function TemporarySignIn({ nextPath }: { nextPath?: string | undefined })
           disabled={busy}
         >
           {ACCOUNTS.map((account) => (
-            <option key={account} value={account}>{account.charAt(0).toUpperCase() + account.slice(1)}</option>
+            <option key={account} value={account}>
+              {account.charAt(0).toUpperCase() + account.slice(1)}
+            </option>
           ))}
         </select>
       </div>
       <div className="space-y-2">
-        <label htmlFor="password" className="block text-sm font-medium">Password</label>
+        <label htmlFor="password" className="block text-sm font-medium">
+          Password
+        </label>
         <Input
           id="password"
           type="password"
@@ -71,11 +79,17 @@ export function TemporarySignIn({ nextPath }: { nextPath?: string | undefined })
           required
         />
       </div>
-      {error ? <p className="text-destructive text-sm" role="alert">{error}</p> : null}
+      {error ? (
+        <p className="text-destructive text-sm" role="alert">
+          {error}
+        </p>
+      ) : null}
       <Button type="submit" className="w-full" disabled={busy || password.length === 0}>
         {busy ? 'Signing in…' : 'Sign in'}
       </Button>
-      <p className="text-muted-foreground text-xs">Temporary testing login. Firebase OTP is disabled.</p>
+      <p className="text-muted-foreground text-xs">
+        Temporary testing login. Firebase OTP is disabled.
+      </p>
     </form>
   );
 }
