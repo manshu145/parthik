@@ -39,7 +39,11 @@ export default async function Page({ params }: { params: Promise<{ locale: strin
       pendingDescription={tDashboard('pendingDescription')}
     >
       <div className="space-y-3">
-        <p className="text-muted-foreground text-sm">Manage Maps, Razorpay, Firebase and analytics credentials. Missing providers fail with an explicit configuration error; secret values are encrypted and never returned to the browser.</p>
+        <p className="text-muted-foreground text-sm">
+          Manage Maps, Razorpay, Firebase and analytics credentials. Missing providers fail with an
+          explicit configuration error; secret values are encrypted and never returned to the
+          browser.
+        </p>
         <ProviderSettingsForm initial={settings} />
       </div>
     </GuardedDashboardPage>
