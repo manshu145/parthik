@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import { getFormatter, getTranslations, setRequestLocale } from 'next-intl/server';
 import { AccessDenied } from '@/app/_components/access-denied';
+import { ZoneEditor } from '@/components/admin/master-data-editors';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent } from '@/components/ui/card';
 import { checkPagePermission } from '@/lib/auth/page-guard';
@@ -42,60 +43,7 @@ export default async function Page({ params }: { params: Promise<{ locale: strin
         </p>
       </div>
 
-      {zones.length === 0 ? (
-        <Card>
-          <CardContent className="p-4 text-sm">No delivery zones configured.</CardContent>
-        </Card>
-      ) : (
-        <div className="overflow-hidden rounded-xl border">
-          <div className="overflow-x-auto">
-            <table className="w-full min-w-[1100px] text-left text-sm">
-              <thead className="bg-muted/50 text-muted-foreground text-xs">
-                <tr>
-                  <th className="px-4 py-3 font-medium">Zone</th>
-                  <th className="px-4 py-3 font-medium">Coverage</th>
-                  <th className="px-4 py-3 font-medium">Base fee</th>
-                  <th className="px-4 py-3 font-medium">Free above</th>
-                  <th className="px-4 py-3 font-medium">Minimum order</th>
-                  <th className="px-4 py-3 font-medium">Per km</th>
-                  <th className="px-4 py-3 font-medium">ETA</th>
-                  <th className="px-4 py-3 font-medium">Status</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y">
-                {zones.map((zone) => (
-                  <tr key={zone.id} className="hover:bg-muted/30">
-                    <td className="px-4 py-3">
-                      <p className="font-medium">{zone.name}</p>
-                      <p className="text-muted-foreground mt-1 text-xs">
-                        {zone.code} · {zone.city}, {zone.state}
-                      </p>
-                    </td>
-                    <td className="px-4 py-3 text-xs">
-                      <p>{zone.pincodeCount} active pincodes</p>
-                      <p className="text-muted-foreground mt-1">
-                        {zone.radiusKm ? `${zone.radiusKm} km radius` : 'Radius not set'}
-                      </p>
-                    </td>
-                    <MoneyCell value={zone.baseDeliveryFeePaise} format={format} />
-                    <MoneyCell value={zone.freeDeliveryThresholdPaise} format={format} />
-                    <MoneyCell value={zone.minOrderPaise} format={format} />
-                    <MoneyCell value={zone.perKmFeePaise} format={format} />
-                    <td className="px-4 py-3">
-                      {zone.avgDeliveryMinutes ? `${zone.avgDeliveryMinutes} min` : '—'}
-                    </td>
-                    <td className="px-4 py-3">
-                      <Badge variant={zone.isActive ? 'success' : 'neutral'}>
-                        {zone.isActive ? 'ACTIVE' : 'INACTIVE'}
-                      </Badge>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      )}
+      <ZoneEditor rows={zones} />
     </div>
   );
 }

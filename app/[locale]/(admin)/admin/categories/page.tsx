@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import { getTranslations, setRequestLocale } from 'next-intl/server';
 import { AccessDenied } from '@/app/_components/access-denied';
+import { CategoryEditor } from '@/components/admin/master-data-editors';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent } from '@/components/ui/card';
 import { checkPagePermission } from '@/lib/auth/page-guard';
@@ -39,50 +40,7 @@ export default async function Page({ params }: { params: Promise<{ locale: strin
         </p>
       </div>
 
-      {rows.length === 0 ? (
-        <Card>
-          <CardContent className="p-4 text-sm">No categories configured.</CardContent>
-        </Card>
-      ) : (
-        <div className="overflow-hidden rounded-xl border">
-          <div className="overflow-x-auto">
-            <table className="w-full min-w-[820px] text-left text-sm">
-              <thead className="bg-muted/50 text-muted-foreground text-xs">
-                <tr>
-                  <th className="px-4 py-3 font-medium">Category</th>
-                  <th className="px-4 py-3 font-medium">Parent</th>
-                  <th className="px-4 py-3 font-medium">Products</th>
-                  <th className="px-4 py-3 font-medium">Order</th>
-                  <th className="px-4 py-3 font-medium">Flags</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y">
-                {rows.map((row) => (
-                  <tr key={row.id}>
-                    <td className="px-4 py-3">
-                      <p className="font-medium">{row.name}</p>
-                      <p className="text-muted-foreground mt-1 text-xs">/{row.slug}</p>
-                    </td>
-                    <td className="px-4 py-3">
-                      {row.parentId ? (names.get(row.parentId) ?? 'Parent category') : 'Root'}
-                    </td>
-                    <td className="px-4 py-3">{row.productCount}</td>
-                    <td className="px-4 py-3">{row.displayOrder}</td>
-                    <td className="px-4 py-3">
-                      <div className="flex flex-wrap gap-1">
-                        <Badge variant={row.isActive ? 'success' : 'neutral'}>
-                          {row.isActive ? 'ACTIVE' : 'INACTIVE'}
-                        </Badge>
-                        {row.isFeatured ? <Badge variant="warning">FEATURED</Badge> : null}
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      )}
+      <CategoryEditor rows={rows} />
     </div>
   );
 }
