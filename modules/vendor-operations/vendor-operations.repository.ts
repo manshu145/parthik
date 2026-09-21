@@ -185,7 +185,6 @@ export async function listVendorNotifications(vendorId: string) {
     .limit(100);
 }
 
-
 export async function updateVendorStore(
   vendorId: string,
   storeId: string,
@@ -231,7 +230,9 @@ export async function updateVendorStore(
     if (!current) throw new NotFoundError('Store could not be found.');
 
     if (current.status === 'OFFLINE_BY_ADMIN') {
-      throw new ConflictError('This store was taken offline by an administrator and cannot be reopened from the vendor panel.');
+      throw new ConflictError(
+        'This store was taken offline by an administrator and cannot be reopened from the vendor panel.'
+      );
     }
     if (input.status === 'OPEN' && current.vendorStatus !== 'APPROVED') {
       throw new ConflictError('Only an approved vendor can open a store.');
