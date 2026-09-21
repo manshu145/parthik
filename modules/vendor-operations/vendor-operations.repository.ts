@@ -1,5 +1,6 @@
 import { and, desc, eq, isNull, sql } from 'drizzle-orm';
 import {
+  auditLogs,
   coupons,
   couponRestrictions,
   notifications,
@@ -11,6 +12,7 @@ import {
   vendors,
 } from '@/db/schema';
 import { getDb } from '@/lib/db/client';
+import { ConflictError, NotFoundError } from '@/lib/errors';
 
 export async function readVendorAnalytics(vendorId: string) {
   const db = await getDb();
@@ -181,4 +183,107 @@ export async function listVendorNotifications(vendorId: string) {
     .where(and(eq(vendorUsers.vendorId, vendorId), isNull(vendorUsers.removedAt)))
     .orderBy(desc(notifications.createdAt))
     .limit(100);
+}
+
+
+export async function updateVendorStore(
+  vendorId: string,
+  storeId: string,
+  actorUserId: string,
+  input: {
+    status: 'OPEN' | 'CLOSED' | 'TEMPORARILY_CLOSED';
+    description: string | null;
+    deliveryRadiusKm: number | null;
+    codEnabled: boolean;
+    minOrderPaise: number;
+    avgPrepTimeMinutes: number | null;
+    isAcceptingOrders: boolean;
+  }
+) {
+  const db = await getDb();
+
+  return db.transaction(async (tx) => {
+    const [current] = await tx
+      .select({
+        id: stores.id,
+        status: stores.status,
+        description: stores.description,
+        deliveryRadiusKm: stores.deliveryRadiusKm,
+        codEnabled: stores.codEnabled,
+        minOrderPaise: stores.minOrderPaise,
+        avgPrepTimeMinutes: stores.avgPrepTimeMinutes,
+        isAcceptingOrders: stores.isAcceptingOrders,
+        vendorStatus: vendors.status,
+      })
+      .from(stores)
+      .innerJoin(vendors, eq(vendors.id, stores.vendorId))
+      .where(
+        and(
+          eq(stores.id, storeId),
+          eq(stores.vendorId, vendorId),
+          isNull(stores.deletedAt),
+          isNull(vendors.deletedAt)
+        )
+      )
+      .limit(1);
+
+    if (!current) throw new NotFoundError('Store could not be found.');
+
+    if (input.isAcceptingOrders && current.vendorStatus !== 'APPROVED') {
+      throw new ConflictError('Only an approved vendor can accept customer orders.');
+    }
+
+    const isAcceptingOrders = input.status === 'OPEN' ? input.isAcceptingOrders : false;
+    const now = new Date();
+
+    await tx
+      .update(stores)
+      .set({
+        status: input.status,
+        description: input.description,
+        deliveryRadiusKm: input.deliveryRadiusKm,
+        codEnabled: input.codEnabled,
+        minOrderPaise: input.minOrderPaise,
+        avgPrepTimeMinutes: input.avgPrepTimeMinutes,
+        isAcceptingOrders,
+        closedUntil: input.status === 'TEMPORARILY_CLOSED' ? stores.closedUntil : null,
+        updatedAt: now,
+      })
+      .where(and(eq(stores.id, storeId), eq(stores.vendorId, vendorId)));
+
+    await tx.insert(auditLogs).values({
+      actorUserId,
+      action: 'UPDATE',
+      entityType: 'store',
+      entityId: storeId,
+      before: {
+        status: current.status,
+        deliveryRadiusKm: current.deliveryRadiusKm,
+        codEnabled: current.codEnabled,
+        minOrderPaise: current.minOrderPaise,
+        avgPrepTimeMinutes: current.avgPrepTimeMinutes,
+        isAcceptingOrders: current.isAcceptingOrders,
+      },
+      after: {
+        status: input.status,
+        deliveryRadiusKm: input.deliveryRadiusKm,
+        codEnabled: input.codEnabled,
+        minOrderPaise: input.minOrderPaise,
+        avgPrepTimeMinutes: input.avgPrepTimeMinutes,
+        isAcceptingOrders,
+      },
+      changedFields: [
+        'status',
+        'description',
+        'deliveryRadiusKm',
+        'codEnabled',
+        'minOrderPaise',
+        'avgPrepTimeMinutes',
+        'isAcceptingOrders',
+      ],
+      reason: 'Vendor store configuration update',
+    });
+
+    return { id: storeId, status: input.status, isAcceptingOrders };
+  });
 }

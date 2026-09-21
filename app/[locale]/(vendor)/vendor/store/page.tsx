@@ -2,6 +2,7 @@ import type { Metadata } from 'next';
 import { getFormatter, getTranslations, setRequestLocale } from 'next-intl/server';
 import { AccessDenied } from '@/app/_components/access-denied';
 import { Badge } from '@/components/ui/badge';
+import { StoreControls } from '@/components/vendor/store-controls';
 import { Card, CardContent } from '@/components/ui/card';
 import { checkVendorPage } from '@/lib/auth/vendor-page';
 import { readVendorStoreSummary } from '@/modules/vendor-operations';
@@ -25,11 +26,13 @@ export default async function Page({ params }: { params: Promise<{ locale: strin
   const access = await checkVendorPage('product:view');
   if (access.status !== 'ok' || !access.vendorId) return <AccessDenied decision={access} />;
 
-  const [summary, t, format] = await Promise.all([
+  const [summary, t, format, manageAccess] = await Promise.all([
     readVendorStoreSummary(access.vendorId),
     getTranslations('vendorNav'),
     getFormatter(),
+    checkVendorPage('product:manage'),
   ]);
+  const canManage = manageAccess.status === 'ok';
 
   if (!summary) {
     return (
@@ -45,8 +48,8 @@ export default async function Page({ params }: { params: Promise<{ locale: strin
         <h1 className="text-xl font-semibold">{t('store')}</h1>
         <p className="text-muted-foreground mt-1 text-sm">
           {locale === 'hi'
-            ? 'Vendor और store configuration का live read-only overview। Store management UX D-32 final होने तक edit actions disabled हैं।'
-            : 'Live read-only overview of vendor and store configuration. Store edit actions remain disabled until D-32 is final.'}
+            ? 'Vendor और existing store configuration का live operational view। Multi-store creation/deletion D-32 final होने तक disabled है।'
+            : 'Live operational view of vendor and existing store configuration. Multi-store creation/deletion remains disabled until D-32 is final.'}
         </p>
       </div>
 
@@ -118,6 +121,8 @@ export default async function Page({ params }: { params: Promise<{ locale: strin
                   }
                 />
               </dl>
+
+              {canManage ? <StoreControls store={store} /> : null}
             </CardContent>
           </Card>
         ))}
