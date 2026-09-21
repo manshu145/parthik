@@ -48,13 +48,23 @@ export function AddressBook() {
     setItems(payload.data.addresses);
   }, []);
 
-  // The address API is the external source of truth; the initial request hydrates
-  // this interactive manager after the authenticated shell mounts.
-  // eslint-disable-next-line react-hooks/set-state-in-effect
+  // The address API is the external source of truth; schedule the initial load so
+  // state updates happen from an asynchronous callback rather than synchronously
+  // inside the effect body.
   useEffect(() => {
-    void load().catch((caught: unknown) =>
-      setError(caught instanceof Error ? caught.message : 'Could not load addresses.')
-    );
+    let cancelled = false;
+    const first = setTimeout(() => {
+      void load().catch((caught: unknown) => {
+        if (!cancelled) {
+          setError(caught instanceof Error ? caught.message : 'Could not load addresses.');
+        }
+      });
+    }, 0);
+
+    return () => {
+      cancelled = true;
+      clearTimeout(first);
+    };
   }, [load]);
 
   async function create(event: React.FormEvent) {
