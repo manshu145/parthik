@@ -1,2 +1,7 @@
-export { listSupportTicketsForUser } from './support.service';
-export type { SupportTicketListItem } from './support.repository';
+export {
+  createSupportTicketForUser,
+  listSupportTicketsForUser,
+  readSupportTicketForUser,
+  replySupportTicketForUser,
+} from './support.service';
+export type { SupportTicketCategory, SupportTicketListItem } from './support.repository';
