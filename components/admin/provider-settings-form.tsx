@@ -28,7 +28,9 @@ export function ProviderSettingsForm({ initial }: { initial: Field[] }) {
         throw new Error(payload?.error?.message ?? 'Could not save provider settings.');
       setFields(payload.data.settings);
       setValues({});
-      setMessage('Provider configuration saved. Server-side Maps and Razorpay changes apply to new requests; browser/build-time settings may require a deployment.')
+      setMessage(
+        'Provider configuration saved. Server-side Maps and Razorpay changes apply to new requests; browser/build-time settings may require a deployment.'
+      );
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : 'Could not save provider settings.');
     } finally {
