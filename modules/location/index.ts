@@ -68,11 +68,12 @@ export async function getLocationService(): Promise<LocationService> {
     readProviderSetting('maps.provider'),
     readProviderSetting('maps.google_server_key'),
   ]);
-  const provider = configuredProvider === 'mock'
-    ? mockMapsProvider
-    : configuredKey
-      ? new GoogleMapsProvider(configuredKey)
-      : resolveMapsProvider().provider;
+  const provider =
+    configuredProvider === 'mock'
+      ? mockMapsProvider
+      : configuredKey
+        ? new GoogleMapsProvider(configuredKey)
+        : resolveMapsProvider().provider;
 
   return new LocationService({ repository, maps: provider });
 }
