@@ -23,24 +23,63 @@ export type ProviderSettingKey = (typeof PROVIDER_FIELDS)[number]['key'];
 
 export async function listProviderSettings() {
   const db = await getDb();
-  const rows = await db.select({ key: adminSettings.key, value: adminSettings.value }).from(adminSettings).where(inArray(adminSettings.key, PROVIDER_FIELDS.map((field) => field.key)));
+  const rows = await db
+    .select({ key: adminSettings.key, value: adminSettings.value })
+    .from(adminSettings)
+    .where(
+      inArray(
+        adminSettings.key,
+        PROVIDER_FIELDS.map((field) => field.key)
+      )
+    );
   const configured = new Map(rows.map((row) => [row.key, readStored(row.value)]));
-  return PROVIDER_FIELDS.map((field) => ({ ...field, configured: Boolean(configured.get(field.key)), value: field.secret ? '' : (configured.get(field.key) ?? '') }));
+  return PROVIDER_FIELDS.map((field) => ({
+    ...field,
+    configured: Boolean(configured.get(field.key)),
+    value: field.secret ? '' : (configured.get(field.key) ?? ''),
+  }));
 }
 
-export async function saveProviderSettings(values: Partial<Record<ProviderSettingKey, string>>, userId: string) {
+export async function saveProviderSettings(
+  values: Partial<Record<ProviderSettingKey, string>>,
+  userId: string
+) {
   const db = await getDb();
   for (const field of PROVIDER_FIELDS) {
     const incoming = values[field.key]?.trim();
     if (!incoming) continue;
     const stored = field.secret ? await encryptSecret(incoming) : incoming;
-    await db.insert(adminSettings).values({ key: field.key, value: { stored }, valueType: 'string', groupName: 'providers', label: field.label, isSensitive: field.secret, requiredPermission: 'setting:manage_sensitive', updatedBy: userId }).onConflictDoUpdate({ target: adminSettings.key, set: { value: { stored }, isSensitive: field.secret, updatedBy: userId, updatedAt: new Date() } });
+    await db
+      .insert(adminSettings)
+      .values({
+        key: field.key,
+        value: { stored },
+        valueType: 'string',
+        groupName: 'providers',
+        label: field.label,
+        isSensitive: field.secret,
+        requiredPermission: 'setting:manage_sensitive',
+        updatedBy: userId,
+      })
+      .onConflictDoUpdate({
+        target: adminSettings.key,
+        set: {
+          value: { stored },
+          isSensitive: field.secret,
+          updatedBy: userId,
+          updatedAt: new Date(),
+        },
+      });
   }
 }
 
 export async function readProviderSetting(key: ProviderSettingKey): Promise<string | null> {
   const db = await getDb();
-  const [row] = await db.select({ value: adminSettings.value }).from(adminSettings).where(eq(adminSettings.key, key)).limit(1);
+  const [row] = await db
+    .select({ value: adminSettings.value })
+    .from(adminSettings)
+    .where(eq(adminSettings.key, key))
+    .limit(1);
   const stored = row ? readStored(row.value) : null;
   if (!stored) return null;
   const field = PROVIDER_FIELDS.find((candidate) => candidate.key === key);
