@@ -1,6 +1,15 @@
 import { sql } from 'drizzle-orm';
 import { getDb } from '@/lib/db/client';
-import { auditLogs, banners, coupons, featureFlags, notificationTemplates, promotions, reviews, users } from '@/db/schema';
+import {
+  auditLogs,
+  banners,
+  coupons,
+  featureFlags,
+  notificationTemplates,
+  promotions,
+  reviews,
+  users,
+} from '@/db/schema';
 import { eq } from 'drizzle-orm';
 import type { PermissionKey } from '@/modules/identity';
 
@@ -9,21 +18,89 @@ export interface OperationSnapshot {
   rows: Array<Record<string, unknown>>;
 }
 
-export async function updateAdminOperation(permission: PermissionKey, id: string, action: string, actorUserId: string) {
+export async function updateAdminOperation(
+  permission: PermissionKey,
+  id: string,
+  action: string,
+  actorUserId: string
+) {
   const db = await getDb();
   let entityType: string = permission;
   await db.transaction(async (tx) => {
     switch (permission) {
-      case 'review:moderate': entityType = 'review'; await tx.update(reviews).set({ status: action === 'approve' ? 'APPROVED' : 'REJECTED', moderatedBy: actorUserId, moderatedAt: new Date(), updatedAt: new Date() }).where(eq(reviews.id, id)); break;
-      case 'coupon:manage': entityType = 'coupon'; await tx.update(coupons).set({ isActive: action === 'enable', updatedAt: new Date() }).where(eq(coupons.id, id)); break;
-      case 'promotion:manage': entityType = 'promotion'; await tx.update(promotions).set({ isActive: action === 'enable', updatedAt: new Date() }).where(eq(promotions.id, id)); break;
-      case 'banner:manage': entityType = 'banner'; await tx.update(banners).set({ isActive: action === 'enable', updatedAt: new Date() }).where(eq(banners.id, id)); break;
-      case 'template:manage': entityType = 'notification_template'; await tx.update(notificationTemplates).set({ isActive: action === 'enable', updatedBy: actorUserId, updatedAt: new Date() }).where(eq(notificationTemplates.id, id)); break;
-      case 'flag:manage': entityType = 'feature_flag'; await tx.update(featureFlags).set({ isEnabled: action === 'enable', rolloutPercentage: action === 'enable' ? 100 : 0, updatedBy: actorUserId, updatedAt: new Date() }).where(eq(featureFlags.id, id)); break;
-      case 'admin_user:manage': entityType = 'user'; await tx.update(users).set({ status: action === 'enable' ? 'ACTIVE' : 'SUSPENDED', updatedAt: new Date() }).where(eq(users.id, id)); break;
-      default: throw new Error('This operation is read-only.');
+      case 'review:moderate':
+        entityType = 'review';
+        await tx
+          .update(reviews)
+          .set({
+            status: action === 'approve' ? 'APPROVED' : 'REJECTED',
+            moderatedBy: actorUserId,
+            moderatedAt: new Date(),
+            updatedAt: new Date(),
+          })
+          .where(eq(reviews.id, id));
+        break;
+      case 'coupon:manage':
+        entityType = 'coupon';
+        await tx
+          .update(coupons)
+          .set({ isActive: action === 'enable', updatedAt: new Date() })
+          .where(eq(coupons.id, id));
+        break;
+      case 'promotion:manage':
+        entityType = 'promotion';
+        await tx
+          .update(promotions)
+          .set({ isActive: action === 'enable', updatedAt: new Date() })
+          .where(eq(promotions.id, id));
+        break;
+      case 'banner:manage':
+        entityType = 'banner';
+        await tx
+          .update(banners)
+          .set({ isActive: action === 'enable', updatedAt: new Date() })
+          .where(eq(banners.id, id));
+        break;
+      case 'template:manage':
+        entityType = 'notification_template';
+        await tx
+          .update(notificationTemplates)
+          .set({ isActive: action === 'enable', updatedBy: actorUserId, updatedAt: new Date() })
+          .where(eq(notificationTemplates.id, id));
+        break;
+      case 'flag:manage':
+        entityType = 'feature_flag';
+        await tx
+          .update(featureFlags)
+          .set({
+            isEnabled: action === 'enable',
+            rolloutPercentage: action === 'enable' ? 100 : 0,
+            updatedBy: actorUserId,
+            updatedAt: new Date(),
+          })
+          .where(eq(featureFlags.id, id));
+        break;
+      case 'admin_user:manage':
+        entityType = 'user';
+        await tx
+          .update(users)
+          .set({ status: action === 'enable' ? 'ACTIVE' : 'SUSPENDED', updatedAt: new Date() })
+          .where(eq(users.id, id));
+        break;
+      default:
+        throw new Error('This operation is read-only.');
     }
-    await tx.insert(auditLogs).values({ actorUserId, actorRole: 'SUPER_ADMIN', action: 'UPDATE', entityType, entityId: id, changedFields: [action], reason: 'Admin dashboard operation' });
+    await tx
+      .insert(auditLogs)
+      .values({
+        actorUserId,
+        actorRole: 'SUPER_ADMIN',
+        action: 'UPDATE',
+        entityType,
+        entityId: id,
+        changedFields: [action],
+        reason: 'Admin dashboard operation',
+      });
   });
 }
 
