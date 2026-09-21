@@ -24,7 +24,7 @@ type ProductAction = 'approve' | 'reject' | 'deactivate' | 'reactivate';
 type CustomerAction = 'suspend' | 'ban' | 'activate';
 type PayoutAction = 'approve' | 'mark_paid' | 'fail';
 
-function requiredReason(action: string, reason?: string | null) {
+function requiredReason(reason?: string | null) {
   const value = reason?.trim();
   if (!value) {
     throw new ValidationError('A reason is required for this action.', {
@@ -66,7 +66,7 @@ export async function updateVendorStatus(
         })
         .where(eq(vendors.id, vendorId));
     } else if (action === 'reject') {
-      const actionReason = requiredReason(action, reason);
+      const actionReason = requiredReason(reason);
       afterStatus = 'REJECTED';
       await tx
         .update(vendors)
@@ -79,7 +79,7 @@ export async function updateVendorStatus(
         })
         .where(eq(vendors.id, vendorId));
     } else if (action === 'suspend') {
-      const actionReason = requiredReason(action, reason);
+      const actionReason = requiredReason(reason);
       afterStatus = 'SUSPENDED';
       await tx
         .update(vendors)
@@ -150,7 +150,7 @@ export async function updateDriverStatus(
         })
         .where(eq(drivers.id, driverId));
     } else if (action === 'reject') {
-      const actionReason = requiredReason(action, reason);
+      const actionReason = requiredReason(reason);
       afterStatus = 'REJECTED';
       await tx
         .update(drivers)
@@ -163,7 +163,7 @@ export async function updateDriverStatus(
         })
         .where(eq(drivers.id, driverId));
     } else if (action === 'suspend') {
-      requiredReason(action, reason);
+      requiredReason(reason);
       afterStatus = 'SUSPENDED';
       await tx
         .update(drivers)
@@ -235,7 +235,7 @@ export async function updateProductStatus(
         })
         .where(eq(products.id, productId));
     } else if (action === 'reject') {
-      requiredReason(action, reason);
+      requiredReason(reason);
       afterStatus = 'REJECTED';
       await tx
         .update(products)
@@ -301,7 +301,7 @@ export async function updateCustomerStatus(
       .limit(1);
     if (!before) throw new NotFoundError('Customer could not be found.');
 
-    if (action !== 'activate') requiredReason(action, reason);
+    if (action !== 'activate') requiredReason(reason);
     const status = action === 'activate' ? 'ACTIVE' : action === 'ban' ? 'BANNED' : 'SUSPENDED';
     await tx.update(users).set({ status, updatedAt: new Date() }).where(eq(users.id, userId));
 
@@ -331,7 +331,7 @@ export async function adjustInventory(
       delta: ['Use a non-zero whole number.'],
     });
   }
-  const actionReason = requiredReason('adjust', reason);
+  const actionReason = requiredReason(reason);
   const db = await getDb();
 
   return db.transaction(async (tx) => {
@@ -676,7 +676,7 @@ export async function updatePayoutStatus(
         })
         .where(eq(payoutBatches.id, payoutId));
     } else {
-      const notes = requiredReason(action, input.notes);
+      const notes = requiredReason(input.notes);
       await tx
         .update(payoutBatches)
         .set({ status: 'FAILED', notes, updatedAt: now })
