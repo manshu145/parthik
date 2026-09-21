@@ -57,6 +57,13 @@ const serverSchema = z.object({
     .default('false')
     .transform((value) => value === 'true'),
 
+  /** Temporary credential login used only while Firebase/OTP integration is paused. */
+  TEMP_AUTH_ENABLED: z
+    .enum(['true', 'false'])
+    .default('false')
+    .transform((value) => value === 'true'),
+  TEMP_AUTH_PASSWORD: z.string().min(12).optional(),
+
   /**
    * Signing key for Parthik session cookies (D-10).
    *
