@@ -8,7 +8,12 @@ import {
   createAdminDeliveryZone,
 } from '@/modules/admin-configuration';
 
-const slug = z.string().trim().min(2).max(120).regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/);
+const slug = z
+  .string()
+  .trim()
+  .min(2)
+  .max(120)
+  .regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/);
 const nullableUuid = z.string().uuid().nullable();
 const nullableInt = z.number().int().min(0).nullable();
 
@@ -31,7 +36,12 @@ const brandSchema = z.object({
 
 const zoneSchema = z.object({
   name: z.string().trim().min(2).max(120),
-  code: z.string().trim().min(2).max(40).regex(/^[A-Z0-9_-]+$/),
+  code: z
+    .string()
+    .trim()
+    .min(2)
+    .max(40)
+    .regex(/^[A-Z0-9_-]+$/),
   city: z.string().trim().min(2).max(120),
   state: z.string().trim().min(2).max(120),
   isActive: z.boolean(),
@@ -57,18 +67,33 @@ export async function POST(
 
     if (resource === 'category') {
       const parsed = categorySchema.safeParse(body);
-      if (!parsed.success) throw new ValidationError('Check the category fields.', parsed.error.flatten().fieldErrors);
-      return apiSuccess(await createAdminCategory(parsed.data, actor.userId), { status: 201, meta: { requestId } });
+      if (!parsed.success)
+        throw new ValidationError('Check the category fields.', parsed.error.flatten().fieldErrors);
+      return apiSuccess(await createAdminCategory(parsed.data, actor.userId), {
+        status: 201,
+        meta: { requestId },
+      });
     }
     if (resource === 'brand') {
       const parsed = brandSchema.safeParse(body);
-      if (!parsed.success) throw new ValidationError('Check the brand fields.', parsed.error.flatten().fieldErrors);
-      return apiSuccess(await createAdminBrand(parsed.data, actor.userId), { status: 201, meta: { requestId } });
+      if (!parsed.success)
+        throw new ValidationError('Check the brand fields.', parsed.error.flatten().fieldErrors);
+      return apiSuccess(await createAdminBrand(parsed.data, actor.userId), {
+        status: 201,
+        meta: { requestId },
+      });
     }
     if (resource === 'zone') {
       const parsed = zoneSchema.safeParse(body);
-      if (!parsed.success) throw new ValidationError('Check the delivery zone fields.', parsed.error.flatten().fieldErrors);
-      return apiSuccess(await createAdminDeliveryZone(parsed.data, actor.userId), { status: 201, meta: { requestId } });
+      if (!parsed.success)
+        throw new ValidationError(
+          'Check the delivery zone fields.',
+          parsed.error.flatten().fieldErrors
+        );
+      return apiSuccess(await createAdminDeliveryZone(parsed.data, actor.userId), {
+        status: 201,
+        meta: { requestId },
+      });
     }
 
     throw new ValidationError('Unsupported admin configuration resource.');
