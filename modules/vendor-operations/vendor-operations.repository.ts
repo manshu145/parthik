@@ -213,6 +213,7 @@ export async function updateVendorStore(
         minOrderPaise: stores.minOrderPaise,
         avgPrepTimeMinutes: stores.avgPrepTimeMinutes,
         isAcceptingOrders: stores.isAcceptingOrders,
+        closedUntil: stores.closedUntil,
         vendorStatus: vendors.status,
       })
       .from(stores)
@@ -229,6 +230,12 @@ export async function updateVendorStore(
 
     if (!current) throw new NotFoundError('Store could not be found.');
 
+    if (current.status === 'OFFLINE_BY_ADMIN') {
+      throw new ConflictError('This store was taken offline by an administrator and cannot be reopened from the vendor panel.');
+    }
+    if (input.status === 'OPEN' && current.vendorStatus !== 'APPROVED') {
+      throw new ConflictError('Only an approved vendor can open a store.');
+    }
     if (input.isAcceptingOrders && current.vendorStatus !== 'APPROVED') {
       throw new ConflictError('Only an approved vendor can accept customer orders.');
     }
@@ -246,7 +253,7 @@ export async function updateVendorStore(
         minOrderPaise: input.minOrderPaise,
         avgPrepTimeMinutes: input.avgPrepTimeMinutes,
         isAcceptingOrders,
-        closedUntil: input.status === 'TEMPORARILY_CLOSED' ? stores.closedUntil : null,
+        closedUntil: input.status === 'TEMPORARILY_CLOSED' ? current.closedUntil : null,
         updatedAt: now,
       })
       .where(and(eq(stores.id, storeId), eq(stores.vendorId, vendorId)));
