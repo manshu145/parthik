@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import { getFormatter, getTranslations, setRequestLocale } from 'next-intl/server';
 import { AccessDenied } from '@/app/_components/access-denied';
+import { CashDepositActions } from '@/components/admin/cash-deposit-actions';
 import { Badge, type BadgeVariant } from '@/components/ui/badge';
 import { Card, CardContent } from '@/components/ui/card';
 import { checkPagePermission } from '@/lib/auth/page-guard';
@@ -92,6 +93,7 @@ export default async function Page({ params }: { params: Promise<{ locale: strin
                   <th className="px-4 py-3 font-medium">Status</th>
                   <th className="px-4 py-3 font-medium">Reference</th>
                   <th className="px-4 py-3 font-medium">Declared at</th>
+                  <th className="px-4 py-3 font-medium">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y">
@@ -133,6 +135,13 @@ export default async function Page({ params }: { params: Promise<{ locale: strin
                         dateStyle: 'medium',
                         timeStyle: 'short',
                       })}
+                    </td>
+                    <td className="px-4 py-3">
+                      <CashDepositActions
+                        depositId={row.id}
+                        status={row.status}
+                        declaredAmountPaise={Number(row.declaredAmountPaise)}
+                      />
                     </td>
                   </tr>
                 ))}
