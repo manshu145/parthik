@@ -24,10 +24,7 @@ export default async function Page({ params }: { params: Promise<{ locale: strin
   const access = await checkPagePermission('zone:manage');
   if (access.status !== 'ok') return <AccessDenied decision={access} />;
 
-  const [zones, t] = await Promise.all([
-    listAdminDeliveryZones(),
-    getTranslations('adminNav'),
-  ]);
+  const [zones, t] = await Promise.all([listAdminDeliveryZones(), getTranslations('adminNav')]);
 
   return (
     <div className="mx-auto flex max-w-7xl flex-col gap-4" data-testid="admin-delivery-zones">
