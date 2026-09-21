@@ -10,6 +10,7 @@ import {
   orders,
   payoutBatches,
   products,
+  stores,
   supportTickets,
   ticketMessages,
   users,
@@ -78,6 +79,16 @@ export async function updateVendorStatus(
           updatedAt: now,
         })
         .where(eq(vendors.id, vendorId));
+
+      await tx
+        .update(stores)
+        .set({
+          status: 'OFFLINE_BY_ADMIN',
+          isAcceptingOrders: false,
+          closedUntil: null,
+          updatedAt: now,
+        })
+        .where(and(eq(stores.vendorId, vendorId), isNull(stores.deletedAt)));
     } else if (action === 'suspend') {
       const actionReason = requiredReason(reason);
       afterStatus = 'SUSPENDED';
@@ -90,6 +101,16 @@ export async function updateVendorStatus(
           updatedAt: now,
         })
         .where(eq(vendors.id, vendorId));
+
+      await tx
+        .update(stores)
+        .set({
+          status: 'OFFLINE_BY_ADMIN',
+          isAcceptingOrders: false,
+          closedUntil: null,
+          updatedAt: now,
+        })
+        .where(and(eq(stores.vendorId, vendorId), isNull(stores.deletedAt)));
     } else {
       afterStatus = 'APPROVED';
       await tx
@@ -102,6 +123,22 @@ export async function updateVendorStatus(
           updatedAt: now,
         })
         .where(eq(vendors.id, vendorId));
+
+      await tx
+        .update(stores)
+        .set({
+          status: 'CLOSED',
+          isAcceptingOrders: false,
+          closedUntil: null,
+          updatedAt: now,
+        })
+        .where(
+          and(
+            eq(stores.vendorId, vendorId),
+            eq(stores.status, 'OFFLINE_BY_ADMIN'),
+            isNull(stores.deletedAt)
+          )
+        );
     }
 
     await tx.insert(auditLogs).values({
