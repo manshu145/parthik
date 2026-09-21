@@ -1,63 +1,47 @@
-import { revalidatePath } from 'next/cache';
+import Link from 'next/link';
+import { CreateSupportTicketForm } from '@/components/support/create-ticket-form';
 import { PageShell } from '@/components/layout/page-shell';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
 import { requireCurrentActor } from '@/lib/auth/current-actor';
-import { createSupportTicket } from '@/modules/customer-account';
 import { listSupportTicketsForUser } from '@/modules/support';
 
 export const dynamic = 'force-dynamic';
-export default async function Page() {
+
+export default async function Page({
+  params,
+}: {
+  params: Promise<{ locale: string }>;
+}) {
+  const { locale } = await params;
   const actor = await requireCurrentActor();
   const items = await listSupportTicketsForUser(actor.userId);
-  async function create(formData: FormData) {
-    'use server';
-    const current = await requireCurrentActor();
-    const subject = String(formData.get('subject') ?? '').trim();
-    if (subject.length < 3) return;
-    const allowed = [
-      'PAYMENT',
-      'DELIVERY',
-      'PRODUCT',
-      'REFUND',
-      'COUPON',
-      'ACCOUNT',
-      'VENDOR',
-      'OTHER',
-    ] as const;
-    const raw = String(formData.get('category') ?? 'OTHER');
-    const category = allowed.find((item) => item === raw) ?? 'OTHER';
-    await createSupportTicket(current.userId, { category, subject });
-    revalidatePath('/account/support');
-  }
+
   return (
     <PageShell title="Support">
-      <div className="grid gap-6 lg:grid-cols-2">
-        <form action={create} className="space-y-3 rounded-xl border p-4">
-          <h2 className="font-semibold">Create ticket</h2>
-          <select name="category" className="bg-background h-10 w-full rounded-lg border px-3">
-            {['PAYMENT', 'DELIVERY', 'PRODUCT', 'REFUND', 'COUPON', 'ACCOUNT', 'OTHER'].map(
-              (item) => (
-                <option key={item}>{item}</option>
-              )
-            )}
-          </select>
-          <Input name="subject" required minLength={3} placeholder="How can we help?" />
-          <Button type="submit">Submit ticket</Button>
-        </form>
+      <div className="grid gap-6 lg:grid-cols-[minmax(0,360px)_1fr]">
+        <CreateSupportTicketForm />
+
         <div className="space-y-3">
+          <h2 className="font-semibold">Your tickets</h2>
           {items.length === 0 ? (
-            <p className="text-muted-foreground text-sm">No support tickets.</p>
+            <p className="text-muted-foreground text-sm">No support tickets yet.</p>
           ) : (
             items.map((item) => (
-              <article key={item.id} className="rounded-xl border p-4">
-                <p className="font-medium">
-                  {item.ticketNumber} · {item.subject}
+              <Link
+                key={item.id}
+                href={`/${locale}/account/support/${item.id}`}
+                className="block rounded-xl border p-4 transition-colors hover:bg-muted/30"
+              >
+                <div className="flex flex-wrap items-start justify-between gap-3">
+                  <div>
+                    <p className="font-medium">{item.subject}</p>
+                    <p className="text-muted-foreground mt-1 text-xs">{item.ticketNumber}</p>
+                  </div>
+                  <span className="text-xs font-medium">{item.status.replaceAll('_', ' ')}</span>
+                </div>
+                <p className="text-muted-foreground mt-2 text-xs">
+                  {item.category} · {item.priority} · {item.updatedAt.toLocaleString()}
                 </p>
-                <p className="text-muted-foreground mt-1 text-xs">
-                  {item.category} · {item.status} · {item.priority}
-                </p>
-              </article>
+              </Link>
             ))
           )}
         </div>
