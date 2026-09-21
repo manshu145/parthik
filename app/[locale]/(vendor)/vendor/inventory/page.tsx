@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import { getFormatter, getTranslations, setRequestLocale } from 'next-intl/server';
 import { AccessDenied } from '@/app/_components/access-denied';
+import { VendorInventoryAdjustment } from '@/components/vendor/inventory-adjustment';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent } from '@/components/ui/card';
 import { checkVendorPage } from '@/lib/auth/vendor-page';
@@ -25,11 +26,13 @@ export default async function Page({ params }: { params: Promise<{ locale: strin
   const access = await checkVendorPage('inventory:view');
   if (access.status !== 'ok' || !access.vendorId) return <AccessDenied decision={access} />;
 
-  const [items, t, format] = await Promise.all([
+  const [items, t, format, manageAccess] = await Promise.all([
     listVendorInventory(access.vendorId),
     getTranslations('vendorNav'),
     getFormatter(),
+    checkVendorPage('inventory:manage'),
   ]);
+  const canManage = manageAccess.status === 'ok';
 
   const tracked = items.filter((item) => item.trackInventory);
   const lowStock = tracked.filter((item) => item.quantityAvailable <= item.lowStockThreshold);
@@ -79,6 +82,7 @@ export default async function Page({ params }: { params: Promise<{ locale: strin
                   </th>
                   <th className="px-4 py-3 font-medium">{locale === 'hi' ? 'स्थिति' : 'Status'}</th>
                   <th className="px-4 py-3 font-medium">{locale === 'hi' ? 'अपडेट' : 'Updated'}</th>
+                  {canManage ? <th className="px-4 py-3 font-medium">Actions</th> : null}
                 </tr>
               </thead>
               <tbody className="divide-y">
@@ -114,6 +118,11 @@ export default async function Page({ params }: { params: Promise<{ locale: strin
                           timeStyle: 'short',
                         })}
                       </td>
+                      {canManage ? (
+                        <td className="px-4 py-3">
+                          <VendorInventoryAdjustment inventoryId={item.inventoryId} />
+                        </td>
+                      ) : null}
                     </tr>
                   );
                 })}
