@@ -6,11 +6,7 @@ import { listSupportTicketsForUser } from '@/modules/support';
 
 export const dynamic = 'force-dynamic';
 
-export default async function Page({
-  params,
-}: {
-  params: Promise<{ locale: string }>;
-}) {
+export default async function Page({ params }: { params: Promise<{ locale: string }> }) {
   const { locale } = await params;
   const actor = await requireCurrentActor();
   const items = await listSupportTicketsForUser(actor.userId);
@@ -29,7 +25,7 @@ export default async function Page({
               <Link
                 key={item.id}
                 href={`/${locale}/account/support/${item.id}`}
-                className="block rounded-xl border p-4 transition-colors hover:bg-muted/30"
+                className="hover:bg-muted/30 block rounded-xl border p-4 transition-colors"
               >
                 <div className="flex flex-wrap items-start justify-between gap-3">
                   <div>
