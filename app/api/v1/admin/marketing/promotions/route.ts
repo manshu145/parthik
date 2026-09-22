@@ -5,7 +5,12 @@ import { apiError, apiSuccess, requestIdFrom } from '@/lib/http/api-response';
 import { createAdminPromotion } from '@/modules/admin-marketing';
 
 const ruleSchema = z.object({
-  ruleKey: z.string().trim().min(1).max(120).regex(/^[A-Za-z0-9_.-]+$/),
+  ruleKey: z
+    .string()
+    .trim()
+    .min(1)
+    .max(120)
+    .regex(/^[A-Za-z0-9_.-]+$/),
   ruleValue: z.unknown(),
 });
 
