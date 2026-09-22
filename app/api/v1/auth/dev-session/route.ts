@@ -59,7 +59,7 @@ export async function POST(request: Request) {
 
   // Both gates, in order of severity. A plain 404 so the endpoint's existence is not
   // confirmed in an environment where it is unavailable.
-  const temporaryAuthEnabled = env.TEMP_AUTH_ENABLED && Boolean(env.TEMP_AUTH_PASSWORD);
+  const temporaryAuthEnabled =\n    env.APP_ENV !== 'production' && env.TEMP_AUTH_ENABLED && Boolean(env.TEMP_AUTH_PASSWORD);
   const developmentAuthEnabled = env.APP_ENV !== 'production' && env.DEV_AUTH_ENABLED;
   if (!temporaryAuthEnabled && !developmentAuthEnabled) {
     return new Response(null, { status: 404 });
@@ -140,7 +140,7 @@ export function GET() {
 
   const enabled =
     (env.APP_ENV !== 'production' && env.DEV_AUTH_ENABLED) ||
-    (env.TEMP_AUTH_ENABLED && Boolean(env.TEMP_AUTH_PASSWORD));
+    (env.APP_ENV !== 'production' && env.TEMP_AUTH_ENABLED && Boolean(env.TEMP_AUTH_PASSWORD));
   if (!enabled) {
     return new Response(null, { status: 404 });
   }
