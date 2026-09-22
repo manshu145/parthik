@@ -1,11 +1,6 @@
 import { and, asc, eq, inArray, isNull, ne } from 'drizzle-orm';
 import { alias } from 'drizzle-orm/pg-core';
-import {
-  auditLogs,
-  couponRestrictions,
-  couponTranslations,
-  coupons,
-} from '@/db/schema';
+import { auditLogs, couponRestrictions, couponTranslations, coupons } from '@/db/schema';
 import { getDb } from '@/lib/db/client';
 import { ConflictError, NotFoundError } from '@/lib/errors';
 
@@ -175,11 +170,7 @@ export async function createAdminCoupon(input: AdminCouponInput, actorUserId: st
   });
 }
 
-export async function updateAdminCoupon(
-  id: string,
-  input: AdminCouponInput,
-  actorUserId: string
-) {
+export async function updateAdminCoupon(id: string, input: AdminCouponInput, actorUserId: string) {
   const db = await getDb();
 
   return db.transaction(async (tx) => {
