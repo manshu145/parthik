@@ -34,7 +34,8 @@ export default async function Page({ params }: { params: Promise<{ locale: strin
       <div>
         <h1 className="text-xl font-semibold">{t('auditLogs')}</h1>
         <p className="text-muted-foreground mt-1 text-sm">
-          Append-only administrative audit trail with actor, action, entity, reason and request reference.
+          Append-only administrative audit trail with actor, action, entity, reason and request
+          reference.
         </p>
       </div>
       <OperationSnapshot snapshot={snapshot} permission="audit:view" />
