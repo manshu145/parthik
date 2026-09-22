@@ -1,10 +1,5 @@
 import { and, eq, isNull } from 'drizzle-orm';
-import {
-  driverVehicles,
-  drivers,
-  stores,
-  vendors,
-} from '@/db/schema';
+import { driverVehicles, drivers, stores, vendors } from '@/db/schema';
 import { getDb } from '@/lib/db/client';
 import { ConflictError, ValidationError } from '@/lib/errors';
 
