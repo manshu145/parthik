@@ -234,11 +234,7 @@ export async function updateAdminCmsPage(
         pageType: input.pageType,
         status: input.status,
         publishedAt:
-          input.status === 'PUBLISHED'
-            ? before.status === 'PUBLISHED'
-              ? undefined
-              : now
-            : null,
+          input.status === 'PUBLISHED' ? (before.status === 'PUBLISHED' ? undefined : now) : null,
         publishedBy: input.status === 'PUBLISHED' ? actorUserId : null,
         version: before.version + 1,
         updatedBy: actorUserId,
