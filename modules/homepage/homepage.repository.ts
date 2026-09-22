@@ -1,20 +1,12 @@
 import { and, desc, eq, gte, inArray, isNull, lte, or } from 'drizzle-orm';
 import { alias } from 'drizzle-orm/pg-core';
-import {
-  bannerTranslations,
-  banners,
-  homeLayouts,
-  orders,
-} from '@/db/schema';
+import { bannerTranslations, banners, homeLayouts, orders } from '@/db/schema';
 import { getDb, isDatabaseConfigured } from '@/lib/db/client';
 import type { Locale } from '@/i18n/routing';
 
 export type HomepageAudience = 'NEW_USERS' | 'RETURNING';
 export type HomepageSectionType =
-  | 'HERO_BANNERS'
-  | 'FEATURED_CATEGORIES'
-  | 'POPULAR_PRODUCTS'
-  | 'COUPON_STRIP';
+  'HERO_BANNERS' | 'FEATURED_CATEGORIES' | 'POPULAR_PRODUCTS' | 'COUPON_STRIP';
 
 export interface HomepageSection {
   type: HomepageSectionType;
@@ -220,9 +212,7 @@ function parseSections(value: unknown): HomepageSection[] {
     if (typeof row.type !== 'string' || !allowed.has(row.type as HomepageSectionType)) continue;
 
     const config =
-      row.config && typeof row.config === 'object'
-        ? (row.config as Record<string, unknown>)
-        : {};
+      row.config && typeof row.config === 'object' ? (row.config as Record<string, unknown>) : {};
     const limit =
       typeof config.limit === 'number' && Number.isInteger(config.limit)
         ? Math.min(24, Math.max(1, config.limit))
