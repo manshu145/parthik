@@ -29,10 +29,31 @@ type BannerRow = {
   mobileImageKeyHi: string | null;
 };
 
-const EMPTY_BANNER = {
-  placement: 'HOME_HERO' as const,
+type BannerForm = {
+  placement: 'HOME_HERO' | 'HOME_STRIP' | 'CATEGORY' | 'OFFERS';
+  linkUrl: string;
+  targetAudience: 'ALL' | 'NEW_USERS' | 'RETURNING';
+  deliveryZoneId: string;
+  priority: string;
+  startsAt: string;
+  endsAt: string;
+  isActive: boolean;
+  titleEn: string;
+  subtitleEn: string;
+  ctaLabelEn: string;
+  imageKeyEn: string;
+  mobileImageKeyEn: string;
+  titleHi: string;
+  subtitleHi: string;
+  ctaLabelHi: string;
+  imageKeyHi: string;
+  mobileImageKeyHi: string;
+};
+
+const EMPTY_BANNER: BannerForm = {
+  placement: 'HOME_HERO',
   linkUrl: '',
-  targetAudience: 'ALL' as const,
+  targetAudience: 'ALL',
   deliveryZoneId: '',
   priority: '0',
   startsAt: '',
