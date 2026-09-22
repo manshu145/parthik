@@ -46,7 +46,11 @@ WORKDIR /app
 ENV NODE_ENV=production
 ENV PORT=3000
 ENV HOSTNAME=0.0.0.0
-RUN groupadd --system --gid 1001 nodejs && useradd --system --uid 1001 --gid nodejs nextjs
+RUN groupadd --system --gid 1001 nodejs && \
+    useradd --system --uid 1001 --gid nodejs --home-dir /home/nextjs nextjs && \
+    mkdir -p /home/nextjs/.config && \
+    chown -R nextjs:nodejs /home/nextjs
+ENV HOME=/home/nextjs
 COPY --from=builder --chown=nextjs:nodejs /app/public ./public
 # Keep the complete pnpm dependency graph; Next standalone tracing can omit
 # transitive helper packages referenced through pnpm symlinks.
