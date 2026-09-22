@@ -78,15 +78,13 @@ export function CouponManagement({ rows }: { rows: CouponRow[] }) {
           : row.couponType === 'PERCENTAGE'
             ? String(row.discountValue)
             : '0',
-      maxDiscountRupees:
-        row.maxDiscountPaise === null ? '' : String(row.maxDiscountPaise / 100),
+      maxDiscountRupees: row.maxDiscountPaise === null ? '' : String(row.maxDiscountPaise / 100),
       minCartRupees: String(row.minCartPaise / 100),
       scope: row.scope,
       firstOrderOnly: row.firstOrderOnly,
       isUserSpecific: row.isUserSpecific,
       usageLimitTotal: row.usageLimitTotal === null ? '' : String(row.usageLimitTotal),
-      usageLimitPerUser:
-        row.usageLimitPerUser === null ? '' : String(row.usageLimitPerUser),
+      usageLimitPerUser: row.usageLimitPerUser === null ? '' : String(row.usageLimitPerUser),
       validFrom: toDateTimeInput(row.validFrom),
       validUntil: toDateTimeInput(row.validUntil),
       isActive: row.isActive,
@@ -174,8 +172,21 @@ export function CouponManagement({ rows }: { rows: CouponRow[] }) {
         </div>
 
         <div className="grid gap-3 md:grid-cols-4">
-          <Input required value={form.code} onChange={(e) => setForm({ ...form, code: e.target.value })} placeholder="CODE" disabled={busy} />
-          <select className="border-input bg-background h-10 rounded-md border px-3 text-sm" value={form.couponType} onChange={(e) => setForm({ ...form, couponType: e.target.value as CouponRow['couponType'] })} disabled={busy}>
+          <Input
+            required
+            value={form.code}
+            onChange={(e) => setForm({ ...form, code: e.target.value })}
+            placeholder="CODE"
+            disabled={busy}
+          />
+          <select
+            className="border-input bg-background h-10 rounded-md border px-3 text-sm"
+            value={form.couponType}
+            onChange={(e) =>
+              setForm({ ...form, couponType: e.target.value as CouponRow['couponType'] })
+            }
+            disabled={busy}
+          >
             <option value="FLAT">Flat discount</option>
             <option value="PERCENTAGE">Percentage</option>
             <option value="FREE_DELIVERY">Free delivery</option>
@@ -189,7 +200,12 @@ export function CouponManagement({ rows }: { rows: CouponRow[] }) {
             placeholder={form.couponType === 'PERCENTAGE' ? 'Discount %' : 'Discount ₹'}
             disabled={busy || form.couponType === 'FREE_DELIVERY'}
           />
-          <select className="border-input bg-background h-10 rounded-md border px-3 text-sm" value={form.scope} onChange={(e) => setForm({ ...form, scope: e.target.value as CouponRow['scope'] })} disabled={busy}>
+          <select
+            className="border-input bg-background h-10 rounded-md border px-3 text-sm"
+            value={form.scope}
+            onChange={(e) => setForm({ ...form, scope: e.target.value as CouponRow['scope'] })}
+            disabled={busy}
+          >
             <option value="CART">Whole cart</option>
             <option value="CATEGORY">Category</option>
             <option value="PRODUCT">Product</option>
@@ -197,19 +213,90 @@ export function CouponManagement({ rows }: { rows: CouponRow[] }) {
             <option value="DELIVERY">Delivery</option>
           </select>
 
-          <Input type="number" min="0" step="0.01" value={form.minCartRupees} onChange={(e) => setForm({ ...form, minCartRupees: e.target.value })} placeholder="Minimum cart ₹" disabled={busy} />
-          <Input type="number" min="0" step="0.01" value={form.maxDiscountRupees} onChange={(e) => setForm({ ...form, maxDiscountRupees: e.target.value })} placeholder="Max discount ₹ (optional)" disabled={busy || form.couponType === 'FREE_DELIVERY'} />
-          <Input type="number" min="1" step="1" value={form.usageLimitTotal} onChange={(e) => setForm({ ...form, usageLimitTotal: e.target.value })} placeholder="Total usage limit" disabled={busy} />
-          <Input type="number" min="1" step="1" value={form.usageLimitPerUser} onChange={(e) => setForm({ ...form, usageLimitPerUser: e.target.value })} placeholder="Per-user limit" disabled={busy} />
-          <label className="space-y-1 text-xs"><span>Valid from</span><Input type="datetime-local" value={form.validFrom} onChange={(e) => setForm({ ...form, validFrom: e.target.value })} disabled={busy} /></label>
-          <label className="space-y-1 text-xs"><span>Valid until</span><Input type="datetime-local" value={form.validUntil} onChange={(e) => setForm({ ...form, validUntil: e.target.value })} disabled={busy} /></label>
+          <Input
+            type="number"
+            min="0"
+            step="0.01"
+            value={form.minCartRupees}
+            onChange={(e) => setForm({ ...form, minCartRupees: e.target.value })}
+            placeholder="Minimum cart ₹"
+            disabled={busy}
+          />
+          <Input
+            type="number"
+            min="0"
+            step="0.01"
+            value={form.maxDiscountRupees}
+            onChange={(e) => setForm({ ...form, maxDiscountRupees: e.target.value })}
+            placeholder="Max discount ₹ (optional)"
+            disabled={busy || form.couponType === 'FREE_DELIVERY'}
+          />
+          <Input
+            type="number"
+            min="1"
+            step="1"
+            value={form.usageLimitTotal}
+            onChange={(e) => setForm({ ...form, usageLimitTotal: e.target.value })}
+            placeholder="Total usage limit"
+            disabled={busy}
+          />
+          <Input
+            type="number"
+            min="1"
+            step="1"
+            value={form.usageLimitPerUser}
+            onChange={(e) => setForm({ ...form, usageLimitPerUser: e.target.value })}
+            placeholder="Per-user limit"
+            disabled={busy}
+          />
+          <label className="space-y-1 text-xs">
+            <span>Valid from</span>
+            <Input
+              type="datetime-local"
+              value={form.validFrom}
+              onChange={(e) => setForm({ ...form, validFrom: e.target.value })}
+              disabled={busy}
+            />
+          </label>
+          <label className="space-y-1 text-xs">
+            <span>Valid until</span>
+            <Input
+              type="datetime-local"
+              value={form.validUntil}
+              onChange={(e) => setForm({ ...form, validUntil: e.target.value })}
+              disabled={busy}
+            />
+          </label>
         </div>
 
         <div className="grid gap-3 md:grid-cols-2">
-          <Input required value={form.nameEn} onChange={(e) => setForm({ ...form, nameEn: e.target.value })} placeholder="English offer name" disabled={busy} />
-          <Input value={form.nameHi} onChange={(e) => setForm({ ...form, nameHi: e.target.value })} placeholder="Hindi offer name (optional)" disabled={busy} />
-          <textarea className="border-input bg-background min-h-20 rounded-md border p-3 text-sm" value={form.descriptionEn} onChange={(e) => setForm({ ...form, descriptionEn: e.target.value })} placeholder="English description" disabled={busy} />
-          <textarea className="border-input bg-background min-h-20 rounded-md border p-3 text-sm" value={form.descriptionHi} onChange={(e) => setForm({ ...form, descriptionHi: e.target.value })} placeholder="Hindi description" disabled={busy} />
+          <Input
+            required
+            value={form.nameEn}
+            onChange={(e) => setForm({ ...form, nameEn: e.target.value })}
+            placeholder="English offer name"
+            disabled={busy}
+          />
+          <Input
+            value={form.nameHi}
+            onChange={(e) => setForm({ ...form, nameHi: e.target.value })}
+            placeholder="Hindi offer name (optional)"
+            disabled={busy}
+          />
+          <textarea
+            className="border-input bg-background min-h-20 rounded-md border p-3 text-sm"
+            value={form.descriptionEn}
+            onChange={(e) => setForm({ ...form, descriptionEn: e.target.value })}
+            placeholder="English description"
+            disabled={busy}
+          />
+          <textarea
+            className="border-input bg-background min-h-20 rounded-md border p-3 text-sm"
+            value={form.descriptionHi}
+            onChange={(e) => setForm({ ...form, descriptionHi: e.target.value })}
+            placeholder="Hindi description"
+            disabled={busy}
+          />
         </div>
 
         <div className="grid gap-3 lg:grid-cols-[1fr_360px]">
@@ -219,7 +306,9 @@ export function CouponManagement({ rows }: { rows: CouponRow[] }) {
               className="border-input bg-background min-h-28 w-full rounded-md border p-3 font-mono text-xs"
               value={form.restrictionsText}
               onChange={(e) => setForm({ ...form, restrictionsText: e.target.value })}
-              placeholder={'ZONE 00000000-0000-0000-0000-000000000000\nCATEGORY 00000000-0000-0000-0000-000000000000'}
+              placeholder={
+                'ZONE 00000000-0000-0000-0000-000000000000\nCATEGORY 00000000-0000-0000-0000-000000000000'
+              }
               disabled={busy}
             />
             <span className="text-muted-foreground block text-xs">
@@ -228,17 +317,35 @@ export function CouponManagement({ rows }: { rows: CouponRow[] }) {
           </label>
 
           <div className="space-y-2 rounded-lg border p-3 text-sm">
-            <Check label="Active" checked={form.isActive} onChange={(value) => setForm({ ...form, isActive: value })} />
-            <Check label="First order only" checked={form.firstOrderOnly} onChange={(value) => setForm({ ...form, firstOrderOnly: value })} />
-            <Check label="User specific" checked={form.isUserSpecific} onChange={(value) => setForm({ ...form, isUserSpecific: value })} />
+            <Check
+              label="Active"
+              checked={form.isActive}
+              onChange={(value) => setForm({ ...form, isActive: value })}
+            />
+            <Check
+              label="First order only"
+              checked={form.firstOrderOnly}
+              onChange={(value) => setForm({ ...form, firstOrderOnly: value })}
+            />
+            <Check
+              label="User specific"
+              checked={form.isUserSpecific}
+              onChange={(value) => setForm({ ...form, isUserSpecific: value })}
+            />
             <p className="text-muted-foreground pt-2 text-xs">
               Multi-coupon stacking is not enabled because carts currently hold exactly one coupon.
             </p>
           </div>
         </div>
 
-        {error ? <p className="text-danger text-sm" role="alert">{error}</p> : null}
-        <Button type="submit" disabled={busy}>{busy ? 'Saving…' : 'Save coupon'}</Button>
+        {error ? (
+          <p className="text-danger text-sm" role="alert">
+            {error}
+          </p>
+        ) : null}
+        <Button type="submit" disabled={busy}>
+          {busy ? 'Saving…' : 'Save coupon'}
+        </Button>
       </form>
 
       <div className="overflow-x-auto rounded-xl border">
@@ -305,7 +412,11 @@ function Check({
 }) {
   return (
     <label className="flex items-center gap-2">
-      <input type="checkbox" checked={checked} onChange={(event) => onChange(event.target.checked)} />
+      <input
+        type="checkbox"
+        checked={checked}
+        onChange={(event) => onChange(event.target.checked)}
+      />
       {label}
     </label>
   );
