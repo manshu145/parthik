@@ -6,10 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Link } from '@/i18n/navigation';
 import { getCurrentActor, requireCurrentActor } from '@/lib/auth/current-actor';
-import {
-  getOwnDriverApplication,
-  submitDriverApplication,
-} from '@/modules/partner-applications';
+import { getOwnDriverApplication, submitDriverApplication } from '@/modules/partner-applications';
 
 export const dynamic = 'force-dynamic';
 
@@ -95,7 +92,9 @@ export default async function Page({
             ) : null}
             {application.status === 'APPROVED' ? (
               <Button asChild className="mt-4">
-                <Link href="/driver">{isHindi ? 'Driver dashboard खोलें' : 'Open driver dashboard'}</Link>
+                <Link href="/driver">
+                  {isHindi ? 'Driver dashboard खोलें' : 'Open driver dashboard'}
+                </Link>
               </Button>
             ) : (
               <p className="text-muted-foreground mt-4 text-sm">
@@ -106,27 +105,45 @@ export default async function Page({
             )}
           </div>
         ) : (
-          <form action={apply} className="space-y-5 rounded-xl border p-5" data-testid="driver-application-form">
+          <form
+            action={apply}
+            className="space-y-5 rounded-xl border p-5"
+            data-testid="driver-application-form"
+          >
             <div>
               <h2 className="font-semibold">{isHindi ? 'Driver details' : 'Driver details'}</h2>
               <p className="text-muted-foreground mt-1 text-sm">
-                {isHindi ? 'Approval के लिए सही details भरें।' : 'Enter accurate details for approval.'}
+                {isHindi
+                  ? 'Approval के लिए सही details भरें।'
+                  : 'Enter accurate details for approval.'}
               </p>
             </div>
 
             {query.error ? (
               <p className="text-danger text-sm" role="alert">
-                {isHindi ? 'Application submit नहीं हो सकी। Details check करें।' : 'Application could not be submitted. Check the details and try again.'}
+                {isHindi
+                  ? 'Application submit नहीं हो सकी। Details check करें।'
+                  : 'Application could not be submitted. Check the details and try again.'}
               </p>
             ) : null}
 
             <Field label="Full name" name="fullName" required defaultValue={actor.fullName ?? ''} />
-            <Field label="Phone" name="phone" type="tel" required defaultValue={actor.phone ?? ''} />
+            <Field
+              label="Phone"
+              name="phone"
+              type="tel"
+              required
+              defaultValue={actor.phone ?? ''}
+            />
             <Field label="Emergency contact" name="emergencyContact" type="tel" />
 
             <label className="block space-y-2 text-sm">
               <span className="font-medium">Vehicle type</span>
-              <select name="vehicleType" className="bg-background h-11 w-full rounded-lg border px-3" defaultValue="BIKE">
+              <select
+                name="vehicleType"
+                className="bg-background h-11 w-full rounded-lg border px-3"
+                defaultValue="BIKE"
+              >
                 {VEHICLES.map((vehicle) => (
                   <option key={vehicle} value={vehicle}>
                     {vehicle.charAt(0) + vehicle.slice(1).toLowerCase()}
@@ -139,7 +156,9 @@ export default async function Page({
             <Field label="Vehicle make / model" name="makeModel" />
 
             <Button type="submit" className="w-full">
-              {isHindi ? 'Delivery partner application submit करें' : 'Submit delivery partner application'}
+              {isHindi
+                ? 'Delivery partner application submit करें'
+                : 'Submit delivery partner application'}
             </Button>
           </form>
         )}
@@ -164,7 +183,13 @@ function Field({
   return (
     <label className="block space-y-2 text-sm">
       <span className="font-medium">{label}</span>
-      <Input name={name} required={required} type={type} defaultValue={defaultValue} maxLength={160} />
+      <Input
+        name={name}
+        required={required}
+        type={type}
+        defaultValue={defaultValue}
+        maxLength={160}
+      />
     </label>
   );
 }
