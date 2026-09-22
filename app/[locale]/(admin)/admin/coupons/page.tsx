@@ -31,8 +31,8 @@ export default async function Page({ params }: { params: Promise<{ locale: strin
       <div>
         <h1 className="text-xl font-semibold">{t('coupons')}</h1>
         <p className="text-muted-foreground mt-1 text-sm">
-          Create and edit coupons consumed by the live cart pricing engine. Eligibility and
-          limits are enforced server-side on every evaluation.
+          Create and edit coupons consumed by the live cart pricing engine. Eligibility and limits
+          are enforced server-side on every evaluation.
         </p>
       </div>
       <CouponManagement
