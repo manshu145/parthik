@@ -61,7 +61,16 @@ export async function describePaymentBackend(): Promise<{
   canVerifyWebhooks: boolean;
   databaseConfigured: boolean;
 }> {
-  const resolved = await resolveEffectivePaymentProvider();
+  let resolved: ResolvedPaymentProvider;
+
+  try {
+    resolved = await resolveEffectivePaymentProvider();
+  } catch {
+    // Diagnostics must never turn a configured-but-unreachable database into a 500.
+    // Fall back to environment-only provider detection while still reporting that a
+    // database URL is configured. No credential material is returned by this path.
+    resolved = resolvePaymentProvider();
+  }
 
   return {
     provider: resolved.name,
