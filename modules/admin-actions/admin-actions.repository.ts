@@ -303,16 +303,19 @@ async function ensureRoleGrant(
     .limit(1);
   if (!role) throw new ConflictError(`Role "${input.roleKey}" is not configured.`);
 
-  await tx.insert(userRoles).values({
-    userId: input.userId,
-    roleId: role.id,
-    scopeType: input.scopeType,
-    scopeId: input.scopeId,
-    grantedBy: input.grantedBy,
-  }).onConflictDoNothing({
-    target: [userRoles.userId, userRoles.roleId, userRoles.scopeId],
-    where: sql`revoked_at is null`,
-  });
+  await tx
+    .insert(userRoles)
+    .values({
+      userId: input.userId,
+      roleId: role.id,
+      scopeType: input.scopeType,
+      scopeId: input.scopeId,
+      grantedBy: input.grantedBy,
+    })
+    .onConflictDoNothing({
+      target: [userRoles.userId, userRoles.roleId, userRoles.scopeId],
+      where: sql`revoked_at is null`,
+    });
 }
 
 async function revokeRoleGrant(
@@ -328,7 +331,8 @@ async function revokeRoleGrant(
     .limit(1);
   if (!role) return;
 
-  const scopePredicate = scopeId === null ? isNull(userRoles.scopeId) : eq(userRoles.scopeId, scopeId);
+  const scopePredicate =
+    scopeId === null ? isNull(userRoles.scopeId) : eq(userRoles.scopeId, scopeId);
   await tx
     .update(userRoles)
     .set({ revokedAt: new Date() })
