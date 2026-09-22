@@ -69,13 +69,7 @@ export default async function Page({ params }: { params: Promise<{ locale: strin
             {rows.map((row, index) => (
               <tr
                 key={
-                  row.actorRole +
-                  '-' +
-                  row.fromStatus +
-                  '-' +
-                  row.paymentMethodScope +
-                  '-' +
-                  index
+                  row.actorRole + '-' + row.fromStatus + '-' + row.paymentMethodScope + '-' + index
                 }
               >
                 <td className="px-4 py-3 font-medium">{row.actorRole}</td>
