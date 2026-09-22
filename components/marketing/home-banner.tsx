@@ -12,13 +12,7 @@ interface HomeBannerView {
   mobileImageKey: string | null;
 }
 
-export function HomeBannerGrid({
-  banners,
-  locale,
-}: {
-  banners: HomeBannerView[];
-  locale: Locale;
-}) {
+export function HomeBannerGrid({ banners, locale }: { banners: HomeBannerView[]; locale: Locale }) {
   if (banners.length === 0) return null;
 
   return (
@@ -70,7 +64,7 @@ export function HomeBannerGrid({
           <a
             key={banner.id}
             href={href}
-            className="block focus-visible:outline-none focus-visible:ring-2"
+            className="block focus-visible:ring-2 focus-visible:outline-none"
           >
             {content}
           </a>
