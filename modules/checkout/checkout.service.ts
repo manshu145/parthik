@@ -35,6 +35,11 @@ export interface CheckoutServiceDeps {
   catalog: CatalogService;
   customer: CustomerService;
   location: LocationService;
+  /**
+   * Resolved per request by the composition root. Optional only so isolated unit tests that
+   * do not exercise provider configuration keep their existing defaults.
+   */
+  prepaidAvailable?: boolean;
 }
 
 export interface QuoteInput {
@@ -197,8 +202,13 @@ export class CheckoutService {
 
     return PAYMENT_METHODS.map((method): PaymentMethodOption => {
       if (method !== 'COD') {
-        // UPI and Card are always offered; whether the gateway accepts them is Razorpay's
-        // answer at intent time, not ours to pre-judge here.
+        if (this.deps.prepaidAvailable === false) {
+          return {
+            method,
+            isAvailable: false,
+            rejection: { code: 'PREPAID_GATEWAY_NOT_CONFIGURED' },
+          };
+        }
         return { method, isAvailable: true };
       }
 

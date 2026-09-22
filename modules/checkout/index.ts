@@ -2,6 +2,7 @@ import { getCartService } from '@/modules/cart';
 import { getCatalogService } from '@/modules/catalog';
 import { getCustomerService } from '@/modules/customer';
 import { getLocationService } from '@/modules/location';
+import { isPrepaidPaymentAvailable } from '@/modules/payment';
 import { CheckoutService } from './checkout.service';
 
 /**
@@ -13,14 +14,15 @@ import { CheckoutService } from './checkout.service';
  * computed.
  */
 export async function getCheckoutService(): Promise<CheckoutService> {
-  const [cart, catalog, customer, location] = await Promise.all([
+  const [cart, catalog, customer, location, prepaidAvailable] = await Promise.all([
     getCartService(),
     getCatalogService(),
     getCustomerService(),
     getLocationService(),
+    isPrepaidPaymentAvailable(),
   ]);
 
-  return new CheckoutService({ cart, catalog, customer, location });
+  return new CheckoutService({ cart, catalog, customer, location, prepaidAvailable });
 }
 
 export { CheckoutService, createCheckoutService } from './checkout.service';

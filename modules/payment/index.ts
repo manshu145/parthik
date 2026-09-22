@@ -1,6 +1,10 @@
 import { getDb, isDatabaseConfigured } from '@/lib/db/client';
 import { ConfigurationError } from '@/lib/errors';
-import { resolvePaymentProvider, type PaymentProviderName } from '@/lib/payments/provider-factory';
+import {
+  resolvePaymentProvider,
+  type PaymentProviderName,
+  type ResolvedPaymentProvider,
+} from '@/lib/payments/provider-factory';
 import { DrizzlePaymentRepository } from './payment.repository';
 import { PaymentService } from './payment.service';
 import { readProviderSetting } from '@/modules/provider-settings';
@@ -28,28 +32,19 @@ export async function getPaymentService(): Promise<PaymentService> {
   }
 
   const db = await getDb();
-  const [selected, keyId, keySecret, webhookSecret] = await Promise.all([
-    readProviderSetting('payments.provider'),
-    readProviderSetting('payments.razorpay_key_id'),
-    readProviderSetting('payments.razorpay_key_secret'),
-    readProviderSetting('payments.razorpay_webhook_secret'),
-  ]);
-  const provider =
-    selected === 'mock'
-      ? new MockPaymentProvider()
-      : keyId && keySecret
-        ? new RazorpayProvider({ keyId, keySecret, webhookSecret })
-        : resolvePaymentProvider().provider;
+  const resolved = await resolveEffectivePaymentProvider();
 
   return new PaymentService({
     repository: new DrizzlePaymentRepository({ db }),
-    provider,
+    provider: resolved.provider,
   });
 }
 
 /** Whether prepaid payments can be taken in this environment. */
-export function isPrepaidPaymentAvailable(): boolean {
-  return isDatabaseConfigured() && resolvePaymentProvider().provider.isConfigured();
+export async function isPrepaidPaymentAvailable(): Promise<boolean> {
+  if (!isDatabaseConfigured()) return false;
+  const resolved = await resolveEffectivePaymentProvider();
+  return resolved.provider.isConfigured();
 }
 
 /**
@@ -58,15 +53,15 @@ export function isPrepaidPaymentAvailable(): boolean {
  * Booleans and names only — no key, no prefix, no length. Exposed through the module so a route
  * never has to import the provider factory itself.
  */
-export function describePaymentBackend(): {
+export async function describePaymentBackend(): Promise<{
   provider: PaymentProviderName;
   usingMockGateway: boolean;
   isFallback: boolean;
   canCreateIntents: boolean;
   canVerifyWebhooks: boolean;
   databaseConfigured: boolean;
-} {
-  const resolved = resolvePaymentProvider();
+}> {
+  const resolved = await resolveEffectivePaymentProvider();
 
   return {
     provider: resolved.name,
@@ -78,6 +73,35 @@ export function describePaymentBackend(): {
     canVerifyWebhooks: resolved.provider.canVerifyWebhooks(),
     databaseConfigured: isDatabaseConfigured(),
   };
+}
+
+async function resolveEffectivePaymentProvider(): Promise<ResolvedPaymentProvider> {
+  if (!isDatabaseConfigured()) return resolvePaymentProvider();
+
+  const [selected, keyId, keySecret, webhookSecret] = await Promise.all([
+    readProviderSetting('payments.provider'),
+    readProviderSetting('payments.razorpay_key_id'),
+    readProviderSetting('payments.razorpay_key_secret'),
+    readProviderSetting('payments.razorpay_webhook_secret'),
+  ]);
+
+  if (selected === 'mock') {
+    return { provider: new MockPaymentProvider(), name: 'mock', isFallback: false };
+  }
+
+  if (keyId && keySecret) {
+    return {
+      provider: new RazorpayProvider({ keyId, keySecret, webhookSecret }),
+      name: 'razorpay',
+      isFallback: false,
+    };
+  }
+
+  if (selected === 'razorpay') {
+    return { provider: new RazorpayProvider(), name: 'razorpay', isFallback: false };
+  }
+
+  return resolvePaymentProvider();
 }
 
 export { PaymentService, createPaymentService } from './payment.service';

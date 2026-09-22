@@ -107,6 +107,31 @@ export async function readAdminOperation(permission: PermissionKey): Promise<Ope
   const query = queryFor(permission);
   const result = await db.execute(query);
   const rows = Array.from(result as Iterable<Record<string, unknown>>);
+
+  if (permission === 'analytics:view' || permission === 'report:view') {
+    const orderCount = rows.reduce((total, row) => total + Number(row.orders ?? 0), 0);
+    const gmvPaise = rows.reduce((total, row) => total + Number(row.gmv_paise ?? 0), 0);
+    return {
+      summary: [
+        { label: 'Days', value: rows.length },
+        { label: 'Orders', value: orderCount },
+        { label: 'GMV (₹)', value: Math.round(gmvPaise / 100) },
+      ],
+      rows,
+    };
+  }
+
+  if (permission === 'review:moderate') {
+    return {
+      summary: [
+        { label: 'Pending', value: rows.filter((row) => row.status === 'PENDING').length },
+        { label: 'Approved', value: rows.filter((row) => row.status === 'APPROVED').length },
+        { label: 'Rejected', value: rows.filter((row) => row.status === 'REJECTED').length },
+      ],
+      rows,
+    };
+  }
+
   return { summary: [{ label: 'Records', value: rows.length }], rows };
 }
 
@@ -115,10 +140,10 @@ function queryFor(permission: PermissionKey) {
     case 'analytics:view':
     case 'report:view':
       return sql`select date_trunc('day', created_at)::text as period, count(*)::int as orders,
-        coalesce(sum(grand_total_paise), 0)::bigint as gmv_paise
+        coalesce(sum(total_amount_paise), 0)::bigint as gmv_paise
         from orders group by 1 order by 1 desc limit 30`;
     case 'review:moderate':
-      return sql`select id, rating, title, status, is_verified_purchase, created_at from reviews where deleted_at is null order by created_at desc limit 100`;
+      return sql`select id, rating, title, comment, status, rejection_reason, is_verified_purchase, helpful_count, created_at from reviews where deleted_at is null order by created_at desc limit 100`;
     case 'coupon:manage':
       return sql`select id, code, coupon_type, discount_value, min_cart_paise, used_count, is_active, valid_until from coupons where deleted_at is null order by created_at desc limit 100`;
     case 'promotion:manage':
