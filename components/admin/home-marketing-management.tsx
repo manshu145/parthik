@@ -169,8 +169,8 @@ export function BannerManagement({ rows }: { rows: BannerRow[] }) {
           <div>
             <p className="font-semibold">{editingId ? 'Edit banner' : 'Create banner'}</p>
             <p className="text-muted-foreground mt-1 text-xs">
-              English is required. Hindi falls back to English. Image fields are stored object
-              keys and render when the public asset base URL is configured.
+              English is required. Hindi falls back to English. Image fields are stored object keys
+              and render when the public asset base URL is configured.
             </p>
           </div>
           {editingId ? (
@@ -332,9 +332,7 @@ export function BannerManagement({ rows }: { rows: BannerRow[] }) {
                 <td className="px-4 py-3">{row.placement}</td>
                 <td className="px-4 py-3">{row.targetAudience}</td>
                 <td className="px-4 py-3">
-                  <span className="block max-w-40 truncate">
-                    {row.deliveryZoneId ?? 'GLOBAL'}
-                  </span>
+                  <span className="block max-w-40 truncate">{row.deliveryZoneId ?? 'GLOBAL'}</span>
                 </td>
                 <td className="px-4 py-3">{row.priority}</td>
                 <td className="px-4 py-3 text-xs">
@@ -506,9 +504,7 @@ export function HomeLayoutManagement({ rows }: { rows: LayoutRow[] }) {
   function patchConfig(index: number, patch: Partial<Section['config']>) {
     setSections((current) =>
       current.map((section, sectionIndex) =>
-        sectionIndex === index
-          ? { ...section, config: { ...section.config, ...patch } }
-          : section
+        sectionIndex === index ? { ...section, config: { ...section.config, ...patch } } : section
       )
     );
   }
@@ -689,9 +685,7 @@ export function HomeLayoutManagement({ rows }: { rows: LayoutRow[] }) {
                   <input
                     type="checkbox"
                     checked={section.visible}
-                    onChange={(event) =>
-                      patchSection(index, { visible: event.target.checked })
-                    }
+                    onChange={(event) => patchSection(index, { visible: event.target.checked })}
                     disabled={busy}
                   />
                   Visible
@@ -704,9 +698,7 @@ export function HomeLayoutManagement({ rows }: { rows: LayoutRow[] }) {
                     <input
                       type="checkbox"
                       checked={section.visible}
-                      onChange={(event) =>
-                        patchSection(index, { visible: event.target.checked })
-                      }
+                      onChange={(event) => patchSection(index, { visible: event.target.checked })}
                       disabled={busy}
                     />
                     Visible
@@ -786,9 +778,7 @@ export function HomeLayoutManagement({ rows }: { rows: LayoutRow[] }) {
               <tr key={row.id}>
                 <td className="px-4 py-3 font-medium">{row.name}</td>
                 <td className="px-4 py-3">
-                  <span className="block max-w-48 truncate">
-                    {row.deliveryZoneId ?? 'GLOBAL'}
-                  </span>
+                  <span className="block max-w-48 truncate">{row.deliveryZoneId ?? 'GLOBAL'}</span>
                 </td>
                 <td className="px-4 py-3">{normaliseSections(row.sections).length}</td>
                 <td className="px-4 py-3">v{row.version}</td>
@@ -820,12 +810,7 @@ function normaliseSections(value: unknown): Section[] {
     'POPULAR_PRODUCTS',
     'COUPON_STRIP',
   ]);
-  const allowedPlacements = new Set<Placement>([
-    'HOME_HERO',
-    'HOME_STRIP',
-    'CATEGORY',
-    'OFFERS',
-  ]);
+  const allowedPlacements = new Set<Placement>(['HOME_HERO', 'HOME_STRIP', 'CATEGORY', 'OFFERS']);
 
   const result: Section[] = [];
   for (const item of value) {
@@ -834,9 +819,7 @@ function normaliseSections(value: unknown): Section[] {
     if (typeof row.type !== 'string' || !allowedTypes.has(row.type as SectionType)) continue;
 
     const rawConfig =
-      row.config && typeof row.config === 'object'
-        ? (row.config as Record<string, unknown>)
-        : {};
+      row.config && typeof row.config === 'object' ? (row.config as Record<string, unknown>) : {};
     const limit =
       typeof rawConfig.limit === 'number' && Number.isInteger(rawConfig.limit)
         ? Math.min(24, Math.max(1, rawConfig.limit))
