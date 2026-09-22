@@ -37,7 +37,7 @@ export interface CartServiceDeps {
   /** Optional: without a chosen location there is no zone, so no fee can be quoted. */
   location: LocationService;
   coupons: CouponService;
-  promotions: PromotionService;
+  promotions?: PromotionService;
 }
 
 export interface CartContext {
@@ -296,9 +296,8 @@ export class CartService {
       context,
     });
 
-    const freeDeliveryPromotion = await this.deps.promotions.activeFreeDelivery(
-      serviceability?.zone?.id ?? null
-    );
+    const freeDeliveryPromotion =
+      (await this.deps.promotions?.activeFreeDelivery(serviceability?.zone?.id ?? null)) ?? null;
     const effectiveDiscount = freeDeliveryPromotion
       ? mergeFreeDeliveryPromotion(discount)
       : discount;
