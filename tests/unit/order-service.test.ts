@@ -125,6 +125,7 @@ class FakeOrderRepository implements OrderRepository {
       cancelledByRole: null,
       estimatedDeliveryAt: input.estimatedDeliveryAt,
       customerNote: input.customerNote,
+      internalNote: null,
       createdAt: now,
       idempotencyKey: input.idempotencyKey,
     };

@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import { getTranslations, setRequestLocale } from 'next-intl/server';
-import { DashboardPage } from '@/components/layout/dashboard-page';
+import { DriverCashPanel } from '@/components/driver/cash-panel';
+import { requireCurrentActor } from '@/lib/auth/current-actor';
 
 /**
  * Route is live, screen is pending. See components/layout/dashboard-page.tsx for
@@ -24,13 +25,12 @@ export default async function Page({ params }: { params: Promise<{ locale: strin
   setRequestLocale(locale);
 
   const t = await getTranslations('driverNav');
-  const tDashboard = await getTranslations('dashboard');
+  await requireCurrentActor();
 
   return (
-    <DashboardPage
-      title={t('depositNew')}
-      pendingLabel={tDashboard('pendingLabel')}
-      pendingDescription={tDashboard('pendingDescription')}
-    />
+    <div className="mx-auto flex max-w-2xl flex-col gap-4">
+      <h1 className="text-xl font-semibold">{t('depositNew')}</h1>
+      <DriverCashPanel />
+    </div>
   );
 }

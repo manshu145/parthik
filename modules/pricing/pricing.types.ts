@@ -60,8 +60,10 @@ export interface AppliedDiscount {
   code: string | null;
   /** Discount against items. */
   amountPaise: number;
-  /** True for FREE_DELIVERY coupons, which waive the fee instead. */
+  /** True when an approved coupon or promotion waives the fee instead. */
   waivesDeliveryFee: boolean;
+  /** Which approved mechanism waived delivery. Defaults to coupon for compatibility. */
+  deliveryWaiverSource?: 'coupon' | 'promotion';
   /**
    * The lines the discount may be allocated across, by `PricingLineInput.id`.
    *
@@ -115,7 +117,7 @@ export interface PricingResult {
   deliveryFeeBeforeDiscountPaise: Paise;
   isDeliveryFree: boolean;
   /** Why delivery is free, so the UI can say the right thing. */
-  deliveryWaivedBy: 'threshold' | 'coupon' | 'zone' | null;
+  deliveryWaivedBy: 'threshold' | 'coupon' | 'promotion' | 'zone' | null;
 
   packagingFeePaise: Paise;
   serviceFeePaise: Paise;

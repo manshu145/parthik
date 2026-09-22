@@ -71,7 +71,7 @@ export function buildActor(input: {
     preferredLocale: input.user.preferredLocale,
     status: input.user.status,
     roles: input.roles,
-    permissions: permissionsForRoles(input.roles.map((grant) => grant.roleKey)),
+    permissions: permissionsForGrants(input.roles),
   };
 }
 
@@ -106,7 +106,7 @@ function grantCoversScope(
   permission: PermissionKey,
   scope: ResourceScope
 ): boolean {
-  if (!permissionsForRoles([grant.roleKey]).has(permission)) return false;
+  if (!permissionsForGrant(grant).has(permission)) return false;
 
   switch (grant.scopeType) {
     case 'GLOBAL':
@@ -127,6 +127,28 @@ function grantCoversScope(
       // Unreachable today; an unrecognised scope type must not grant access.
       return false;
   }
+}
+
+function permissionsForGrants(grants: readonly RoleGrant[]): ReadonlySet<PermissionKey> {
+  const effective = new Set<PermissionKey>();
+  for (const grant of grants) {
+    for (const permission of permissionsForGrant(grant)) effective.add(permission);
+  }
+  return effective;
+}
+
+function permissionsForGrant(grant: RoleGrant): ReadonlySet<PermissionKey> {
+  // SUPER_ADMIN remains an explicit wildcard role. The permissions table stores
+  // concrete keys only, so the wildcard itself never needs a database row.
+  if (grant.roleKey === 'SUPER_ADMIN') return permissionsForRoles(['SUPER_ADMIN']);
+
+  // PostgreSQL role grants carry the current database permission set. An empty
+  // array is meaningful: the role has intentionally been stripped of permissions.
+  if (grant.permissions) return new Set(grant.permissions);
+
+  // The memory test backend has no role_permissions table; keep its canonical
+  // fixture behavior without making production authorization depend on it.
+  return permissionsForRoles([grant.roleKey]);
 }
 
 function isActiveStatus(status: UserRecord['status']): boolean {

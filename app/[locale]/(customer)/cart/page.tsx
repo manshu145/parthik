@@ -260,16 +260,15 @@ export default async function CartPage({ params }: { params: Promise<{ locale: s
             </p>
           )}
 
-          {/*
-            Checkout is TASK 009. Disabled and labelled rather than linking to a route
-            that does not exist — a dead button is worse than an honest one.
-          */}
-          <Button block disabled className="mt-4" data-testid="cart-checkout">
-            {t('checkout')}
-          </Button>
-          <p className="text-muted-foreground mt-2 text-center text-xs">
-            {t('checkoutUnavailable')}
-          </p>
+          {totals.isQuoteIncomplete ? (
+            <Button block disabled className="mt-4" data-testid="cart-checkout">
+              {t('checkout')}
+            </Button>
+          ) : (
+            <Button asChild block className="mt-4" data-testid="cart-checkout">
+              <Link href="/checkout">{t('checkout')}</Link>
+            </Button>
+          )}
         </aside>
       </div>
     </PageShell>

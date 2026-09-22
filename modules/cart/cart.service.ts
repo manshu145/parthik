@@ -5,6 +5,7 @@ import type { PurchasableVariant } from '@/modules/catalog/catalog.repository.ty
 import type { LocationService } from '@/modules/location/location.service';
 import { CouponService, toAppliedDiscount, type CouponCartLine } from '@/modules/coupons';
 import { calculatePricing, type AppliedDiscount, type PricingResult } from '@/modules/pricing';
+import type { PromotionService } from '@/modules/promotions';
 import { estimateDeliveryWindow, type ZoneFeeConfig } from '@/modules/location/delivery-fee';
 import {
   MAX_QUANTITY_PER_LINE,
@@ -36,6 +37,7 @@ export interface CartServiceDeps {
   /** Optional: without a chosen location there is no zone, so no fee can be quoted. */
   location: LocationService;
   coupons: CouponService;
+  promotions?: PromotionService;
 }
 
 export interface CartContext {
@@ -294,8 +296,14 @@ export class CartService {
       context,
     });
 
-    const totals = discount
-      ? calculatePricing({ lines: pricingLines, zone, discount })
+    const freeDeliveryPromotion =
+      (await this.deps.promotions?.activeFreeDelivery(serviceability?.zone?.id ?? null)) ?? null;
+    const effectiveDiscount = freeDeliveryPromotion
+      ? mergeFreeDeliveryPromotion(discount)
+      : discount;
+
+    const totals = effectiveDiscount
+      ? calculatePricing({ lines: pricingLines, zone, discount: effectiveDiscount })
       : provisional;
 
     // Attach the priced figures back to the display lines.
@@ -496,3 +504,23 @@ export function createCartService(deps: CartServiceDeps): CartService {
 }
 
 export type { PurchasableVariant };
+
+function mergeFreeDeliveryPromotion(discount: AppliedDiscount | null): AppliedDiscount {
+  if (!discount) {
+    return {
+      couponId: null,
+      code: null,
+      amountPaise: 0,
+      waivesDeliveryFee: true,
+      deliveryWaiverSource: 'promotion',
+    };
+  }
+
+  if (discount.waivesDeliveryFee) return discount;
+
+  return {
+    ...discount,
+    waivesDeliveryFee: true,
+    deliveryWaiverSource: 'promotion',
+  };
+}

@@ -5,25 +5,26 @@ import { PageShell } from '@/components/layout/page-shell';
 import { EmptyState, ErrorState } from '@/components/feedback/states';
 import { CategoryGrid } from '@/components/catalog/category-card';
 import { ProductGrid } from '@/components/catalog/product-grid';
+import { HomeBannerGrid } from '@/components/marketing/home-banner';
+import { OfferCard } from '@/components/marketing/offer-card';
 import { Link } from '@/i18n/navigation';
 import { defaultLocale, isLocale } from '@/i18n/routing';
 import { JsonLd } from '@/components/seo/json-ld';
 import { organizationJsonLd, websiteJsonLd } from '@/lib/seo/json-ld';
 import { publicPageMetadata } from '@/lib/seo/metadata';
 import { logger } from '@/lib/logger';
+import { getCurrentActor } from '@/lib/auth/current-actor';
+import { readCartPincode } from '@/lib/shell/current-cart';
 import { getCatalogService } from '@/modules/catalog';
+import { getCouponService } from '@/modules/coupons';
+import {
+  getActiveHomepageSections,
+  listHomepageBanners,
+  resolveHomepageAudience,
+} from '@/modules/homepage';
+import { getLocationService } from '@/modules/location';
 
-/**
- * Home.
- *
- * Renders real featured categories and popular products so the storefront is
- * browsable from the first screen.
- *
- * NOTE: the final homepage is CMS-driven — section order, banners and visibility
- * come from `home_layouts` (master spec §9, D-30), which arrives with the CMS task.
- * These two sections are the catalogue-owned content; they are not an attempt to
- * pre-empt that layout builder.
- */
+export const dynamic = 'force-dynamic';
 
 export async function generateMetadata({
   params,
@@ -52,18 +53,11 @@ export default async function HomePage({ params }: { params: Promise<{ locale: s
   const t = await getTranslations('pages.home');
   const tCatalog = await getTranslations('catalog');
   const tCommon = await getTranslations('common');
+  const tOffers = await getTranslations('offers');
+  const tOffersPage = await getTranslations('pages.offers');
 
-  let categories;
-  let popular;
-  try {
-    const service = await getCatalogService();
-    // Independent reads, so one slow query does not serialise the other.
-    [categories, popular] = await Promise.all([
-      service.getFeaturedCategories(locale),
-      service.getPopularProducts(locale, 10),
-    ]);
-  } catch (error) {
-    logger.exception(error);
+  const data = await loadHomepageData(locale);
+  if (!data) {
     return (
       <PageShell title={t('heading')}>
         <ErrorState
@@ -74,27 +68,34 @@ export default async function HomePage({ params }: { params: Promise<{ locale: s
     );
   }
 
+  const { sections, categories, popular, banners, offers } = data;
   const labels = {
     outOfStock: tCatalog('outOfStock'),
     discountBadgeTemplate: tCatalog.raw('discountBadge') as string,
     mrpLabel: tCatalog('mrpLabel'),
     imagePlaceholder: tCatalog('imagePlaceholder'),
   };
+  const offerLabels = {
+    copy: tOffers('copyCode'),
+    copied: tOffers('copied'),
+    minCart: (amount: string) => tOffers('minCart', { amount }),
+    upTo: (amount: string) => tOffers('maxDiscount', { amount }),
+    firstOrderOnly: tOffers('firstOrderOnly'),
+    expires: (date: string) => tOffers('expires', { date }),
+  };
 
-  const hasContent = categories.length > 0 || popular.length > 0;
+  const renderedAny = sections.some((section) => {
+    if (section.type === 'HERO_BANNERS') {
+      const placement = section.config.placement ?? 'HOME_HERO';
+      return banners.some((banner) => banner.placement === placement);
+    }
+    if (section.type === 'FEATURED_CATEGORIES') return categories.length > 0;
+    if (section.type === 'POPULAR_PRODUCTS') return popular.length > 0;
+    return offers.length > 0;
+  });
 
   return (
     <PageShell title={t('heading')}>
-      {/*
-        Site-level structured data belongs on the home page only — repeating
-        Organization on every page gives crawlers the same entity dozens of times.
-
-        Organization and WebSite are emitted because every field is real. LocalBusiness
-        is NOT: it requires a verifiable street address and postal code, and no public
-        store read exposes one yet (that arrives with the vendor store profile). Asserting
-        an address we cannot stand behind invites a manual action, so the node is omitted
-        rather than filled with plausible values.
-      */}
       <JsonLd
         data={organizationJsonLd({
           name: tCommon('appName'),
@@ -105,39 +106,148 @@ export default async function HomePage({ params }: { params: Promise<{ locale: s
       <JsonLd data={websiteJsonLd({ name: tCommon('appName'), locale })} />
 
       <div className="flex flex-col gap-8">
-        {!hasContent && (
+        {!renderedAny ? (
           <EmptyState
             title={tCatalog('emptyCategoryTitle')}
             description={tCatalog('emptyCategoryDescription')}
           />
-        )}
+        ) : null}
 
-        {categories.length > 0 && (
-          <section aria-labelledby="featured-categories">
-            <div className="mb-3 flex items-baseline justify-between gap-3">
-              <h2 id="featured-categories" className="text-base font-semibold">
-                {tCatalog('featuredCategories')}
-              </h2>
-              <Link
-                href="/categories"
-                className="text-primary text-sm underline-offset-2 hover:underline"
-              >
-                {tCatalog('viewAll')}
-              </Link>
-            </div>
-            <CategoryGrid categories={categories} placeholderLabel={tCatalog('imagePlaceholder')} />
-          </section>
-        )}
+        {sections.map((section, index) => {
+          const titleId = 'home-section-' + index;
 
-        {popular.length > 0 && (
-          <section aria-labelledby="popular-products">
-            <h2 id="popular-products" className="mb-3 text-base font-semibold">
-              {tCatalog('popularProducts')}
-            </h2>
-            <ProductGrid products={popular} locale={locale} labels={labels} />
-          </section>
-        )}
+          if (section.type === 'HERO_BANNERS') {
+            const placement = section.config.placement ?? 'HOME_HERO';
+            const sectionBanners = banners
+              .filter((banner) => banner.placement === placement)
+              .slice(0, section.config.limit ?? 4);
+            if (sectionBanners.length === 0) return null;
+
+            return (
+              <section key={titleId} aria-label={section.title ?? 'Highlights'}>
+                {section.title ? (
+                  <h2 className="mb-3 text-base font-semibold">{section.title}</h2>
+                ) : null}
+                <HomeBannerGrid banners={sectionBanners} locale={locale} />
+              </section>
+            );
+          }
+
+          if (section.type === 'FEATURED_CATEGORIES') {
+            const items = categories.slice(0, section.config.limit ?? 6);
+            if (items.length === 0) return null;
+
+            return (
+              <section key={titleId} aria-labelledby={titleId}>
+                <div className="mb-3 flex items-baseline justify-between gap-3">
+                  <h2 id={titleId} className="text-base font-semibold">
+                    {section.title ?? tCatalog('featuredCategories')}
+                  </h2>
+                  <Link
+                    href="/categories"
+                    className="text-primary text-sm underline-offset-2 hover:underline"
+                  >
+                    {tCatalog('viewAll')}
+                  </Link>
+                </div>
+                <CategoryGrid categories={items} placeholderLabel={tCatalog('imagePlaceholder')} />
+              </section>
+            );
+          }
+
+          if (section.type === 'POPULAR_PRODUCTS') {
+            const items = popular.slice(0, section.config.limit ?? 10);
+            if (items.length === 0) return null;
+
+            return (
+              <section key={titleId} aria-labelledby={titleId}>
+                <h2 id={titleId} className="mb-3 text-base font-semibold">
+                  {section.title ?? tCatalog('popularProducts')}
+                </h2>
+                <ProductGrid products={items} locale={locale} labels={labels} />
+              </section>
+            );
+          }
+
+          const items = offers.slice(0, section.config.limit ?? 4);
+          if (items.length === 0) return null;
+
+          return (
+            <section key={titleId} aria-labelledby={titleId}>
+              <div className="mb-3 flex items-baseline justify-between gap-3">
+                <h2 id={titleId} className="text-base font-semibold">
+                  {section.title ?? tOffersPage('heading')}
+                </h2>
+                <Link
+                  href="/offers"
+                  className="text-primary text-sm underline-offset-2 hover:underline"
+                >
+                  {tCatalog('viewAll')}
+                </Link>
+              </div>
+              <ul className="grid gap-4 sm:grid-cols-2">
+                {items.map((offer) => (
+                  <li key={offer.id}>
+                    <OfferCard offer={offer} locale={locale} labels={offerLabels} />
+                  </li>
+                ))}
+              </ul>
+            </section>
+          );
+        })}
       </div>
     </PageShell>
   );
+}
+
+async function loadHomepageData(locale: 'en' | 'hi') {
+  try {
+    const [pincode, actor, catalog] = await Promise.all([
+      readCartPincode(),
+      getCurrentActor(),
+      getCatalogService(),
+    ]);
+
+    let zoneId: string | null = null;
+    if (pincode) {
+      const location = await getLocationService();
+      zoneId = (await location.checkServiceability(pincode)).zone?.id ?? null;
+    }
+
+    const audience = await resolveHomepageAudience(actor?.userId ?? null);
+    const sections = (await getActiveHomepageSections(zoneId)).filter((section) => section.visible);
+
+    const categoryLimit = maxSectionLimit(sections, 'FEATURED_CATEGORIES', 6);
+    const popularLimit = maxSectionLimit(sections, 'POPULAR_PRODUCTS', 10);
+    const offerLimit = maxSectionLimit(sections, 'COUPON_STRIP', 4);
+    const needsBanners = sections.some((section) => section.type === 'HERO_BANNERS');
+
+    const [categories, popular, banners, offers] = await Promise.all([
+      categoryLimit > 0
+        ? catalog.getFeaturedCategories(locale, categoryLimit)
+        : Promise.resolve([]),
+      popularLimit > 0 ? catalog.getPopularProducts(locale, popularLimit) : Promise.resolve([]),
+      needsBanners
+        ? listHomepageBanners({ locale, deliveryZoneId: zoneId, audience })
+        : Promise.resolve([]),
+      offerLimit > 0
+        ? getCouponService().then((coupons) => coupons.listOffers(locale, zoneId))
+        : Promise.resolve([]),
+    ]);
+
+    return { sections, categories, popular, banners, offers };
+  } catch (error) {
+    logger.exception(error);
+    return null;
+  }
+}
+
+function maxSectionLimit(
+  sections: Awaited<ReturnType<typeof getActiveHomepageSections>>,
+  type: 'FEATURED_CATEGORIES' | 'POPULAR_PRODUCTS' | 'COUPON_STRIP',
+  fallback: number
+): number {
+  const matching = sections.filter((section) => section.type === type);
+  if (matching.length === 0) return 0;
+  return Math.max(...matching.map((section) => section.config.limit ?? fallback));
 }

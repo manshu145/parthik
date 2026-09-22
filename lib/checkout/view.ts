@@ -15,6 +15,7 @@
 export type PaymentMethodView = 'UPI' | 'CARD' | 'COD';
 
 export type PaymentMethodRejectionView =
+  | { code: 'PREPAID_GATEWAY_NOT_CONFIGURED' }
   | { code: 'COD_DISABLED_PLATFORM' }
   | { code: 'COD_DISABLED_ZONE' }
   | { code: 'COD_DISABLED_STORE' }
