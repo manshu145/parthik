@@ -5,12 +5,26 @@ import { apiError, apiSuccess, requestIdFrom } from '@/lib/http/api-response';
 import { createAdminNotificationTemplate } from '@/modules/admin-notifications';
 
 export const templateSchema = z.object({
-  eventKey: z.string().trim().min(2).max(120).regex(/^[A-Za-z0-9._-]+$/),
+  eventKey: z
+    .string()
+    .trim()
+    .min(2)
+    .max(120)
+    .regex(/^[A-Za-z0-9._-]+$/),
   channel: z.enum(['PUSH', 'IN_APP']),
   locale: z.enum(['en', 'hi']),
   subject: z.string().trim().max(200).nullable(),
   body: z.string().trim().min(1).max(4000),
-  variables: z.array(z.string().trim().min(1).max(100).regex(/^[A-Za-z0-9_.-]+$/)).max(50),
+  variables: z
+    .array(
+      z
+        .string()
+        .trim()
+        .min(1)
+        .max(100)
+        .regex(/^[A-Za-z0-9_.-]+$/)
+    )
+    .max(50),
   isActive: z.boolean(),
 });
 
