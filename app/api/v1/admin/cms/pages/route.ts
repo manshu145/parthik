@@ -6,15 +6,25 @@ import { createAdminCmsPage } from '@/modules/admin-cms';
 import { MARKETING_SLUGS } from '@/modules/cms';
 
 const blockSchema = z.discriminatedUnion('type', [
-  z.object({ type: z.literal('heading'), text: z.string().trim().min(1).max(500), level: z.union([z.literal(2), z.literal(3)]).optional() }),
+  z.object({
+    type: z.literal('heading'),
+    text: z.string().trim().min(1).max(500),
+    level: z.union([z.literal(2), z.literal(3)]).optional(),
+  }),
   z.object({ type: z.literal('paragraph'), text: z.string().trim().min(1).max(10000) }),
-  z.object({ type: z.literal('list'), items: z.array(z.string().trim().min(1).max(2000)).max(100), ordered: z.boolean().optional() }),
+  z.object({
+    type: z.literal('list'),
+    items: z.array(z.string().trim().min(1).max(2000)).max(100),
+    ordered: z.boolean().optional(),
+  }),
 ]);
 const contentSchema = z.array(blockSchema).max(200);
-const slugSchema = z.string().refine(
-  (value) => (MARKETING_SLUGS as readonly string[]).includes(value),
-  'Choose one of the supported public page slugs.'
-);
+const slugSchema = z
+  .string()
+  .refine(
+    (value) => (MARKETING_SLUGS as readonly string[]).includes(value),
+    'Choose one of the supported public page slugs.'
+  );
 export const cmsPageSchema = z.object({
   slug: slugSchema,
   pageType: z.enum(['LEGAL', 'INFO', 'LANDING']),
