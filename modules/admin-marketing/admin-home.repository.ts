@@ -1,11 +1,6 @@
 import { and, desc, eq, isNull, ne } from 'drizzle-orm';
 import { alias } from 'drizzle-orm/pg-core';
-import {
-  auditLogs,
-  bannerTranslations,
-  banners,
-  homeLayouts,
-} from '@/db/schema';
+import { auditLogs, bannerTranslations, banners, homeLayouts } from '@/db/schema';
 import { getDb } from '@/lib/db/client';
 import { ConflictError, NotFoundError } from '@/lib/errors';
 
@@ -143,11 +138,7 @@ export async function createAdminBanner(input: AdminBannerInput, actorUserId: st
   });
 }
 
-export async function updateAdminBanner(
-  id: string,
-  input: AdminBannerInput,
-  actorUserId: string
-) {
+export async function updateAdminBanner(id: string, input: AdminBannerInput, actorUserId: string) {
   const db = await getDb();
 
   return db.transaction(async (tx) => {
@@ -234,10 +225,7 @@ export async function listAdminHomeLayouts(limit = 100) {
     .limit(limit);
 }
 
-export async function createAdminHomeLayout(
-  input: AdminHomeLayoutInput,
-  actorUserId: string
-) {
+export async function createAdminHomeLayout(input: AdminHomeLayoutInput, actorUserId: string) {
   const db = await getDb();
 
   return db.transaction(async (tx) => {
