@@ -25,7 +25,7 @@ export interface DriverApplicationInput {
   fullName: string;
   phone: string;
   emergencyContact?: string;
-  vehicleType: 'BIKE' | 'SCOOTER' | 'BICYCLE' | 'CAR' | 'OTHER';
+  vehicleType: 'BIKE' | 'SCOOTER' | 'BICYCLE' | 'CAR' | 'VAN';
   registrationNumber?: string;
   makeModel?: string;
 }
