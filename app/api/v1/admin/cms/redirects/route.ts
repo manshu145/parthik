@@ -15,13 +15,25 @@ export const redirectSchema = z
   })
   .superRefine((value, ctx) => {
     if (!isSafeRedirectPath(value.sourcePath)) {
-      ctx.addIssue({ code: 'custom', path: ['sourcePath'], message: 'Source must be a safe site-relative path.' });
+      ctx.addIssue({
+        code: 'custom',
+        path: ['sourcePath'],
+        message: 'Source must be a safe site-relative path.',
+      });
     }
     if (!isSafeRedirectPath(value.targetPath)) {
-      ctx.addIssue({ code: 'custom', path: ['targetPath'], message: 'Target must be a safe site-relative path.' });
+      ctx.addIssue({
+        code: 'custom',
+        path: ['targetPath'],
+        message: 'Target must be a safe site-relative path.',
+      });
     }
     if (value.sourcePath === value.targetPath) {
-      ctx.addIssue({ code: 'custom', path: ['targetPath'], message: 'A redirect cannot point to itself.' });
+      ctx.addIssue({
+        code: 'custom',
+        path: ['targetPath'],
+        message: 'A redirect cannot point to itself.',
+      });
     }
   });
 
