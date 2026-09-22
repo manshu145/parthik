@@ -1,9 +1,5 @@
 import { and, asc, desc, eq, isNull } from 'drizzle-orm';
-import {
-  auditLogs,
-  promotionRules,
-  promotions,
-} from '@/db/schema';
+import { auditLogs, promotionRules, promotions } from '@/db/schema';
 import { getDb } from '@/lib/db/client';
 import { ConflictError, NotFoundError, ValidationError } from '@/lib/errors';
 
@@ -65,10 +61,7 @@ export async function listAdminPromotions(limit = 200) {
   return result;
 }
 
-export async function createAdminPromotion(
-  input: AdminPromotionInput,
-  actorUserId: string
-) {
+export async function createAdminPromotion(input: AdminPromotionInput, actorUserId: string) {
   assertActivationSupported(input);
 
   const db = await getDb();
