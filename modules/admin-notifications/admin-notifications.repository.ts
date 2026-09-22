@@ -186,10 +186,7 @@ export async function reviseAdminNotificationTemplate(
   );
 }
 
-export async function sendAdminNotification(
-  input: AdminNotificationInput,
-  actorUserId: string
-) {
+export async function sendAdminNotification(input: AdminNotificationInput, actorUserId: string) {
   const db = await getDb();
 
   const [user] = await db
@@ -258,8 +255,8 @@ export async function sendAdminNotification(
       )
     );
 
-  const usable = targetDevices.filter(
-    (device): device is typeof device & { fcmToken: string } => Boolean(device.fcmToken)
+  const usable = targetDevices.filter((device): device is typeof device & { fcmToken: string } =>
+    Boolean(device.fcmToken)
   );
 
   if (usable.length === 0) {
@@ -308,7 +305,10 @@ export async function sendAdminNotification(
   const failureReason =
     successful.length > 0
       ? null
-      : results.map((item) => item.result.error).filter(Boolean).join(', ') || 'Push send failed.';
+      : results
+          .map((item) => item.result.error)
+          .filter(Boolean)
+          .join(', ') || 'Push send failed.';
 
   await db
     .update(notifications)
