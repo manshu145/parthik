@@ -151,7 +151,11 @@ export function NotificationManagement({ rows }: { rows: NotificationRow[] }) {
           disabled={busy}
         />
 
-        {error ? <p className="text-danger text-sm" role="alert">{error}</p> : null}
+        {error ? (
+          <p className="text-danger text-sm" role="alert">
+            {error}
+          </p>
+        ) : null}
         {message ? <p className="text-success text-sm">{message}</p> : null}
         <Button type="submit" disabled={busy}>
           {busy ? 'Sending…' : 'Send notification'}
@@ -331,7 +335,9 @@ export function NotificationTemplateManagement({ rows }: { rows: TemplateRow[] }
     <div className="grid gap-4 xl:grid-cols-[420px_1fr]">
       <form onSubmit={save} className="space-y-3 rounded-xl border p-4">
         <div>
-          <p className="font-semibold">{editing ? 'Create new template version' : 'Create template'}</p>
+          <p className="font-semibold">
+            {editing ? 'Create new template version' : 'Create template'}
+          </p>
           <p className="text-muted-foreground mt-1 text-xs">
             V1 enables only PUSH and IN_APP. Editing creates a new immutable version.
           </p>
@@ -451,5 +457,7 @@ export function NotificationTemplateManagement({ rows }: { rows: TemplateRow[] }
 }
 
 function toVariables(value: unknown): string[] {
-  return Array.isArray(value) ? value.filter((item): item is string => typeof item === 'string') : [];
+  return Array.isArray(value)
+    ? value.filter((item): item is string => typeof item === 'string')
+    : [];
 }
