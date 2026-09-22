@@ -137,13 +137,11 @@ export function PromotionManagement({ rows }: { rows: PromotionRow[] }) {
       <form onSubmit={save} className="space-y-4 rounded-xl border p-4">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
-            <p className="font-semibold">
-              {editingId ? 'Edit promotion' : 'Create promotion'}
-            </p>
+            <p className="font-semibold">{editingId ? 'Edit promotion' : 'Create promotion'}</p>
             <p className="text-muted-foreground mt-1 text-xs">
-              FREE_DELIVERY is wired into live cart, checkout and order pricing. Other
-              promotion types may be prepared as drafts but cannot be activated until their
-              pricing semantics are approved.
+              FREE_DELIVERY is wired into live cart, checkout and order pricing. Other promotion
+              types may be prepared as drafts but cannot be activated until their pricing semantics
+              are approved.
             </p>
           </div>
 
@@ -170,8 +168,7 @@ export function PromotionManagement({ rows }: { rows: PromotionRow[] }) {
               setForm({
                 ...form,
                 promotionType: event.target.value as PromotionType,
-                isActive:
-                  event.target.value === 'FREE_DELIVERY' ? form.isActive : false,
+                isActive: event.target.value === 'FREE_DELIVERY' ? form.isActive : false,
               })
             }
             disabled={busy}
