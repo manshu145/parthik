@@ -4,10 +4,7 @@ import { apiError, apiSuccess, requestIdFrom } from '@/lib/http/api-response';
 import { reviseAdminNotificationTemplate } from '@/modules/admin-notifications';
 import { revisionSchema } from '../route';
 
-export async function PATCH(
-  request: Request,
-  { params }: { params: Promise<{ id: string }> }
-) {
+export async function PATCH(request: Request, { params }: { params: Promise<{ id: string }> }) {
   const requestId = requestIdFrom(request);
   try {
     const actor = await requireCurrentPermission('template:manage');
