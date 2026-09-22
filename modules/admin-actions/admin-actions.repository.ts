@@ -18,7 +18,7 @@ import {
   users,
   vendors,
 } from '@/db/schema';
-import { getDb } from '@/lib/db/client';
+import { getDb, type Database } from '@/lib/db/client';
 import { ConflictError, NotFoundError, ValidationError } from '@/lib/errors';
 
 type VendorAction = 'approve' | 'reject' | 'suspend' | 'reactivate';
@@ -284,7 +284,7 @@ export async function updateDriverStatus(
   });
 }
 
-type Transaction = Parameters<Parameters<ReturnType<typeof getDb>['transaction']>[0]>[0];
+type Transaction = Parameters<Parameters<Database['transaction']>[0]>[0];
 
 async function ensureRoleGrant(
   tx: Transaction,
