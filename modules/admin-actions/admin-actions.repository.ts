@@ -1,4 +1,4 @@
-import { and, desc, eq, isNull, sql } from 'drizzle-orm';
+import { and, desc, eq, isNull } from 'drizzle-orm';
 import {
   auditLogs,
   deliveries,
@@ -303,19 +303,30 @@ async function ensureRoleGrant(
     .limit(1);
   if (!role) throw new ConflictError(`Role "${input.roleKey}" is not configured.`);
 
-  await tx
-    .insert(userRoles)
-    .values({
+  const scopePredicate =
+    input.scopeId === null ? isNull(userRoles.scopeId) : eq(userRoles.scopeId, input.scopeId);
+  const [existing] = await tx
+    .select({ id: userRoles.id })
+    .from(userRoles)
+    .where(
+      and(
+        eq(userRoles.userId, input.userId),
+        eq(userRoles.roleId, role.id),
+        scopePredicate,
+        isNull(userRoles.revokedAt)
+      )
+    )
+    .limit(1);
+
+  if (!existing) {
+    await tx.insert(userRoles).values({
       userId: input.userId,
       roleId: role.id,
       scopeType: input.scopeType,
       scopeId: input.scopeId,
       grantedBy: input.grantedBy,
-    })
-    .onConflictDoNothing({
-      target: [userRoles.userId, userRoles.roleId, userRoles.scopeId],
-      where: sql`revoked_at is null`,
     });
+  }
 }
 
 async function revokeRoleGrant(
