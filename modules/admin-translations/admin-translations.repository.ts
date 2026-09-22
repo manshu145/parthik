@@ -82,14 +82,8 @@ export async function listAdminTranslationRows() {
         hindiUnitLabel: productHi.unitLabel,
       })
       .from(products)
-      .leftJoin(
-        productEn,
-        and(eq(productEn.productId, products.id), eq(productEn.locale, 'en'))
-      )
-      .leftJoin(
-        productHi,
-        and(eq(productHi.productId, products.id), eq(productHi.locale, 'hi'))
-      )
+      .leftJoin(productEn, and(eq(productEn.productId, products.id), eq(productEn.locale, 'en')))
+      .leftJoin(productHi, and(eq(productHi.productId, products.id), eq(productHi.locale, 'hi')))
       .where(isNull(products.deletedAt))
       .orderBy(asc(products.slug))
       .limit(500),
