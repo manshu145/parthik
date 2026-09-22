@@ -37,8 +37,8 @@ export default async function Page({ params }: { params: Promise<{ locale: strin
       <div>
         <h1 className="text-xl font-semibold">{t('templates')}</h1>
         <p className="text-muted-foreground mt-1 text-sm">
-          Versioned English/Hindi PUSH and IN_APP templates. Email, SMS and WhatsApp remain
-          reserved until their provider decisions are enabled.
+          Versioned English/Hindi PUSH and IN_APP templates. Email, SMS and WhatsApp remain reserved
+          until their provider decisions are enabled.
         </p>
       </div>
       <NotificationTemplateManagement
