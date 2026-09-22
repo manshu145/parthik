@@ -33,20 +33,46 @@ export const adminCouponSchema = z
     restrictions: z.array(restrictionSchema).max(500),
   })
   .superRefine((value, ctx) => {
-    if (value.couponType === 'PERCENTAGE' && (value.discountValue < 1 || value.discountValue > 100)) {
-      ctx.addIssue({ code: 'custom', path: ['discountValue'], message: 'Percentage must be between 1 and 100.' });
+    if (
+      value.couponType === 'PERCENTAGE' &&
+      (value.discountValue < 1 || value.discountValue > 100)
+    ) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['discountValue'],
+        message: 'Percentage must be between 1 and 100.',
+      });
     }
     if (value.couponType === 'FLAT' && value.discountValue <= 0) {
-      ctx.addIssue({ code: 'custom', path: ['discountValue'], message: 'Flat discount must be greater than zero.' });
+      ctx.addIssue({
+        code: 'custom',
+        path: ['discountValue'],
+        message: 'Flat discount must be greater than zero.',
+      });
     }
     if (value.couponType === 'FREE_DELIVERY' && value.discountValue !== 0) {
-      ctx.addIssue({ code: 'custom', path: ['discountValue'], message: 'Free-delivery coupons must use discount value 0.' });
+      ctx.addIssue({
+        code: 'custom',
+        path: ['discountValue'],
+        message: 'Free-delivery coupons must use discount value 0.',
+      });
     }
     if (value.validFrom && value.validUntil && value.validUntil <= value.validFrom) {
-      ctx.addIssue({ code: 'custom', path: ['validUntil'], message: 'Expiry must be after the start time.' });
+      ctx.addIssue({
+        code: 'custom',
+        path: ['validUntil'],
+        message: 'Expiry must be after the start time.',
+      });
     }
-    if (value.isUserSpecific && !value.restrictions.some((item) => item.restrictionType === 'USER')) {
-      ctx.addIssue({ code: 'custom', path: ['restrictions'], message: 'User-specific coupons need at least one USER restriction.' });
+    if (
+      value.isUserSpecific &&
+      !value.restrictions.some((item) => item.restrictionType === 'USER')
+    ) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['restrictions'],
+        message: 'User-specific coupons need at least one USER restriction.',
+      });
     }
     const requiredRestriction =
       value.scope === 'CATEGORY'
@@ -56,8 +82,15 @@ export const adminCouponSchema = z
           : value.scope === 'VENDOR'
             ? 'VENDOR'
             : null;
-    if (requiredRestriction && !value.restrictions.some((item) => item.restrictionType === requiredRestriction)) {
-      ctx.addIssue({ code: 'custom', path: ['restrictions'], message: value.scope + ' scope needs at least one ' + requiredRestriction + ' restriction.' });
+    if (
+      requiredRestriction &&
+      !value.restrictions.some((item) => item.restrictionType === requiredRestriction)
+    ) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['restrictions'],
+        message: value.scope + ' scope needs at least one ' + requiredRestriction + ' restriction.',
+      });
     }
   });
 
