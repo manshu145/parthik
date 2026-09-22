@@ -132,11 +132,7 @@ export async function createAdminBlogPost(input: AdminBlogInput, actorUserId: st
   });
 }
 
-export async function updateAdminBlogPost(
-  id: string,
-  input: AdminBlogInput,
-  actorUserId: string
-) {
+export async function updateAdminBlogPost(id: string, input: AdminBlogInput, actorUserId: string) {
   const db = await getDb();
 
   return db.transaction(async (tx) => {
@@ -164,8 +160,7 @@ export async function updateAdminBlogPost(
         category: input.category,
         tags: input.tags,
         status: input.status,
-        publishedAt:
-          input.status === 'PUBLISHED' ? before.publishedAt ?? now : null,
+        publishedAt: input.status === 'PUBLISHED' ? (before.publishedAt ?? now) : null,
         updatedAt: now,
       })
       .where(eq(blogPosts.id, id));
@@ -236,26 +231,13 @@ export async function listPublishedBlogPosts(locale: Locale, limit = 100) {
       usedFallbackLocale: sql<boolean>`${requested.title} is null`,
     })
     .from(blogPosts)
-    .leftJoin(
-      requested,
-      and(eq(requested.blogPostId, blogPosts.id), eq(requested.locale, locale))
-    )
-    .leftJoin(
-      fallback,
-      and(eq(fallback.blogPostId, blogPosts.id), eq(fallback.locale, 'en'))
-    )
-    .where(
-      and(
-        eq(blogPosts.status, 'PUBLISHED'),
-        isNull(blogPosts.deletedAt)
-      )
-    )
+    .leftJoin(requested, and(eq(requested.blogPostId, blogPosts.id), eq(requested.locale, locale)))
+    .leftJoin(fallback, and(eq(fallback.blogPostId, blogPosts.id), eq(fallback.locale, 'en')))
+    .where(and(eq(blogPosts.status, 'PUBLISHED'), isNull(blogPosts.deletedAt)))
     .orderBy(desc(blogPosts.publishedAt), desc(blogPosts.updatedAt))
     .limit(limit);
 
-  return rows
-    .filter((row) => Boolean(row.title))
-    .map((row) => ({ ...row, title: row.title! }));
+  return rows.filter((row) => Boolean(row.title)).map((row) => ({ ...row, title: row.title! }));
 }
 
 export async function readPublishedBlogPost(slug: string, locale: Locale) {
@@ -279,33 +261,22 @@ export async function readPublishedBlogPost(slug: string, locale: Locale) {
       content: sql<unknown>`coalesce(${requested.content}, ${fallback.content})`,
       usedFallbackLocale: sql<boolean>`${requested.title} is null`,
       metaTitle: sql<string | null>`coalesce(${seoRequested.metaTitle}, ${seoFallback.metaTitle})`,
-      metaDescription: sql<string | null>`coalesce(${seoRequested.metaDescription}, ${seoFallback.metaDescription})`,
+      metaDescription: sql<
+        string | null
+      >`coalesce(${seoRequested.metaDescription}, ${seoFallback.metaDescription})`,
       robotsIndex: sql<boolean>`coalesce(${seoMeta.robotsIndex}, true)`,
     })
     .from(blogPosts)
-    .leftJoin(
-      requested,
-      and(eq(requested.blogPostId, blogPosts.id), eq(requested.locale, locale))
-    )
-    .leftJoin(
-      fallback,
-      and(eq(fallback.blogPostId, blogPosts.id), eq(fallback.locale, 'en'))
-    )
+    .leftJoin(requested, and(eq(requested.blogPostId, blogPosts.id), eq(requested.locale, locale)))
+    .leftJoin(fallback, and(eq(fallback.blogPostId, blogPosts.id), eq(fallback.locale, 'en')))
     .leftJoin(seoMeta, eq(seoMeta.id, blogPosts.seoMetaId))
     .leftJoin(
       seoRequested,
       and(eq(seoRequested.seoMetaId, seoMeta.id), eq(seoRequested.locale, locale))
     )
-    .leftJoin(
-      seoFallback,
-      and(eq(seoFallback.seoMetaId, seoMeta.id), eq(seoFallback.locale, 'en'))
-    )
+    .leftJoin(seoFallback, and(eq(seoFallback.seoMetaId, seoMeta.id), eq(seoFallback.locale, 'en')))
     .where(
-      and(
-        eq(blogPosts.slug, slug),
-        eq(blogPosts.status, 'PUBLISHED'),
-        isNull(blogPosts.deletedAt)
-      )
+      and(eq(blogPosts.slug, slug), eq(blogPosts.status, 'PUBLISHED'), isNull(blogPosts.deletedAt))
     )
     .limit(1);
 
