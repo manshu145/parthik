@@ -97,40 +97,37 @@ export function BlogManagement({ rows }: { rows: BlogRow[] }) {
     try {
       const contentEn = JSON.parse(form.contentEn);
       const contentHi = JSON.parse(form.contentHi);
-      const response = await fetch(
-        '/api/v1/admin/cms/blog' + (editingId ? '/' + editingId : ''),
-        {
-          method: editingId ? 'PATCH' : 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            slug: form.slug.trim().toLowerCase(),
-            coverImageKey: nullable(form.coverImageKey),
-            category: nullable(form.category),
-            tags: [
-              ...new Set(
-                form.tags
-                  .split(',')
-                  .map((value) => value.trim())
-                  .filter(Boolean)
-              ),
-            ],
-            status: form.status,
-            titleEn: form.titleEn.trim(),
-            excerptEn: nullable(form.excerptEn),
-            contentEn,
-            titleHi: nullable(form.titleHi),
-            excerptHi: nullable(form.excerptHi),
-            contentHi,
-            metaTitleEn: nullable(form.metaTitleEn),
-            metaDescriptionEn: nullable(form.metaDescriptionEn),
-            metaTitleHi: nullable(form.metaTitleHi),
-            metaDescriptionHi: nullable(form.metaDescriptionHi),
-            robotsIndex: form.robotsIndex,
-            robotsFollow: form.robotsFollow,
-            includeInSitemap: form.includeInSitemap,
-          }),
-        }
-      );
+      const response = await fetch('/api/v1/admin/cms/blog' + (editingId ? '/' + editingId : ''), {
+        method: editingId ? 'PATCH' : 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          slug: form.slug.trim().toLowerCase(),
+          coverImageKey: nullable(form.coverImageKey),
+          category: nullable(form.category),
+          tags: [
+            ...new Set(
+              form.tags
+                .split(',')
+                .map((value) => value.trim())
+                .filter(Boolean)
+            ),
+          ],
+          status: form.status,
+          titleEn: form.titleEn.trim(),
+          excerptEn: nullable(form.excerptEn),
+          contentEn,
+          titleHi: nullable(form.titleHi),
+          excerptHi: nullable(form.excerptHi),
+          contentHi,
+          metaTitleEn: nullable(form.metaTitleEn),
+          metaDescriptionEn: nullable(form.metaDescriptionEn),
+          metaTitleHi: nullable(form.metaTitleHi),
+          metaDescriptionHi: nullable(form.metaDescriptionHi),
+          robotsIndex: form.robotsIndex,
+          robotsFollow: form.robotsFollow,
+          includeInSitemap: form.includeInSitemap,
+        }),
+      });
 
       const payload = await response.json();
       if (!response.ok) throw new Error(payload?.error?.message ?? 'Could not save blog post.');
@@ -389,7 +386,11 @@ function Check({
 }) {
   return (
     <label className="flex items-center gap-2">
-      <input type="checkbox" checked={checked} onChange={(event) => onChange(event.target.checked)} />
+      <input
+        type="checkbox"
+        checked={checked}
+        onChange={(event) => onChange(event.target.checked)}
+      />
       {label}
     </label>
   );
@@ -400,5 +401,7 @@ function nullable(value: string): string | null {
 }
 
 function toStringArray(value: unknown): string[] {
-  return Array.isArray(value) ? value.filter((item): item is string => typeof item === 'string') : [];
+  return Array.isArray(value)
+    ? value.filter((item): item is string => typeof item === 'string')
+    : [];
 }
