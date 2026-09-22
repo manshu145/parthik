@@ -1,4 +1,4 @@
-import { and, desc, eq, isNull } from 'drizzle-orm';
+import { and, desc, eq, isNull, sql } from 'drizzle-orm';
 import {
   auditLogs,
   deliveries,
@@ -13,6 +13,8 @@ import {
   stores,
   supportTickets,
   ticketMessages,
+  roles,
+  userRoles,
   users,
   vendors,
 } from '@/db/schema';
@@ -44,7 +46,7 @@ export async function updateVendorStatus(
   const db = await getDb();
   return db.transaction(async (tx) => {
     const [before] = await tx
-      .select({ id: vendors.id, status: vendors.status })
+      .select({ id: vendors.id, status: vendors.status, ownerUserId: vendors.ownerUserId })
       .from(vendors)
       .where(and(eq(vendors.id, vendorId), isNull(vendors.deletedAt)))
       .limit(1);
@@ -66,6 +68,14 @@ export async function updateVendorStatus(
           updatedAt: now,
         })
         .where(eq(vendors.id, vendorId));
+
+      await ensureRoleGrant(tx, {
+        userId: before.ownerUserId,
+        roleKey: 'VENDOR_OWNER',
+        scopeType: 'VENDOR',
+        scopeId: vendorId,
+        grantedBy: actorUserId,
+      });
     } else if (action === 'reject') {
       const actionReason = requiredReason(reason);
       afterStatus = 'REJECTED';
@@ -79,6 +89,8 @@ export async function updateVendorStatus(
           updatedAt: now,
         })
         .where(eq(vendors.id, vendorId));
+
+      await revokeRoleGrant(tx, before.ownerUserId, 'VENDOR_OWNER', vendorId);
 
       await tx
         .update(stores)
@@ -102,6 +114,8 @@ export async function updateVendorStatus(
         })
         .where(eq(vendors.id, vendorId));
 
+      await revokeRoleGrant(tx, before.ownerUserId, 'VENDOR_OWNER', vendorId);
+
       await tx
         .update(stores)
         .set({
@@ -123,6 +137,14 @@ export async function updateVendorStatus(
           updatedAt: now,
         })
         .where(eq(vendors.id, vendorId));
+
+      await ensureRoleGrant(tx, {
+        userId: before.ownerUserId,
+        roleKey: 'VENDOR_OWNER',
+        scopeType: 'VENDOR',
+        scopeId: vendorId,
+        grantedBy: actorUserId,
+      });
 
       await tx
         .update(stores)
@@ -165,7 +187,7 @@ export async function updateDriverStatus(
   const db = await getDb();
   return db.transaction(async (tx) => {
     const [before] = await tx
-      .select({ id: drivers.id, status: drivers.status })
+      .select({ id: drivers.id, status: drivers.status, userId: drivers.userId })
       .from(drivers)
       .where(and(eq(drivers.id, driverId), isNull(drivers.deletedAt)))
       .limit(1);
@@ -186,6 +208,14 @@ export async function updateDriverStatus(
           updatedAt: now,
         })
         .where(eq(drivers.id, driverId));
+
+      await ensureRoleGrant(tx, {
+        userId: before.userId,
+        roleKey: 'DRIVER',
+        scopeType: 'GLOBAL',
+        scopeId: null,
+        grantedBy: actorUserId,
+      });
     } else if (action === 'reject') {
       const actionReason = requiredReason(reason);
       afterStatus = 'REJECTED';
@@ -199,6 +229,8 @@ export async function updateDriverStatus(
           updatedAt: now,
         })
         .where(eq(drivers.id, driverId));
+
+      await revokeRoleGrant(tx, before.userId, 'DRIVER', null);
     } else if (action === 'suspend') {
       requiredReason(reason);
       afterStatus = 'SUSPENDED';
@@ -214,6 +246,8 @@ export async function updateDriverStatus(
           updatedAt: now,
         })
         .where(eq(drivers.id, driverId));
+
+      await revokeRoleGrant(tx, before.userId, 'DRIVER', null);
     } else {
       afterStatus = 'APPROVED';
       await tx
@@ -225,6 +259,14 @@ export async function updateDriverStatus(
           updatedAt: now,
         })
         .where(eq(drivers.id, driverId));
+
+      await ensureRoleGrant(tx, {
+        userId: before.userId,
+        roleKey: 'DRIVER',
+        scopeType: 'GLOBAL',
+        scopeId: null,
+        grantedBy: actorUserId,
+      });
     }
 
     await tx.insert(auditLogs).values({
@@ -240,6 +282,64 @@ export async function updateDriverStatus(
 
     return { id: driverId, status: afterStatus };
   });
+}
+
+type Transaction = Parameters<Parameters<ReturnType<typeof getDb>['transaction']>[0]>[0];
+
+async function ensureRoleGrant(
+  tx: Transaction,
+  input: {
+    userId: string;
+    roleKey: 'VENDOR_OWNER' | 'DRIVER';
+    scopeType: 'GLOBAL' | 'VENDOR';
+    scopeId: string | null;
+    grantedBy: string;
+  }
+) {
+  const [role] = await tx
+    .select({ id: roles.id })
+    .from(roles)
+    .where(eq(roles.key, input.roleKey))
+    .limit(1);
+  if (!role) throw new ConflictError(`Role "${input.roleKey}" is not configured.`);
+
+  await tx.insert(userRoles).values({
+    userId: input.userId,
+    roleId: role.id,
+    scopeType: input.scopeType,
+    scopeId: input.scopeId,
+    grantedBy: input.grantedBy,
+  }).onConflictDoNothing({
+    target: [userRoles.userId, userRoles.roleId, userRoles.scopeId],
+    where: sql`revoked_at is null`,
+  });
+}
+
+async function revokeRoleGrant(
+  tx: Transaction,
+  userId: string,
+  roleKey: 'VENDOR_OWNER' | 'DRIVER',
+  scopeId: string | null
+) {
+  const [role] = await tx
+    .select({ id: roles.id })
+    .from(roles)
+    .where(eq(roles.key, roleKey))
+    .limit(1);
+  if (!role) return;
+
+  const scopePredicate = scopeId === null ? isNull(userRoles.scopeId) : eq(userRoles.scopeId, scopeId);
+  await tx
+    .update(userRoles)
+    .set({ revokedAt: new Date() })
+    .where(
+      and(
+        eq(userRoles.userId, userId),
+        eq(userRoles.roleId, role.id),
+        scopePredicate,
+        isNull(userRoles.revokedAt)
+      )
+    );
 }
 
 export async function updateProductStatus(
