@@ -21,3 +21,11 @@ export {
   type AdminHomeLayoutInput,
   type HomeSectionInput,
 } from './admin-home.repository';
+
+export {
+  createAdminPromotion,
+  listAdminPromotions,
+  updateAdminPromotion,
+  type AdminPromotionInput,
+  type AdminPromotionType,
+} from './admin-promotion.repository';
