@@ -24,7 +24,7 @@ export async function generateMetadata({
 
   return publicPageMetadata({
     title: post.metaTitle ?? post.title,
-    description: post.metaDescription ?? post.excerpt ?? undefined,
+    description: post.metaDescription ?? post.excerpt ?? post.title,
     path: '/blog/' + post.slug,
     locale: resolved,
     siteName: await siteName(resolved),
