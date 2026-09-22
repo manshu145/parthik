@@ -1,7 +1,19 @@
 import { Link } from '@/i18n/navigation';
-import type { MarketingSlug } from '@/modules/cms';
-
 type Locale = 'en' | 'hi';
+
+type MarketingSlug =
+  | 'about'
+  | 'contact'
+  | 'faq'
+  | 'careers'
+  | 'blog'
+  | 'privacy'
+  | 'terms'
+  | 'refund-policy'
+  | 'shipping-policy'
+  | 'cancellation-policy'
+  | 'vendor-registration'
+  | 'driver-registration';
 
 type Section = {
   heading: string;
