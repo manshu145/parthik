@@ -34,7 +34,8 @@ export default async function Page({ params }: { params: Promise<{ locale: strin
       <div>
         <h1 className="text-xl font-semibold">{t('reviews')}</h1>
         <p className="text-muted-foreground mt-1 text-sm">
-          Moderate customer reviews from the live review queue. Approve and reject actions are audited.
+          Moderate customer reviews from the live review queue. Approve and reject actions are
+          audited.
         </p>
       </div>
       <OperationSnapshot snapshot={snapshot} permission="review:moderate" />
