@@ -33,13 +33,7 @@ const EMPTY_PAGE = {
   includeInSitemap: true,
 };
 
-export function CmsPageManager({
-  rows,
-  slugs,
-}: {
-  rows: CmsPageRow[];
-  slugs: string[];
-}) {
+export function CmsPageManager({ rows, slugs }: { rows: CmsPageRow[]; slugs: string[] }) {
   const router = useRouter();
   const [form, setForm] = useState(EMPTY_PAGE);
   const [busy, setBusy] = useState(false);
@@ -249,11 +243,20 @@ export function CmsPageEditor({ page }: { page: CmsPageDetail }) {
         <div className="grid gap-3 md:grid-cols-3">
           <label className="space-y-1 text-sm">
             <span>Slug</span>
-            <Input value={form.slug} onChange={(e) => setForm({ ...form, slug: e.target.value })} disabled={busy} />
+            <Input
+              value={form.slug}
+              onChange={(e) => setForm({ ...form, slug: e.target.value })}
+              disabled={busy}
+            />
           </label>
           <label className="space-y-1 text-sm">
             <span>Page type</span>
-            <select className="border-input bg-background h-10 w-full rounded-md border px-3" value={form.pageType} onChange={(e) => setForm({ ...form, pageType: e.target.value })} disabled={busy}>
+            <select
+              className="border-input bg-background h-10 w-full rounded-md border px-3"
+              value={form.pageType}
+              onChange={(e) => setForm({ ...form, pageType: e.target.value })}
+              disabled={busy}
+            >
               <option value="INFO">INFO</option>
               <option value="LEGAL">LEGAL</option>
               <option value="LANDING">LANDING</option>
@@ -261,7 +264,12 @@ export function CmsPageEditor({ page }: { page: CmsPageDetail }) {
           </label>
           <label className="space-y-1 text-sm">
             <span>Status</span>
-            <select className="border-input bg-background h-10 w-full rounded-md border px-3" value={form.status} onChange={(e) => setForm({ ...form, status: e.target.value })} disabled={busy}>
+            <select
+              className="border-input bg-background h-10 w-full rounded-md border px-3"
+              value={form.status}
+              onChange={(e) => setForm({ ...form, status: e.target.value })}
+              disabled={busy}
+            >
               <option value="DRAFT">DRAFT</option>
               <option value="PUBLISHED">PUBLISHED</option>
               <option value="ARCHIVED">ARCHIVED</option>
@@ -297,21 +305,57 @@ export function CmsPageEditor({ page }: { page: CmsPageDetail }) {
           </p>
         </div>
         <div className="grid gap-3 md:grid-cols-2">
-          <Input value={form.metaTitleEn} onChange={(e) => setForm({ ...form, metaTitleEn: e.target.value })} placeholder="English meta title" disabled={busy} />
-          <Input value={form.metaTitleHi} onChange={(e) => setForm({ ...form, metaTitleHi: e.target.value })} placeholder="Hindi meta title" disabled={busy} />
-          <textarea className="border-input bg-background min-h-20 rounded-md border p-3 text-sm" value={form.metaDescriptionEn} onChange={(e) => setForm({ ...form, metaDescriptionEn: e.target.value })} placeholder="English meta description" disabled={busy} />
-          <textarea className="border-input bg-background min-h-20 rounded-md border p-3 text-sm" value={form.metaDescriptionHi} onChange={(e) => setForm({ ...form, metaDescriptionHi: e.target.value })} placeholder="Hindi meta description" disabled={busy} />
+          <Input
+            value={form.metaTitleEn}
+            onChange={(e) => setForm({ ...form, metaTitleEn: e.target.value })}
+            placeholder="English meta title"
+            disabled={busy}
+          />
+          <Input
+            value={form.metaTitleHi}
+            onChange={(e) => setForm({ ...form, metaTitleHi: e.target.value })}
+            placeholder="Hindi meta title"
+            disabled={busy}
+          />
+          <textarea
+            className="border-input bg-background min-h-20 rounded-md border p-3 text-sm"
+            value={form.metaDescriptionEn}
+            onChange={(e) => setForm({ ...form, metaDescriptionEn: e.target.value })}
+            placeholder="English meta description"
+            disabled={busy}
+          />
+          <textarea
+            className="border-input bg-background min-h-20 rounded-md border p-3 text-sm"
+            value={form.metaDescriptionHi}
+            onChange={(e) => setForm({ ...form, metaDescriptionHi: e.target.value })}
+            placeholder="Hindi meta description"
+            disabled={busy}
+          />
         </div>
         <div className="flex flex-wrap gap-4 text-sm">
-          <Check label="Index" checked={form.robotsIndex} onChange={(value) => setForm({ ...form, robotsIndex: value })} />
-          <Check label="Follow" checked={form.robotsFollow} onChange={(value) => setForm({ ...form, robotsFollow: value })} />
-          <Check label="Include in sitemap" checked={form.includeInSitemap} onChange={(value) => setForm({ ...form, includeInSitemap: value })} />
+          <Check
+            label="Index"
+            checked={form.robotsIndex}
+            onChange={(value) => setForm({ ...form, robotsIndex: value })}
+          />
+          <Check
+            label="Follow"
+            checked={form.robotsFollow}
+            onChange={(value) => setForm({ ...form, robotsFollow: value })}
+          />
+          <Check
+            label="Include in sitemap"
+            checked={form.includeInSitemap}
+            onChange={(value) => setForm({ ...form, includeInSitemap: value })}
+          />
         </div>
       </section>
 
       {error ? <p className="text-danger text-sm">{error}</p> : null}
       {message ? <p className="text-success text-sm">{message}</p> : null}
-      <Button type="submit" disabled={busy}>{busy ? 'Saving…' : 'Save CMS page'}</Button>
+      <Button type="submit" disabled={busy}>
+        {busy ? 'Saving…' : 'Save CMS page'}
+      </Button>
     </form>
   );
 }
@@ -334,7 +378,12 @@ function LanguageEditor({
   return (
     <section className="space-y-3 rounded-xl border p-4">
       <p className="font-semibold">{label}</p>
-      <Input required={required} value={title} onChange={(e) => onTitle(e.target.value)} placeholder={label + ' title'} />
+      <Input
+        required={required}
+        value={title}
+        onChange={(e) => onTitle(e.target.value)}
+        placeholder={label + ' title'}
+      />
       <label className="block space-y-1 text-sm">
         <span>Content blocks (JSON)</span>
         <textarea
@@ -466,25 +515,64 @@ export function RedirectManager({ rows }: { rows: RedirectRow[] }) {
     <div className="grid gap-4 xl:grid-cols-[390px_1fr]">
       <form onSubmit={save} className="space-y-3 rounded-xl border p-4">
         <p className="font-semibold">{editingId ? 'Edit redirect' : 'Create redirect'}</p>
-        <Input required value={form.sourcePath} onChange={(e) => setForm({ ...form, sourcePath: e.target.value })} placeholder="/old-path" disabled={busy} />
-        <Input required value={form.targetPath} onChange={(e) => setForm({ ...form, targetPath: e.target.value })} placeholder="/new-path" disabled={busy} />
-        <select className="border-input bg-background h-10 w-full rounded-md border px-3 text-sm" value={form.statusCode} onChange={(e) => setForm({ ...form, statusCode: e.target.value })} disabled={busy}>
+        <Input
+          required
+          value={form.sourcePath}
+          onChange={(e) => setForm({ ...form, sourcePath: e.target.value })}
+          placeholder="/old-path"
+          disabled={busy}
+        />
+        <Input
+          required
+          value={form.targetPath}
+          onChange={(e) => setForm({ ...form, targetPath: e.target.value })}
+          placeholder="/new-path"
+          disabled={busy}
+        />
+        <select
+          className="border-input bg-background h-10 w-full rounded-md border px-3 text-sm"
+          value={form.statusCode}
+          onChange={(e) => setForm({ ...form, statusCode: e.target.value })}
+          disabled={busy}
+        >
           <option value="301">301 Permanent</option>
           <option value="302">302 Temporary</option>
         </select>
-        <Input value={form.note} onChange={(e) => setForm({ ...form, note: e.target.value })} placeholder="Internal note (optional)" disabled={busy} />
-        <Check label="Active" checked={form.isActive} onChange={(value) => setForm({ ...form, isActive: value })} />
+        <Input
+          value={form.note}
+          onChange={(e) => setForm({ ...form, note: e.target.value })}
+          placeholder="Internal note (optional)"
+          disabled={busy}
+        />
+        <Check
+          label="Active"
+          checked={form.isActive}
+          onChange={(value) => setForm({ ...form, isActive: value })}
+        />
         {error ? <p className="text-danger text-sm">{error}</p> : null}
         <div className="flex gap-2">
-          <Button type="submit" size="sm" disabled={busy}>{busy ? 'Saving…' : 'Save redirect'}</Button>
-          {editingId ? <Button type="button" size="sm" variant="secondary" onClick={reset} disabled={busy}>Cancel</Button> : null}
+          <Button type="submit" size="sm" disabled={busy}>
+            {busy ? 'Saving…' : 'Save redirect'}
+          </Button>
+          {editingId ? (
+            <Button type="button" size="sm" variant="secondary" onClick={reset} disabled={busy}>
+              Cancel
+            </Button>
+          ) : null}
         </div>
       </form>
 
       <div className="overflow-x-auto rounded-xl border">
         <table className="w-full min-w-[820px] text-left text-sm">
           <thead className="bg-muted/50 text-muted-foreground text-xs">
-            <tr><th className="px-4 py-3">Source</th><th className="px-4 py-3">Target</th><th className="px-4 py-3">Code</th><th className="px-4 py-3">Hits</th><th className="px-4 py-3">Status</th><th className="px-4 py-3">Action</th></tr>
+            <tr>
+              <th className="px-4 py-3">Source</th>
+              <th className="px-4 py-3">Target</th>
+              <th className="px-4 py-3">Code</th>
+              <th className="px-4 py-3">Hits</th>
+              <th className="px-4 py-3">Status</th>
+              <th className="px-4 py-3">Action</th>
+            </tr>
           </thead>
           <tbody className="divide-y">
             {rows.map((row) => (
@@ -494,7 +582,11 @@ export function RedirectManager({ rows }: { rows: RedirectRow[] }) {
                 <td className="px-4 py-3">{row.statusCode}</td>
                 <td className="px-4 py-3">{row.hitCount}</td>
                 <td className="px-4 py-3">{row.isActive ? 'ACTIVE' : 'INACTIVE'}</td>
-                <td className="px-4 py-3"><Button size="sm" variant="secondary" onClick={() => edit(row)}>Edit</Button></td>
+                <td className="px-4 py-3">
+                  <Button size="sm" variant="secondary" onClick={() => edit(row)}>
+                    Edit
+                  </Button>
+                </td>
               </tr>
             ))}
           </tbody>
