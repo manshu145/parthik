@@ -30,7 +30,10 @@ export async function PATCH(
 
     const parsed = schema.safeParse(await request.json().catch(() => null));
     if (!parsed.success) {
-      throw new ValidationError('Check the translation fields.', parsed.error.flatten().fieldErrors);
+      throw new ValidationError(
+        'Check the translation fields.',
+        parsed.error.flatten().fieldErrors
+      );
     }
 
     return apiSuccess(await saveHindiTranslation(entity, id, parsed.data, actor.userId), {
