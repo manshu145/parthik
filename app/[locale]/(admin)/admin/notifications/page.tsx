@@ -31,8 +31,8 @@ export default async function Page({ params }: { params: Promise<{ locale: strin
       <div>
         <h1 className="text-xl font-semibold">{t('notifications')}</h1>
         <p className="text-muted-foreground mt-1 text-sm">
-          Send PUSH or IN_APP notifications and inspect delivery failures. Unsupported channels
-          are intentionally unavailable in V1.
+          Send PUSH or IN_APP notifications and inspect delivery failures. Unsupported channels are
+          intentionally unavailable in V1.
         </p>
       </div>
       <NotificationManagement
