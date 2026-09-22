@@ -104,7 +104,7 @@ export function TranslationManagement({ rows }: { rows: TranslationRow[] }) {
             key={value}
             type="button"
             size="sm"
-            variant={filter === value ? 'default' : 'secondary'}
+            variant={filter === value ? 'primary' : 'secondary'}
             onClick={() => setFilter(value)}
           >
             {value.toUpperCase()}
