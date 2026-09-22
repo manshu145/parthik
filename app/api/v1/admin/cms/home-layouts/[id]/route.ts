@@ -4,10 +4,7 @@ import { apiError, apiSuccess, requestIdFrom } from '@/lib/http/api-response';
 import { updateAdminHomeLayout } from '@/modules/admin-marketing';
 import { adminHomeLayoutSchema } from '../route';
 
-export async function PATCH(
-  request: Request,
-  { params }: { params: Promise<{ id: string }> }
-) {
+export async function PATCH(request: Request, { params }: { params: Promise<{ id: string }> }) {
   const requestId = requestIdFrom(request);
   try {
     const actor = await requireCurrentPermission('cms:manage');
