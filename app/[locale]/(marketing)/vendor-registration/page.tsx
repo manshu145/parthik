@@ -6,10 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Link } from '@/i18n/navigation';
 import { getCurrentActor, requireCurrentActor } from '@/lib/auth/current-actor';
-import {
-  getOwnVendorApplication,
-  submitVendorApplication,
-} from '@/modules/partner-applications';
+import { getOwnVendorApplication, submitVendorApplication } from '@/modules/partner-applications';
 
 export const dynamic = 'force-dynamic';
 
@@ -85,21 +82,25 @@ export default async function Page({
               <div>
                 <h2 className="font-semibold">{application.businessName}</h2>
                 <p className="text-muted-foreground mt-1 text-sm">
-                  {isHindi ? 'आपका आवेदन submit हो चुका है।' : 'Your application has been submitted.'}
+                  {isHindi
+                    ? 'आपका आवेदन submit हो चुका है।'
+                    : 'Your application has been submitted.'}
                 </p>
               </div>
               <span className="rounded-full border px-3 py-1 text-xs font-semibold">
                 {application.status.replaceAll('_', ' ')}
               </span>
             </div>
-            {(application.rejectionReason || application.suspensionReason) ? (
+            {application.rejectionReason || application.suspensionReason ? (
               <p className="text-danger mt-3 text-sm">
                 {application.rejectionReason ?? application.suspensionReason}
               </p>
             ) : null}
             {application.status === 'APPROVED' ? (
               <Button asChild className="mt-4">
-                <Link href="/vendor">{isHindi ? 'Vendor dashboard खोलें' : 'Open vendor dashboard'}</Link>
+                <Link href="/vendor">
+                  {isHindi ? 'Vendor dashboard खोलें' : 'Open vendor dashboard'}
+                </Link>
               </Button>
             ) : (
               <p className="text-muted-foreground mt-4 text-sm">
@@ -110,17 +111,25 @@ export default async function Page({
             )}
           </div>
         ) : (
-          <form action={apply} className="space-y-5 rounded-xl border p-5" data-testid="vendor-application-form">
+          <form
+            action={apply}
+            className="space-y-5 rounded-xl border p-5"
+            data-testid="vendor-application-form"
+          >
             <div>
               <h2 className="font-semibold">{isHindi ? 'Business details' : 'Business details'}</h2>
               <p className="text-muted-foreground mt-1 text-sm">
-                {isHindi ? 'सही जानकारी भरें; admin review करेगा।' : 'Enter accurate details for admin review.'}
+                {isHindi
+                  ? 'सही जानकारी भरें; admin review करेगा।'
+                  : 'Enter accurate details for admin review.'}
               </p>
             </div>
 
             {query.error ? (
               <p className="text-danger text-sm" role="alert">
-                {isHindi ? 'Application submit नहीं हो सकी। Details check करके फिर try करें।' : 'Application could not be submitted. Check the details and try again.'}
+                {isHindi
+                  ? 'Application submit नहीं हो सकी। Details check करके फिर try करें।'
+                  : 'Application could not be submitted. Check the details and try again.'}
               </p>
             ) : null}
 
@@ -130,7 +139,13 @@ export default async function Page({
               <Field label="GSTIN" name="gstin" />
               <Field label="FSSAI licence" name="fssaiLicense" />
             </div>
-            <Field label="Contact phone" name="contactPhone" type="tel" required defaultValue={actor.phone ?? ''} />
+            <Field
+              label="Contact phone"
+              name="contactPhone"
+              type="tel"
+              required
+              defaultValue={actor.phone ?? ''}
+            />
 
             <div className="border-t pt-5">
               <h3 className="font-semibold">{isHindi ? 'Store details' : 'Store details'}</h3>
