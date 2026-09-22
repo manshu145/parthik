@@ -44,7 +44,8 @@ export default async function Page({ params }: { params: Promise<{ locale: strin
         <div className="grid gap-5 md:grid-cols-2">
           {posts.map((post) => {
             const image = imageUrlForKey(post.coverImageKey);
-            const href = locale === defaultLocale ? '/blog/' + post.slug : '/' + locale + '/blog/' + post.slug;
+            const href =
+              locale === defaultLocale ? '/blog/' + post.slug : '/' + locale + '/blog/' + post.slug;
 
             return (
               <article key={post.id} className="overflow-hidden rounded-2xl border">
