@@ -181,6 +181,7 @@ export function toAppliedDiscount(evaluation: CouponAccepted): AppliedDiscount {
     code: evaluation.code,
     amountPaise: evaluation.discountPaise,
     waivesDeliveryFee: evaluation.waivesDeliveryFee,
+    ...(evaluation.waivesDeliveryFee ? { deliveryWaiverSource: 'coupon' as const } : {}),
     eligibleLineIds: evaluation.eligibleLineIds,
   };
 }
