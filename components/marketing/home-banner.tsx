@@ -1,12 +1,22 @@
 import { imageUrlForKey } from '@/lib/catalog/image';
 import { defaultLocale, type Locale } from '@/i18n/routing';
-import type { HomepageBanner } from '@/modules/homepage';
+interface HomeBannerView {
+  id: string;
+  placement: 'HOME_HERO' | 'HOME_STRIP' | 'CATEGORY' | 'OFFERS';
+  linkUrl: string | null;
+  priority: number;
+  title: string;
+  subtitle: string | null;
+  ctaLabel: string | null;
+  imageKey: string | null;
+  mobileImageKey: string | null;
+}
 
 export function HomeBannerGrid({
   banners,
   locale,
 }: {
-  banners: HomepageBanner[];
+  banners: HomeBannerView[];
   locale: Locale;
 }) {
   if (banners.length === 0) return null;
