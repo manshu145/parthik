@@ -31,9 +31,8 @@ export default async function Page({ params }: { params: Promise<{ locale: strin
       <div>
         <h1 className="text-xl font-semibold">{t('promotions')}</h1>
         <p className="text-muted-foreground mt-1 text-sm">
-          Manage scheduled promotions. FREE_DELIVERY is connected to live cart and checkout
-          pricing; other promotion types remain draft-only until their pricing semantics are
-          approved.
+          Manage scheduled promotions. FREE_DELIVERY is connected to live cart and checkout pricing;
+          other promotion types remain draft-only until their pricing semantics are approved.
         </p>
       </div>
 
