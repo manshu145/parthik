@@ -60,7 +60,8 @@ export default async function LoginPage({
 
   const readiness = describeAuthReadiness();
   const env = getServerEnv();
-  const temporaryAuthEnabled =\n    env.APP_ENV !== 'production' && env.TEMP_AUTH_ENABLED && Boolean(env.TEMP_AUTH_PASSWORD);
+  const temporaryAuthEnabled =
+    env.APP_ENV !== 'production' && env.TEMP_AUTH_ENABLED && Boolean(env.TEMP_AUTH_PASSWORD);
 
   return (
     <main className="mx-auto flex min-h-dvh max-w-md items-center justify-center p-6">
