@@ -18,7 +18,7 @@ export const metadata: Metadata = {
   description: 'Apply to deliver with Parthik.',
 };
 
-const VEHICLES = ['BIKE', 'SCOOTER', 'BICYCLE', 'CAR', 'OTHER'] as const;
+const VEHICLES = ['BIKE', 'SCOOTER', 'BICYCLE', 'CAR', 'VAN'] as const;
 
 export default async function Page({
   params,
