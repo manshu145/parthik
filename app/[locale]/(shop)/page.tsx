@@ -150,10 +150,7 @@ export default async function HomePage({ params }: { params: Promise<{ locale: s
                     {tCatalog('viewAll')}
                   </Link>
                 </div>
-                <CategoryGrid
-                  categories={items}
-                  placeholderLabel={tCatalog('imagePlaceholder')}
-                />
+                <CategoryGrid categories={items} placeholderLabel={tCatalog('imagePlaceholder')} />
               </section>
             );
           }
@@ -218,9 +215,7 @@ async function loadHomepageData(locale: 'en' | 'hi') {
     }
 
     const audience = await resolveHomepageAudience(actor?.userId ?? null);
-    const sections = (await getActiveHomepageSections(zoneId)).filter(
-      (section) => section.visible
-    );
+    const sections = (await getActiveHomepageSections(zoneId)).filter((section) => section.visible);
 
     const categoryLimit = maxSectionLimit(sections, 'FEATURED_CATEGORIES', 6);
     const popularLimit = maxSectionLimit(sections, 'POPULAR_PRODUCTS', 10);
@@ -228,7 +223,9 @@ async function loadHomepageData(locale: 'en' | 'hi') {
     const needsBanners = sections.some((section) => section.type === 'HERO_BANNERS');
 
     const [categories, popular, banners, offers] = await Promise.all([
-      categoryLimit > 0 ? catalog.getFeaturedCategories(locale, categoryLimit) : Promise.resolve([]),
+      categoryLimit > 0
+        ? catalog.getFeaturedCategories(locale, categoryLimit)
+        : Promise.resolve([]),
       popularLimit > 0 ? catalog.getPopularProducts(locale, popularLimit) : Promise.resolve([]),
       needsBanners
         ? listHomepageBanners({ locale, deliveryZoneId: zoneId, audience })
@@ -244,7 +241,6 @@ async function loadHomepageData(locale: 'en' | 'hi') {
     return null;
   }
 }
-
 
 function maxSectionLimit(
   sections: Awaited<ReturnType<typeof getActiveHomepageSections>>,
