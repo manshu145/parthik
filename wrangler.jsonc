@@ -1,0 +1,104 @@
+{
+  "name": "parthik",
+  "main": ".open-next/worker.js",
+
+  // Keep this pinned and bump it deliberately; it controls Workers runtime
+  // behaviour. nodejs_compat is required by the OpenNext adapter, which runs
+  // Next.js's Node.js runtime (docs/ARCHITECTURE.md §4.1).
+  "compatibility_date": "2026-08-01",
+  "compatibility_flags": ["nodejs_compat"],
+
+  "assets": {
+    "directory": ".open-next/assets",
+    "binding": "ASSETS",
+  },
+
+  // ---------------------------------------------------------------------------
+  // Public URLs.
+  //
+  // `.open-next/` is a BUILD ARTIFACT and is gitignored, so `main` and
+  // `assets.directory` above only exist after `pnpm cf:build` has run. Cloudflare
+  // Workers Builds must therefore have a build command set — with none, the
+  // checkout has no `.open-next/assets` and the deploy fails with
+  // "Could not detect a directory containing static files".
+  //
+  // Both flags below are opt-in as of 2026 (Cloudflare changed preview URLs to
+  // default off), so they are declared here rather than left to dashboard state.
+  // Neither touches parthik.com DNS — that is a separate custom-domain step.
+  // ---------------------------------------------------------------------------
+  //
+  // The <worker>.<subdomain>.workers.dev URL.
+  "workers_dev": true,
+  // Per-version preview URLs, which is what a non-production branch build
+  // (`wrangler versions upload`) publishes for reviewing a PR.
+  "preview_urls": true,
+
+  // ---------------------------------------------------------------------------
+  // The build lives HERE, not in dashboard state.
+  //
+  // `main` and `assets.directory` above point into `.open-next/`, which is a
+  // gitignored build artifact. Something must generate it before a deploy, and
+  // wrangler runs this command for both `wrangler deploy` and
+  // `wrangler versions upload`.
+  //
+  // WHY IN THE REPO: Cloudflare Workers Builds stores `build_command` PER
+  // TRIGGER — one for the production branch, a separate one for preview
+  // branches. The dashboard's Build settings page exposes a single "Build
+  // command" field, so it is easy to end up with the production trigger
+  // configured and the preview trigger's `build_command` still empty. A preview
+  // build then installs dependencies and jumps straight to the deploy command,
+  // never generating `.open-next/`, and fails on the missing entry point. That
+  // is a silent, invisible misconfiguration; owning the build here removes the
+  // dashboard as a point of failure entirely.
+  //
+  // Leave `build_command` EMPTY on both Workers Builds triggers. Setting it
+  // there as well is not harmful, just a wasted duplicate build.
+  // ---------------------------------------------------------------------------
+  "build": {
+    "command": "pnpm cf:build",
+  },
+
+  "observability": {
+    "enabled": true,
+  },
+
+  // Runtime defaults fail closed. Use a local .dev.vars file with APP_ENV=development
+  // for manual Wrangler development; never deploy a production Worker as development,
+  // which would permit development-only diagnostics and non-production fallbacks.
+  // Secrets are set with `wrangler secret put` (or the dashboard), never committed.
+  "vars": {
+    "APP_ENV": "production",
+  },
+
+  // ---------------------------------------------------------------------------
+  // Bindings below are intentionally commented out for TASK 001 because they
+  // reference Cloudflare resources that have not been provisioned yet. Each is
+  // enabled by the task that first needs it. Uncommenting one without creating
+  // the resource fails the deploy, not the build.
+  // ---------------------------------------------------------------------------
+  //
+  // PostgreSQL via Hyperdrive (D-01). Needed by TASK 002.
+  // "hyperdrive": [
+  //   { "binding": "HYPERDRIVE", "id": "<hyperdrive-config-id>" }
+  // ],
+  //
+  // R2 buckets (D-07). Public assets and private documents are separate
+  // buckets by design — docs/ARCHITECTURE.md §9.
+  // "r2_buckets": [
+  //   { "binding": "R2_PUBLIC", "bucket_name": "parthik-public" },
+  //   { "binding": "R2_PRIVATE", "bucket_name": "parthik-private" },
+  //   { "binding": "NEXT_INC_CACHE_R2_BUCKET", "bucket_name": "parthik-next-cache" }
+  // ],
+  //
+  // Background jobs (D-05). Needed by TASK 010.
+  // "queues": {
+  //   "producers": [{ "binding": "QUEUE", "queue": "parthik-jobs" }],
+  //   "consumers": [{ "queue": "parthik-jobs", "dead_letter_queue": "parthik-jobs-dlq" }]
+  // },
+  //
+  // Scheduled work (D-05): coupon expiry, stock checks, retention purges.
+  // "triggers": { "crons": ["*/5 * * * *"] },
+  //
+  // Log shipping to Google Cloud Logging (D-27) runs as a tail consumer Worker.
+  // "tail_consumers": [{ "service": "parthik-log-shipper" }]
+}

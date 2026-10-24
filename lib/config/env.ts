@@ -1,0 +1,291 @@
+import { z } from 'zod';
+
+/**
+ * The single boundary where configuration enters the application
+ * (docs/ARCHITECTURE.md §15). No other file may read process.env — an ESLint
+ * rule enforces this.
+ *
+ * Two principles:
+ *
+ *  1. REQUIRED config is validated eagerly and the app refuses to start when it
+ *     is wrong. Failing at boot is far cheaper than failing at runtime.
+ *
+ *  2. OPTIONAL provider config degrades safely. A missing Firebase or Maps key
+ *     must not crash the process; the affected provider reports itself as
+ *     unconfigured and throws a typed ConfigurationError only if something
+ *     actually tries to use it. This is what makes local development possible
+ *     without a full set of third-party credentials.
+ */
+
+const nonEmpty = z.string().trim().min(1);
+
+/** Accepts a PEM private key whether it arrives with real or escaped newlines. */
+const pemKey = z
+  .string()
+  .trim()
+  .min(1)
+  .transform((value) => value.replace(/\\n/g, '\n'))
+  .refine((value) => value.includes('BEGIN') && value.includes('PRIVATE KEY'), {
+    message: 'must be a PEM-encoded private key',
+  });
+
+const serverSchema = z.object({
+  // ---- Core (required) ----
+  NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
+  APP_ENV: z.enum(['development', 'preview', 'staging', 'production']).default('development'),
+  PUBLIC_APP_URL: z.string().url().default('http://localhost:3000'),
+
+  // ---- Data (optional until TASK 002) ----
+  DATABASE_URL: z.string().url().optional(),
+
+  // ---- Cache (optional until TASK 003; D-03) ----
+  CACHE_REST_URL: z.string().url().optional(),
+  CACHE_REST_TOKEN: nonEmpty.optional(),
+
+  /**
+   * Enables `POST /api/v1/auth/dev-session`, which mints a session for a seeded demo
+   * user so dashboards can be reviewed and E2E tests can authenticate without SMS.
+   *
+   * REQUIRES AN EXPLICIT OPT-IN and is ignored in production. It replaces the former
+   * `isUnauthenticatedPreview` switch, which left every vendor, driver and admin
+   * route open to anonymous visitors outside production. The difference matters: this
+   * issues a REAL session for a REAL user and every permission check still runs, so
+   * the authorization path being exercised is the production one.
+   */
+  DEV_AUTH_ENABLED: z
+    .enum(['true', 'false'])
+    .default('false')
+    .transform((value) => value === 'true'),
+
+  /** Temporary credential login used only while Firebase/OTP integration is paused. */
+  TEMP_AUTH_ENABLED: z
+    .enum(['true', 'false'])
+    .default('false')
+    .transform((value) => value === 'true'),
+  TEMP_AUTH_PASSWORD: z.string().min(12).optional(),
+
+  /**
+   * Signing key for Parthik session cookies (D-10).
+   *
+   * OPTIONAL at the schema level but REQUIRED in practice for sign-in: a missing
+   * secret makes `requireAuthSecret()` throw a typed ConfigurationError so the
+   * environment degrades to "sign-in unavailable" rather than crashing at boot or,
+   * far worse, signing sessions with a guessable fallback. There is deliberately
+   * no default — a hardcoded development secret is exactly the value that reaches
+   * production by accident.
+   *
+   * 32 bytes minimum because it keys HMAC-SHA256.
+   */
+  AUTH_SECRET: z
+    .string()
+    .trim()
+    .min(32, 'must be at least 32 characters; generate with `openssl rand -base64 32`')
+    .optional(),
+
+  // ---- Firebase server-side (D-08, D-36) ----
+  FIREBASE_PROJECT_ID: nonEmpty.optional(),
+  FIREBASE_SERVICE_ACCOUNT_EMAIL: z.string().email().optional(),
+  FIREBASE_SERVICE_ACCOUNT_PRIVATE_KEY: pemKey.optional(),
+  /** Set by the Firebase Auth Emulator in tests/CI (docs/ARCHITECTURE.md §13.1). */
+  FIREBASE_AUTH_EMULATOR_HOST: nonEmpty.optional(),
+
+  // ---- Google Maps Platform server key (D-23) ----
+  GOOGLE_MAPS_SERVER_KEY: nonEmpty.optional(),
+
+  /**
+   * Maps provider selection (.kiro/steering/provider-credentials.md).
+   *
+   * `auto` uses Google when a key is present and the deterministic mock when it is
+   * not — so a fresh clone works with no credentials at all. `auto` never
+   * resolves to the mock in production.
+   */
+  MAPS_PROVIDER: z.enum(['auto', 'google', 'mock']).default('auto'),
+
+  /**
+   * ---- Razorpay (D-13, TASK 011) ----
+   *
+   * Three separate optional values rather than one credential blob, because they fail
+   * independently and the failures need different answers. The key PAIR is needed to create
+   * a payment intent; the WEBHOOK SECRET is needed to trust an incoming callback. A
+   * deployment can legitimately have one and not the other mid-rollout, and the surface that
+   * breaks must be able to say which one is missing (see `lib/payments/config.ts`).
+   *
+   * The secret and the webhook secret are never sent to the browser, so they are server-only
+   * by placement. `RAZORPAY_KEY_ID` is safe to expose and is handed to the client through the
+   * intent response rather than through a NEXT_PUBLIC_* variable — that way a key rotation
+   * takes effect on the next request instead of requiring a rebuild.
+   */
+  RAZORPAY_KEY_ID: nonEmpty.optional(),
+  RAZORPAY_KEY_SECRET: nonEmpty.optional(),
+  RAZORPAY_WEBHOOK_SECRET: nonEmpty.optional(),
+
+  /**
+   * Payment provider selection, same shape as `MAPS_PROVIDER`.
+   *
+   * `auto` uses Razorpay when the credentials are present and a deterministic mock gateway
+   * when they are not, so the whole payment path — intent, signed webhook, capture, refund —
+   * is exercisable on a fresh clone with no merchant account. `auto` NEVER resolves to the
+   * mock in production: taking a real customer's money through a fake gateway is the one
+   * failure mode that must be impossible, so an unconfigured production deployment gets a
+   * typed 503 instead.
+   */
+  PAYMENTS_PROVIDER: z.enum(['auto', 'razorpay', 'mock']).default('auto'),
+
+  // ---- Analytics (D-28) ----
+  GA4_API_SECRET: nonEmpty.optional(),
+
+  // ---- Google Cloud logging/monitoring (D-27) ----
+  GCP_PROJECT_ID: nonEmpty.optional(),
+  GCP_LOG_NAME: nonEmpty.default('parthik'),
+
+  // ---- Observability behaviour ----
+  //
+  // Accepted case-insensitively. `LOG_LEVEL` is a generic name that hosting
+  // platforms and CI images commonly set already (often as `INFO`), so being
+  // strict about case here breaks builds for reasons that have nothing to do
+  // with our configuration.
+  LOG_LEVEL: z
+    .preprocess(
+      (value) => (typeof value === 'string' ? value.toLowerCase() : value),
+      z.enum(['debug', 'info', 'warn', 'error'])
+    )
+    .default('info'),
+});
+
+const clientSchema = z.object({
+  // Firebase web config. These are public by design — Firebase security comes
+  // from server-side token verification and rules, not from hiding these.
+  NEXT_PUBLIC_FIREBASE_API_KEY: nonEmpty.optional(),
+  NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN: nonEmpty.optional(),
+  NEXT_PUBLIC_FIREBASE_PROJECT_ID: nonEmpty.optional(),
+  NEXT_PUBLIC_FIREBASE_APP_ID: nonEmpty.optional(),
+  NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID: nonEmpty.optional(),
+  NEXT_PUBLIC_FIREBASE_MEASUREMENT_ID: nonEmpty.optional(),
+  NEXT_PUBLIC_FCM_VAPID_KEY: nonEmpty.optional(),
+
+  // Referrer-restricted, display-only Maps key (never the server key).
+  NEXT_PUBLIC_GOOGLE_MAPS_BROWSER_KEY: nonEmpty.optional(),
+
+  NEXT_PUBLIC_GA4_MEASUREMENT_ID: nonEmpty.optional(),
+  NEXT_PUBLIC_APP_URL: z.string().url().default('http://localhost:3000'),
+
+  /**
+   * Public base URL for stored images (R2 public bucket or its custom domain).
+   *
+   * OPTIONAL AND UNSET BY DEFAULT. The database stores object keys, not URLs, and
+   * decision D-07a (Cloudflare Images vs a custom loader) is still open — so with
+   * this absent, `lib/catalog/image.ts` returns null and the UI renders a
+   * placeholder rather than a guessed, broken URL.
+   */
+  NEXT_PUBLIC_ASSET_BASE_URL: z.string().url().optional(),
+});
+
+export type ServerEnv = z.infer<typeof serverSchema>;
+export type ClientEnv = z.infer<typeof clientSchema>;
+
+function formatIssues(error: z.ZodError): string {
+  return error.issues
+    .map((issue) => `  - ${issue.path.join('.') || '(root)'}: ${issue.message}`)
+    .join('\n');
+}
+
+/**
+ * Treats an empty-string variable as unset.
+ *
+ * Build systems, CI runners and shell exports routinely produce `KEY=`, and Zod
+ * `.default()` only applies to `undefined`. Without this, an empty value fails
+ * validation instead of falling back to its default — which is both surprising
+ * and, at build time, fatal.
+ */
+function withoutEmptyValues(source: Record<string, string | undefined>): Record<string, unknown> {
+  const cleaned: Record<string, unknown> = {};
+
+  for (const [key, value] of Object.entries(source)) {
+    if (typeof value === 'string' && value.trim() === '') continue;
+    if (value === undefined) continue;
+    cleaned[key] = value;
+  }
+
+  return cleaned;
+}
+
+/**
+ * NEXT_PUBLIC_* values are inlined at build time, so they must be referenced
+ * statically rather than looked up dynamically.
+ */
+function readClientEnv(): Record<string, string | undefined> {
+  return {
+    NEXT_PUBLIC_FIREBASE_API_KEY: process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
+    NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN: process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN,
+    NEXT_PUBLIC_FIREBASE_PROJECT_ID: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID,
+    NEXT_PUBLIC_FIREBASE_APP_ID: process.env.NEXT_PUBLIC_FIREBASE_APP_ID,
+    NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID: process.env.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID,
+    NEXT_PUBLIC_FIREBASE_MEASUREMENT_ID: process.env.NEXT_PUBLIC_FIREBASE_MEASUREMENT_ID,
+    NEXT_PUBLIC_FCM_VAPID_KEY: process.env.NEXT_PUBLIC_FCM_VAPID_KEY,
+    NEXT_PUBLIC_GOOGLE_MAPS_BROWSER_KEY: process.env.NEXT_PUBLIC_GOOGLE_MAPS_BROWSER_KEY,
+    NEXT_PUBLIC_GA4_MEASUREMENT_ID: process.env.NEXT_PUBLIC_GA4_MEASUREMENT_ID,
+    NEXT_PUBLIC_APP_URL: process.env.NEXT_PUBLIC_APP_URL,
+    NEXT_PUBLIC_ASSET_BASE_URL: process.env.NEXT_PUBLIC_ASSET_BASE_URL,
+  };
+}
+
+let cachedServerEnv: ServerEnv | null = null;
+let cachedClientEnv: ClientEnv | null = null;
+
+/**
+ * Validated server configuration. Throws on invalid REQUIRED values so the
+ * failure surfaces at startup with an actionable message.
+ */
+export function getServerEnv(): ServerEnv {
+  if (cachedServerEnv) return cachedServerEnv;
+
+  const parsed = serverSchema.safeParse(withoutEmptyValues(process.env));
+  if (!parsed.success) {
+    throw new Error(
+      `Invalid server environment configuration:\n${formatIssues(parsed.error)}\n\n` +
+        'See .env.example for the expected keys.'
+    );
+  }
+
+  cachedServerEnv = parsed.data;
+  return cachedServerEnv;
+}
+
+/** Validated public configuration. Safe to call from client components. */
+export function getClientEnv(): ClientEnv {
+  if (cachedClientEnv) return cachedClientEnv;
+
+  const parsed = clientSchema.safeParse(withoutEmptyValues(readClientEnv()));
+  if (!parsed.success) {
+    throw new Error(
+      `Invalid public environment configuration:\n${formatIssues(parsed.error)}\n\n` +
+        'See .env.example for the expected keys.'
+    );
+  }
+
+  cachedClientEnv = parsed.data;
+  return cachedClientEnv;
+}
+
+/** Test-only: clears memoised config between cases. */
+export function resetEnvCacheForTests(): void {
+  cachedServerEnv = null;
+  cachedClientEnv = null;
+}
+
+export const isProduction = (): boolean => getServerEnv().APP_ENV === 'production';
+export const isDevelopment = (): boolean => getServerEnv().APP_ENV === 'development';
+
+/**
+ * True when Parthik can issue its own sessions.
+ *
+ * Reported separately from Firebase configuration because the two fail for
+ * different reasons and the sign-in UI needs to say which is missing.
+ */
+export const isAuthSecretConfigured = (): boolean => getServerEnv().AUTH_SECRET !== undefined;
+
+/**
+ * True when the deployment must never be indexed by search engines
+ * (docs/ROUTES.md §1: preview and staging are always noindex).
+ */
+export const isIndexableEnvironment = (): boolean => getServerEnv().APP_ENV === 'production';

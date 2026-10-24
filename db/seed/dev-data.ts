@@ -1,0 +1,225 @@
+/**
+ * DEVELOPMENT-ONLY demo data.
+ *
+ * ⚠️ This file must NEVER run against staging or production. `db/seed/index.ts`
+ * refuses to load it unless `APP_ENV` is `development` or `test`, because demo
+ * vendors and products appearing in a real catalogue would be a genuine incident,
+ * not just untidy.
+ *
+ * Everything here is obviously fictional: names are placeholders, phone numbers
+ * use the reserved 555 range, and no real customer, vendor or driver data is
+ * present.
+ */
+
+import type { Locale } from '@/i18n/routing';
+import { DEMO_PERSONAS } from '@/modules/identity/demo-personas';
+
+/** Reserved test numbers; never a real subscriber. */
+const TEST_PHONE_PREFIX = '+91555000';
+
+/**
+ * Demo users, DERIVED from `modules/identity/demo-personas.ts`.
+ *
+ * Not declared here, because a second hand-maintained list is what let the seed and the
+ * in-memory identity backend drift onto different firebase uids — with the result that
+ * development sign-in worked in memory and 404'd against a real database.
+ */
+export const DEV_USERS = DEMO_PERSONAS.map((persona) => ({
+  ref: persona.ref,
+  firebaseUid: persona.firebaseUid,
+  phone: persona.phone,
+  fullName: persona.fullName,
+  preferredLocale: persona.preferredLocale,
+  roles: persona.roles,
+}));
+
+export const DEV_VENDOR = {
+  businessName: 'Demo Kirana Store',
+  legalName: 'Demo Kirana Store Pvt Ltd',
+  slug: 'demo-kirana-store',
+  contactPhone: `${TEST_PHONE_PREFIX}002`,
+  /** D-15: recorded for calculation only; no automated settlement. */
+  commissionRate: '12.00',
+};
+
+export const DEV_STORE = {
+  name: 'Demo Kirana — Central',
+  slug: 'demo-kirana-central',
+  /**
+   * Explicit rather than relying on the column default (`CLOSED`), so the demo
+   * catalogue is actually browsable and the in-memory fixtures cannot disagree
+   * with what `pnpm seed` writes.
+   */
+  status: 'OPEN' as const,
+  line1: '12 Demo Market Road',
+  city: 'Indore',
+  state: 'Madhya Pradesh',
+  pincode: '452001',
+  latitude: '22.719568',
+  longitude: '75.857727',
+  deliveryRadiusKm: 6,
+  minOrderPaise: 9_900,
+  avgPrepTimeMinutes: 20,
+  codEnabled: true,
+};
+
+/**
+ * Demo catalogue.
+ *
+ * Prices are integer paise. Hindi names are provided for every product so the
+ * bilingual read path is genuinely exercised — with English-only demo data, a
+ * broken locale fallback would look fine in development.
+ */
+export const DEV_PRODUCTS: Array<{
+  slug: string;
+  categorySlug: string;
+  mrpPaise: number;
+  pricePaise: number;
+  unitLabel: string;
+  stock: number;
+  translations: Record<Locale, { name: string; shortDescription: string }>;
+}> = [
+  {
+    slug: 'demo-atta-5kg',
+    categorySlug: 'staples',
+    mrpPaise: 32_500,
+    pricePaise: 28_900,
+    unitLabel: '5 kg',
+    stock: 40,
+    translations: {
+      en: { name: 'Demo Whole Wheat Atta', shortDescription: 'Stone-ground whole wheat flour' },
+      hi: { name: 'डेमो गेहूँ का आटा', shortDescription: 'चक्की से पिसा गेहूँ का आटा' },
+    },
+  },
+  {
+    slug: 'demo-toor-dal-1kg',
+    categorySlug: 'staples',
+    mrpPaise: 19_500,
+    pricePaise: 17_500,
+    unitLabel: '1 kg',
+    stock: 60,
+    translations: {
+      en: { name: 'Demo Toor Dal', shortDescription: 'Unpolished split pigeon peas' },
+      hi: { name: 'डेमो तूर दाल', shortDescription: 'बिना पॉलिश की तूर दाल' },
+    },
+  },
+  {
+    slug: 'demo-full-cream-milk-1l',
+    categorySlug: 'milk-curd',
+    mrpPaise: 7_200,
+    pricePaise: 7_200,
+    unitLabel: '1 L',
+    stock: 25,
+    translations: {
+      en: { name: 'Demo Full Cream Milk', shortDescription: 'Pasteurised, 6% fat' },
+      hi: { name: 'डेमो फ़ुल क्रीम दूध', shortDescription: 'पाश्चुरीकृत, 6% फैट' },
+    },
+  },
+  {
+    slug: 'demo-bananas-6pc',
+    categorySlug: 'fresh-fruits',
+    mrpPaise: 6_000,
+    pricePaise: 4_900,
+    unitLabel: '6 pcs',
+    stock: 80,
+    translations: {
+      en: { name: 'Demo Bananas', shortDescription: 'Ripe robusta bananas' },
+      hi: { name: 'डेमो केले', shortDescription: 'पके रोबस्टा केले' },
+    },
+  },
+  {
+    slug: 'demo-tomatoes-1kg',
+    categorySlug: 'fresh-vegetables',
+    mrpPaise: 4_500,
+    pricePaise: 3_900,
+    unitLabel: '1 kg',
+    stock: 0,
+    translations: {
+      en: { name: 'Demo Tomatoes', shortDescription: 'Fresh hybrid tomatoes' },
+      hi: { name: 'डेमो टमाटर', shortDescription: 'ताज़े हाइब्रिड टमाटर' },
+    },
+  },
+  {
+    // English-only on purpose: exercises the Hindi→English fallback path, which
+    // is otherwise easy to ship broken.
+    slug: 'demo-cleaning-liquid-1l',
+    categorySlug: 'household',
+    mrpPaise: 21_000,
+    pricePaise: 18_500,
+    unitLabel: '1 L',
+    stock: 15,
+    translations: {
+      en: { name: 'Demo Floor Cleaner', shortDescription: 'Citrus surface cleaner' },
+    } as Record<Locale, { name: string; shortDescription: string }>,
+  },
+];
+
+/**
+ * Demo coupons.
+ *
+ * Chosen to cover every coupon TYPE and the scoping mechanism, so the offers page,
+ * the apply flow and the in-memory repository all exercise real rule paths rather
+ * than one happy case. These are DEMO VALUES, not approved promotions — the amounts
+ * carry no product authority.
+ */
+export const DEV_COUPONS: Array<{
+  code: string;
+  couponType: 'FLAT' | 'PERCENTAGE' | 'FREE_DELIVERY';
+  /** Paise for FLAT, whole percent for PERCENTAGE, ignored for FREE_DELIVERY. */
+  discountValue: number;
+  minCartPaise: number;
+  maxDiscountPaise?: number;
+  firstOrderOnly: boolean;
+  /** Restricts the discount to these categories. Empty means the whole cart. */
+  categorySlugs?: string[];
+  translations: Record<Locale, { name: string; description: string }>;
+}> = [
+  {
+    code: 'DEMOFIRST50',
+    couponType: 'FLAT',
+    discountValue: 5_000,
+    minCartPaise: 19_900,
+    firstOrderOnly: true,
+    translations: {
+      en: { name: '₹50 off first order', description: 'On orders above ₹199' },
+      hi: { name: 'पहले ऑर्डर पर ₹50 छूट', description: '₹199 से ऊपर के ऑर्डर पर' },
+    },
+  },
+  {
+    code: 'DEMOFREEDEL',
+    couponType: 'FREE_DELIVERY',
+    discountValue: 0,
+    minCartPaise: 9_900,
+    firstOrderOnly: false,
+    translations: {
+      en: { name: 'Free delivery', description: 'On orders above ₹99' },
+      hi: { name: 'मुफ़्त डिलीवरी', description: '₹99 से ऊपर के ऑर्डर पर' },
+    },
+  },
+  {
+    // Percentage with a cap, so the max-discount rule is actually reachable.
+    code: 'DEMOSAVE10',
+    couponType: 'PERCENTAGE',
+    discountValue: 10,
+    minCartPaise: 29_900,
+    maxDiscountPaise: 7_500,
+    firstOrderOnly: false,
+    translations: {
+      en: { name: '10% off, up to ₹75', description: 'On orders above ₹299' },
+      hi: { name: '10% छूट, ₹75 तक', description: '₹299 से ऊपर के ऑर्डर पर' },
+    },
+  },
+  {
+    // Category-scoped, so the discount is computed on part of the cart only.
+    code: 'DEMOSTAPLES15',
+    couponType: 'PERCENTAGE',
+    discountValue: 15,
+    minCartPaise: 19_900,
+    firstOrderOnly: false,
+    categorySlugs: ['staples'],
+    translations: {
+      en: { name: '15% off staples', description: 'Atta, dal and rice' },
+      hi: { name: 'स्टेपल्स पर 15% छूट', description: 'आटा, दाल और चावल' },
+    },
+  },
+];
