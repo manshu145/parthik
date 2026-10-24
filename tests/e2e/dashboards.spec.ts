@@ -311,7 +311,7 @@ test.describe('access control', () => {
 
   test.describe('per-page permissions', () => {
     /**
-     * ADMIN_SUPPORT reaches the admin surface but holds only 10 of the 59 permissions.
+     * ADMIN_SUPPORT reaches the admin surface but holds only 10 of the 60 permissions.
      * This is the block that proves the permission engine DENIES — signing in as
      * SUPER_ADMIN everywhere would never exercise that half.
      */
