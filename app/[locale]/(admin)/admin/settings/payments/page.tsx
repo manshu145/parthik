@@ -24,16 +24,10 @@ export default async function Page({ params }: { params: Promise<{ locale: strin
   const access = await checkPagePermission('setting:manage_sensitive');
   if (access.status !== 'ok') return <AccessDenied decision={access} />;
 
-  const [t, settings] = await Promise.all([
-    getTranslations('adminNav'),
-    listProviderSettings(),
-  ]);
+  const [t, settings] = await Promise.all([getTranslations('adminNav'), listProviderSettings()]);
 
   return (
-    <div
-      className="mx-auto flex max-w-7xl flex-col gap-4"
-      data-testid="admin-payment-settings"
-    >
+    <div className="mx-auto flex max-w-7xl flex-col gap-4" data-testid="admin-payment-settings">
       <div>
         <h1 className="text-xl font-semibold">{t('paymentSettings')}</h1>
         <p className="text-muted-foreground mt-1 text-sm">
@@ -44,11 +38,15 @@ export default async function Page({ params }: { params: Promise<{ locale: strin
 
       <div className="rounded-xl border p-4">
         <h2 className="font-semibold">Before changing production credentials</h2>
-        <ul className="mt-2 list-disc space-y-1 pl-5 text-sm text-muted-foreground">
-          <li>Use restricted production keys from the provider console, not unrestricted test keys.</li>
+        <ul className="text-muted-foreground mt-2 list-disc space-y-1 pl-5 text-sm">
+          <li>
+            Use restricted production keys from the provider console, not unrestricted test keys.
+          </li>
           <li>Keep webhook secrets and service-account private keys server-side.</li>
           <li>Some browser/build-time values require a new deployment after saving.</li>
-          <li>Verify the provider health page and a staged transaction before enabling real orders.</li>
+          <li>
+            Verify the provider health page and a staged transaction before enabling real orders.
+          </li>
         </ul>
       </div>
 
