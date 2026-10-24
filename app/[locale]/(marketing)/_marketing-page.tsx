@@ -3,9 +3,9 @@ import { notFound } from 'next/navigation';
 import { getTranslations, setRequestLocale } from 'next-intl/server';
 import { defaultLocale, isLocale, type Locale } from '@/i18n/routing';
 import { PageShell } from '@/components/layout/page-shell';
-import { EmptyState } from '@/components/feedback/states';
 import { JsonLd } from '@/components/seo/json-ld';
 import { CmsContent } from '@/components/cms/cms-content';
+import { DefaultMarketingContent } from '@/components/marketing/default-marketing-content';
 import { breadcrumbJsonLd } from '@/lib/seo/json-ld';
 import { canonicalUrl, privatePageMetadata, publicPageMetadata } from '@/lib/seo/metadata';
 import { logger } from '@/lib/logger';
@@ -63,9 +63,17 @@ export async function marketingMetadata(
   const page = await loadPage(slug, locale);
   const fallbackTitle = t(`titles.${slug}` as 'titles.about');
 
-  // No published content means nothing worth indexing yet, so no canonical and no
-  // hreflang either — see `privatePageMetadata`.
-  if (!page) return privatePageMetadata(fallbackTitle);
+  // Built-in production copy keeps public/legal routes useful before an operator
+  // publishes a CMS override. CMS content still wins as soon as it exists.
+  if (!page) {
+    return publicPageMetadata({
+      title: fallbackTitle,
+      description: t('defaultDescription'),
+      path: `/${slug}`,
+      locale,
+      siteName: t('siteName'),
+    });
+  }
 
   if (!page.isIndexable) return privatePageMetadata(page.metaTitle ?? page.title);
 
@@ -122,12 +130,7 @@ export async function MarketingPage({
           <CmsContent content={page.content} />
         </>
       ) : (
-        // Wrapped rather than passing `data-testid` to EmptyState: StateShell does
-        // not forward unknown props, so the attribute would silently vanish and the
-        // E2E assertion would be testing nothing.
-        <div data-testid="cms-pending">
-          <EmptyState title={t('pendingTitle')} description={t('pendingDescription')} />
-        </div>
+        <DefaultMarketingContent slug={slug} locale={localeParam} />
       )}
     </PageShell>
   );

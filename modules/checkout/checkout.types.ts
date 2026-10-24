@@ -22,6 +22,7 @@ export const PAYMENT_METHODS: readonly PaymentMethod[] = ['UPI', 'CARD', 'COD'];
  * reason instead of failing the whole quote — the customer can still pay another way.
  */
 export type PaymentMethodRejection =
+  | { code: 'PREPAID_GATEWAY_NOT_CONFIGURED' }
   | { code: 'COD_DISABLED_PLATFORM' }
   | { code: 'COD_DISABLED_ZONE' }
   | { code: 'COD_DISABLED_STORE' }

@@ -3,6 +3,7 @@ import { notFound } from 'next/navigation';
 import { getTranslations, setRequestLocale } from 'next-intl/server';
 import { AccessDenied } from '@/app/_components/access-denied';
 import { OrderStatusBadge } from '@/components/orders/order-status-badge';
+import { VendorOrderDetailActions } from '@/components/vendor/order-detail-actions';
 import { OrderTimeline } from '@/components/orders/order-timeline';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -52,6 +53,9 @@ export default async function VendorOrderDetailPage({
     if (error instanceof NotFoundError) notFound();
     throw error;
   });
+
+  const manageAccess = await checkVendorPage('order:update_status');
+  const canManage = manageAccess.status === 'ok';
 
   const tOrders = await getTranslations('orders');
   const tVendor = await getTranslations('vendorOrders');
@@ -119,6 +123,9 @@ export default async function VendorOrderDetailPage({
         </div>
 
         <aside className="flex flex-col gap-4">
+          {canManage ? (
+            <VendorOrderDetailActions orderId={detail.order.id} status={detail.order.status} />
+          ) : null}
           <Card>
             <CardContent className="flex flex-col gap-2 p-4 text-sm">
               <div className="flex items-center justify-between gap-3">

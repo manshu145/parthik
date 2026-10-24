@@ -2,10 +2,12 @@ import type { Metadata } from 'next';
 import { redirect } from 'next/navigation';
 import { getTranslations, setRequestLocale } from 'next-intl/server';
 import { PhoneSignIn } from '@/components/auth/phone-sign-in';
+import { TemporarySignIn } from '@/components/auth/temporary-sign-in';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { getCurrentActor } from '@/lib/auth/current-actor';
 import { homePathForSurface, isSafeRedirectTarget } from '@/lib/http/route-access';
 import { describeAuthReadiness, landingSurfaceForRoles } from '@/modules/identity';
+import { getServerEnv } from '@/lib/config/env';
 
 /**
  * Sign-in (TASK 003).
@@ -57,25 +59,38 @@ export default async function LoginPage({
   }
 
   const readiness = describeAuthReadiness();
+  const env = getServerEnv();
+  const temporaryAuthEnabled =
+    env.APP_ENV !== 'production' && env.TEMP_AUTH_ENABLED && Boolean(env.TEMP_AUTH_PASSWORD);
 
   return (
     <main className="mx-auto flex min-h-dvh max-w-md items-center justify-center p-6">
       <Card className="w-full">
         <CardHeader>
-          <CardTitle>{readiness.ready ? t('title') : t('unavailable.title')}</CardTitle>
+          <CardTitle>
+            {temporaryAuthEnabled
+              ? 'Sign in to Parthik'
+              : readiness.ready
+                ? t('title')
+                : t('unavailable.title')}
+          </CardTitle>
           <CardDescription>
-            {readiness.ready
-              ? t('subtitle')
-              : /**
-                 * Names the missing variables rather than saying "unavailable".
-                 * A developer on a fresh clone needs to know WHICH credential is
-                 * absent; an opaque message costs an afternoon.
-                 */
-                t('unavailable.description', { missing: readiness.missing.join(', ') })}
+            {temporaryAuthEnabled
+              ? 'Use your temporary dashboard username and password.'
+              : readiness.ready
+                ? t('subtitle')
+                : /**
+                   * Names the missing variables rather than saying "unavailable".
+                   * A developer on a fresh clone needs to know WHICH credential is
+                   * absent; an opaque message costs an afternoon.
+                   */
+                  t('unavailable.description', { missing: readiness.missing.join(', ') })}
           </CardDescription>
         </CardHeader>
         <CardContent>
-          {readiness.ready ? (
+          {temporaryAuthEnabled ? (
+            <TemporarySignIn nextPath={safeNext} />
+          ) : readiness.ready ? (
             <PhoneSignIn nextPath={safeNext} />
           ) : (
             <p className="text-muted-foreground text-sm" data-testid="signin-unavailable">

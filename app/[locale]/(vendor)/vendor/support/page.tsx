@@ -1,7 +1,8 @@
 import type { Metadata } from 'next';
+import Link from 'next/link';
 import { getFormatter, getTranslations, setRequestLocale } from 'next-intl/server';
 import { Badge, type BadgeVariant } from '@/components/ui/badge';
-import { Card, CardContent } from '@/components/ui/card';
+import { CreateSupportTicketForm } from '@/components/support/create-ticket-form';
 import { requireCurrentActor } from '@/lib/auth/current-actor';
 import { listSupportTicketsForUser } from '@/modules/support';
 
@@ -37,71 +38,48 @@ export default async function Page({ params }: { params: Promise<{ locale: strin
   ]);
 
   return (
-    <div className="mx-auto flex max-w-3xl flex-col gap-4" data-testid="vendor-support">
+    <div className="mx-auto flex max-w-5xl flex-col gap-4" data-testid="vendor-support">
       <div>
         <h1 className="text-xl font-semibold">{t('support')}</h1>
         <p className="text-muted-foreground mt-1 text-sm">
-          {locale === 'hi'
-            ? 'अपने सपोर्ट अनुरोध और उनकी वर्तमान स्थिति देखें।'
-            : 'Track your support requests and their current status.'}
+          Create, track and reply to support requests.
         </p>
       </div>
 
-      {tickets.length === 0 ? (
-        <Card>
-          <CardContent className="p-4 text-sm">
-            <p className="font-medium">
-              {locale === 'hi' ? 'अभी कोई सपोर्ट टिकट नहीं है।' : 'No support tickets yet.'}
-            </p>
-            <p className="text-muted-foreground mt-1">
-              {locale === 'hi'
-                ? 'नया टिकट बनाने का write-flow अलग से जोड़ा जाएगा।'
-                : 'Ticket creation will be added as a separate write flow.'}
-            </p>
-          </CardContent>
-        </Card>
-      ) : (
-        <ul className="flex flex-col gap-3">
-          {tickets.map((ticket) => (
-            <li key={ticket.id}>
-              <Card>
-                <CardContent className="flex flex-col gap-3 p-4">
-                  <div className="flex flex-wrap items-start justify-between gap-3">
-                    <div className="min-w-0">
-                      <p className="font-medium">{ticket.subject}</p>
-                      <p className="text-muted-foreground mt-1 text-xs">{ticket.ticketNumber}</p>
-                    </div>
-                    <Badge variant={STATUS_VARIANT[ticket.status] ?? 'neutral'}>
-                      {ticket.status.replaceAll('_', ' ')}
-                    </Badge>
-                  </div>
+      <div className="grid gap-6 lg:grid-cols-[minmax(0,360px)_1fr]">
+        <CreateSupportTicketForm />
 
-                  <div className="text-muted-foreground flex flex-wrap gap-x-4 gap-y-1 text-xs">
-                    <span>{ticket.category}</span>
-                    <span>{ticket.priority}</span>
-                    <span>
-                      {format.dateTime(ticket.createdAt, {
-                        dateStyle: 'medium',
-                        timeStyle: 'short',
-                      })}
-                    </span>
+        <div className="space-y-3">
+          {tickets.length === 0 ? (
+            <p className="text-muted-foreground text-sm">No support tickets yet.</p>
+          ) : (
+            tickets.map((ticket) => (
+              <Link
+                key={ticket.id}
+                href={`/${locale}/vendor/support/${ticket.id}`}
+                className="hover:bg-muted/30 block rounded-xl border p-4 transition-colors"
+              >
+                <div className="flex flex-wrap items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <p className="font-medium">{ticket.subject}</p>
+                    <p className="text-muted-foreground mt-1 text-xs">{ticket.ticketNumber}</p>
                   </div>
-
-                  {ticket.resolvedAt && (
-                    <p className="text-muted-foreground text-xs">
-                      {locale === 'hi' ? 'समाधान' : 'Resolved'}:{' '}
-                      {format.dateTime(ticket.resolvedAt, {
-                        dateStyle: 'medium',
-                        timeStyle: 'short',
-                      })}
-                    </p>
-                  )}
-                </CardContent>
-              </Card>
-            </li>
-          ))}
-        </ul>
-      )}
+                  <Badge variant={STATUS_VARIANT[ticket.status] ?? 'neutral'}>
+                    {ticket.status.replaceAll('_', ' ')}
+                  </Badge>
+                </div>
+                <p className="text-muted-foreground mt-2 text-xs">
+                  {ticket.category} · {ticket.priority} ·{' '}
+                  {format.dateTime(ticket.updatedAt, {
+                    dateStyle: 'medium',
+                    timeStyle: 'short',
+                  })}
+                </p>
+              </Link>
+            ))
+          )}
+        </div>
+      </div>
     </div>
   );
 }

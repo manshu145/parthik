@@ -4,27 +4,23 @@ Hyperlocal commerce and delivery platform — customer PWA, vendor dashboard, dr
 
 ## Status
 
-**Foundation, catalog, cart and authentication implemented. Checkout onwards not started.**
+**Implementation status reviewed 24 October 2026.** The earlier status text in this README became stale as checkout, orders, payments, database migrations and operational screens were added. Treat the product specification as intended scope, and the branch/CI status below as implementation evidence.
 
-The architecture gate is complete (32 of 36 decisions approved). Customer browsing works end to end, and **TASK 003 (authentication + RBAC) is now in place**, so every privileged route is genuinely gated. The transactional path — checkout, orders, payments, delivery — is still ahead.
+| Area                                                           | Current state                                                                                                                                                                                                                                |
+| -------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Foundation, customer shell, location, catalog, search and cart | Implemented in the application code; live provider/database behaviour still requires production configuration and smoke tests.                                                                                                               |
+| Database schema and migrations                                 | Schema, bootstrap SQL and committed migrations exist. The CI PostgreSQL job verifies migrations, seeding and critical SQL against PostgreSQL 16.                                                                                             |
+| Authentication and RBAC                                        | Firebase phone-auth/session code and permission engine exist. Real OTP sign-in requires a configured Firebase project, billing, keys and security settings.                                                                                  |
+| Checkout, orders and payments                                  | Service/API code exists. CI covers cart persistence, checkout quote, order placement and payment-webhook paths. Live Razorpay credentials and webhook verification remain deployment tasks.                                                  |
+| Vendor, driver and admin dashboards                            | The `develop` branch still has gaps/placeholder screens. [PR #17](https://github.com/manshu145/parthik/pull/17) contains a substantial operational-screen implementation, but is not merged yet.                                             |
+| Notifications, CMS and marketing                               | Core code exists in the feature work; actual FCM configuration/content and launch policy still need verification. Email and non-OTP order SMS remain blocked decisions.                                                                      |
+| Live website                                                   | `https://parthik.com` serves the app from the VPS. A working page is not proof of production commerce readiness: deployed database, production environment and external providers must be verified before accepting real orders.             |
+| Deployment approach                                            | Architecture docs target Cloudflare Workers/OpenNext; the feature PR also adds VPS Docker/Caddy deployment files, while the current VPS uses Nginx/systemd. Standardize and document the release target before the final production cutover. |
+| Legacy data migration                                          | Deliberately deferred by D-31; no legacy business data should be migrated or overwritten until the old system is backed up and a restore is rehearsed.                                                                                       |
 
-|                                  |                                                                                                    |
-| -------------------------------- | -------------------------------------------------------------------------------------------------- |
-| Documentation                    | **Approved** — see [`docs/`](./docs/README.md)                                                     |
-| Decisions                        | **32 of 36 approved** — see [approved decisions](./docs/ARCHITECTURE.md#16-approved-decisions)     |
-| Blocked                          | **D-14** GST/tax · **D-25** transactional email · **D-34** order-status SMS · **D-32** multi-store |
-| Application foundation           | **Implemented** (TASK 001)                                                                         |
-| Database schema                  | **Implemented** (TASK 002) — 86 tables                                                             |
-| Database migrations              | **Not generated** — withheld by instruction, so the schema cannot yet be materialised              |
-| Authentication + RBAC            | **Implemented** (TASK 003) — Firebase phone sign-in, sessions, 59-permission engine                |
-| Customer shell, location         | **Implemented** (TASK 004, 005)                                                                    |
-| Catalog, search, cart            | **Implemented** (TASK 006, 007, 008) — cart is cookie-backed; `carts` tables not wired yet         |
-| Dashboards (vendor/driver/admin) | **Routes and navigation only** — 83 gated placeholder screens awaiting TASK 013–015                |
-| Checkout, orders, payments       | Not started                                                                                        |
-| Delivery, dispatch, COD cash     | Not started                                                                                        |
-| Notifications                    | Not started                                                                                        |
-| Legacy data migration            | Deferred (D-31)                                                                                    |
-| Production / DNS                 | Untouched                                                                                          |
+For the branch-by-branch snapshot, production launch gates and decisions still requiring business input, see [Implementation status](./docs/IMPLEMENTATION_STATUS.md).
+
+**Known business blockers:** D-14 GST/tax and invoices; D-19a cancellation/refund policy values; D-25 transactional email; D-32 one-vs-multiple stores per vendor; D-34 order-status SMS. Automated vendor settlement is outside V1. Push/in-app-only notifications mean a customer who declines push may receive no proactive order updates.
 
 ## Documentation
 

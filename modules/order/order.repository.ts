@@ -1049,6 +1049,7 @@ const orderColumns = {
   cancelledByRole: orders.cancelledByRole,
   estimatedDeliveryAt: orders.estimatedDeliveryAt,
   customerNote: orders.customerNote,
+  internalNote: orders.internalNote,
   createdAt: orders.createdAt,
 } as const;
 
@@ -1092,6 +1093,7 @@ function mapOrder(row: OrderRow): OrderRecord {
     cancelledByRole: (row.cancelledByRole as string | null) ?? null,
     estimatedDeliveryAt: (row.estimatedDeliveryAt as Date | null) ?? null,
     customerNote: (row.customerNote as string | null) ?? null,
+    internalNote: (row.internalNote as string | null) ?? null,
     createdAt: row.createdAt,
   };
 }

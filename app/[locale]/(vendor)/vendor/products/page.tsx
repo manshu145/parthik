@@ -34,7 +34,7 @@ export default async function Page({ params }: { params: Promise<{ locale: strin
 
   const active = items.filter((item) => item.status === 'ACTIVE').length;
   const drafts = items.filter((item) => item.status === 'DRAFT').length;
-  const pending = items.filter((item) => item.status === 'PENDING_APPROVAL').length;
+  const pending = items.filter((item) => item.status === 'PENDING_REVIEW').length;
   const moneyLocale = locale === 'hi' ? 'hi' : 'en';
 
   return (
@@ -52,7 +52,7 @@ export default async function Page({ params }: { params: Promise<{ locale: strin
         <Metric label={locale === 'hi' ? 'कुल प्रोडक्ट' : 'Total products'} value={items.length} />
         <Metric label={locale === 'hi' ? 'सक्रिय' : 'Active'} value={active} />
         <Metric label={locale === 'hi' ? 'ड्राफ्ट' : 'Drafts'} value={drafts} />
-        <Metric label={locale === 'hi' ? 'स्वीकृति लंबित' : 'Pending approval'} value={pending} />
+        <Metric label={locale === 'hi' ? 'स्वीकृति लंबित' : 'Pending review'} value={pending} />
       </div>
 
       {items.length === 0 ? (
@@ -67,7 +67,9 @@ export default async function Page({ params }: { params: Promise<{ locale: strin
             <table className="w-full text-sm">
               <thead className="bg-muted/50 text-left">
                 <tr>
-                  <th className="px-4 py-3 font-medium">{locale === 'hi' ? 'प्रोडक्ट' : 'Product'}</th>
+                  <th className="px-4 py-3 font-medium">
+                    {locale === 'hi' ? 'प्रोडक्ट' : 'Product'}
+                  </th>
                   <th className="px-4 py-3 font-medium">{locale === 'hi' ? 'स्टोर' : 'Store'}</th>
                   <th className="px-4 py-3 font-medium">{locale === 'hi' ? 'कीमत' : 'Price'}</th>
                   <th className="px-4 py-3 font-medium">{locale === 'hi' ? 'स्थिति' : 'Status'}</th>
@@ -84,7 +86,9 @@ export default async function Page({ params }: { params: Promise<{ locale: strin
                     </td>
                     <td className="px-4 py-3">{item.storeName}</td>
                     <td className="px-4 py-3">
-                      <p className="font-medium">{formatPaise(paise(item.pricePaise), moneyLocale)}</p>
+                      <p className="font-medium">
+                        {formatPaise(paise(item.pricePaise), moneyLocale)}
+                      </p>
                       {item.mrpPaise !== item.pricePaise && (
                         <p className="text-muted-foreground text-xs line-through">
                           {formatPaise(paise(item.mrpPaise), moneyLocale)}
@@ -92,7 +96,9 @@ export default async function Page({ params }: { params: Promise<{ locale: strin
                       )}
                     </td>
                     <td className="px-4 py-3">
-                      <Badge variant={statusVariant(item.status)}>{item.status.replaceAll('_', ' ')}</Badge>
+                      <Badge variant={statusVariant(item.status)}>
+                        {item.status.replaceAll('_', ' ')}
+                      </Badge>
                     </td>
                     <td className="px-4 py-3">{item.soldCount}</td>
                     <td className="text-muted-foreground px-4 py-3 text-xs">
@@ -123,6 +129,6 @@ function Metric({ label, value }: { label: string; value: number }) {
 function statusVariant(status: string) {
   if (status === 'ACTIVE') return 'success' as const;
   if (status === 'REJECTED' || status === 'ARCHIVED') return 'danger' as const;
-  if (status === 'PENDING_APPROVAL') return 'warning' as const;
+  if (status === 'PENDING_REVIEW') return 'warning' as const;
   return 'neutral' as const;
 }

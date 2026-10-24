@@ -1,11 +1,11 @@
 import type { Metadata } from 'next';
 import { getTranslations, setRequestLocale } from 'next-intl/server';
-import { GuardedDashboardPage } from '@/app/_components/guarded-dashboard-page';
+import { AccessDenied } from '@/app/_components/access-denied';
+import { ZoneEditor } from '@/components/admin/master-data-editors';
+import { checkPagePermission } from '@/lib/auth/page-guard';
+import { listAdminDeliveryZones } from '@/modules/admin-configuration';
 
-/**
- * Route is live, screen is pending. See components/layout/dashboard-page.tsx for
- * why a shared placeholder is the honest choice here.
- */
+export const dynamic = 'force-dynamic';
 
 export async function generateMetadata({
   params,
@@ -14,8 +14,6 @@ export async function generateMetadata({
 }): Promise<Metadata> {
   const { locale } = await params;
   const t = await getTranslations({ locale, namespace: 'adminNav' });
-
-  // Every dashboard route is noindex (docs/ROUTES.md §6–§8).
   return { title: t('zones'), robots: { index: false, follow: false } };
 }
 
@@ -23,15 +21,23 @@ export default async function Page({ params }: { params: Promise<{ locale: strin
   const { locale } = await params;
   setRequestLocale(locale);
 
-  const t = await getTranslations('adminNav');
-  const tDashboard = await getTranslations('dashboard');
+  const access = await checkPagePermission('zone:manage');
+  if (access.status !== 'ok') return <AccessDenied decision={access} />;
+
+  const [zones, t] = await Promise.all([listAdminDeliveryZones(), getTranslations('adminNav')]);
 
   return (
-    <GuardedDashboardPage
-      title={t('zones')}
-      permission={'zone:manage'}
-      pendingLabel={tDashboard('pendingLabel')}
-      pendingDescription={tDashboard('pendingDescription')}
-    />
+    <div className="mx-auto flex max-w-7xl flex-col gap-4" data-testid="admin-delivery-zones">
+      <div>
+        <h1 className="text-xl font-semibold">{t('zones')}</h1>
+        <p className="text-muted-foreground mt-1 text-sm">
+          {locale === 'hi'
+            ? 'Serviceability, pincode coverage और delivery fee configuration का live overview।'
+            : 'Live overview of serviceability, pincode coverage and delivery fee configuration.'}
+        </p>
+      </div>
+
+      <ZoneEditor rows={zones} />
+    </div>
   );
 }

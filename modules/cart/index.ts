@@ -1,6 +1,7 @@
 import { getCatalogService } from '@/modules/catalog';
 import { getCouponService } from '@/modules/coupons';
 import { getLocationService } from '@/modules/location';
+import { getPromotionService } from '@/modules/promotions';
 import { getDb, isDatabaseConfigured } from '@/lib/db/client';
 import { CartService } from './cart.service';
 import { DrizzleCartStore } from './cart.repository';
@@ -24,13 +25,14 @@ import type { CartStore } from './cart.repository.types';
  */
 
 export async function getCartService(): Promise<CartService> {
-  const [catalog, location, coupons] = await Promise.all([
+  const [catalog, location, coupons, promotions] = await Promise.all([
     getCatalogService(),
     getLocationService(),
     getCouponService(),
+    getPromotionService(),
   ]);
 
-  return new CartService({ catalog, location, coupons });
+  return new CartService({ catalog, location, coupons, promotions });
 }
 
 /**

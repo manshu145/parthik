@@ -28,6 +28,7 @@ import {
   products,
   seoMetaTranslations,
   stores,
+  vendors,
 } from '@/db/schema';
 import { defaultLocale, type Locale } from '@/i18n/routing';
 import { decodeCursor, encodeCursor } from '@/lib/db/cursor';
@@ -469,6 +470,7 @@ export class DrizzleCatalogRepository implements CatalogRepository {
       .from(products)
       .innerJoin(categories, eq(categories.id, products.categoryId))
       .innerJoin(stores, eq(stores.id, products.storeId))
+      .innerJoin(vendors, eq(vendors.id, products.vendorId))
       .leftJoin(
         translationRequested,
         and(
@@ -657,11 +659,13 @@ export class DrizzleCatalogRepository implements CatalogRepository {
         storeAcceptingOrders: stores.isAcceptingOrders,
         storeCodEnabled: stores.codEnabled,
         storeStatus: stores.status,
+        vendorStatus: vendors.status,
         storeMinOrderPaise: stores.minOrderPaise,
       })
       .from(productVariants)
       .innerJoin(products, eq(products.id, productVariants.productId))
       .innerJoin(stores, eq(stores.id, products.storeId))
+      .innerJoin(vendors, eq(vendors.id, products.vendorId))
       .leftJoin(
         translationRequested,
         and(
@@ -705,7 +709,9 @@ export class DrizzleCatalogRepository implements CatalogRepository {
       row.productStatus === 'ACTIVE' &&
       row.productDeletedAt === null &&
       row.variantActive &&
-      row.variantDeletedAt === null;
+      row.variantDeletedAt === null &&
+      row.vendorStatus === 'APPROVED' &&
+      row.storeStatus !== 'OFFLINE_BY_ADMIN';
 
     return {
       variantId: row.variantId,

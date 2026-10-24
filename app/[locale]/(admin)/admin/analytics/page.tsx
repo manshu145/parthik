@@ -1,11 +1,11 @@
 import type { Metadata } from 'next';
 import { getTranslations, setRequestLocale } from 'next-intl/server';
-import { GuardedDashboardPage } from '@/app/_components/guarded-dashboard-page';
+import { AccessDenied } from '@/app/_components/access-denied';
+import { OperationSnapshot } from '@/components/admin/operation-snapshot';
+import { checkPagePermission } from '@/lib/auth/page-guard';
+import { readAdminOperation } from '@/modules/admin-operations';
 
-/**
- * Route is live, screen is pending. See components/layout/dashboard-page.tsx for
- * why a shared placeholder is the honest choice here.
- */
+export const dynamic = 'force-dynamic';
 
 export async function generateMetadata({
   params,
@@ -14,8 +14,6 @@ export async function generateMetadata({
 }): Promise<Metadata> {
   const { locale } = await params;
   const t = await getTranslations({ locale, namespace: 'adminNav' });
-
-  // Every dashboard route is noindex (docs/ROUTES.md §6–§8).
   return { title: t('analytics'), robots: { index: false, follow: false } };
 }
 
@@ -23,15 +21,23 @@ export default async function Page({ params }: { params: Promise<{ locale: strin
   const { locale } = await params;
   setRequestLocale(locale);
 
-  const t = await getTranslations('adminNav');
-  const tDashboard = await getTranslations('dashboard');
+  const access = await checkPagePermission('analytics:view');
+  if (access.status !== 'ok') return <AccessDenied decision={access} />;
+
+  const [snapshot, t] = await Promise.all([
+    readAdminOperation('analytics:view'),
+    getTranslations('adminNav'),
+  ]);
 
   return (
-    <GuardedDashboardPage
-      title={t('analytics')}
-      permission={'analytics:view'}
-      pendingLabel={tDashboard('pendingLabel')}
-      pendingDescription={tDashboard('pendingDescription')}
-    />
+    <div className="mx-auto flex max-w-7xl flex-col gap-4" data-testid="admin-analytics">
+      <div>
+        <h1 className="text-xl font-semibold">{t('analytics')}</h1>
+        <p className="text-muted-foreground mt-1 text-sm">
+          Live 30-day order volume and GMV from the production orders table.
+        </p>
+      </div>
+      <OperationSnapshot snapshot={snapshot} permission="analytics:view" />
+    </div>
   );
 }

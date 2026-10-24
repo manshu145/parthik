@@ -41,7 +41,9 @@ export async function listVendorProducts(
       productTranslations,
       and(eq(productTranslations.productId, products.id), eq(productTranslations.locale, 'en'))
     )
-    .where(and(eq(products.vendorId, vendorId), isNull(products.deletedAt), isNull(stores.deletedAt)))
+    .where(
+      and(eq(products.vendorId, vendorId), isNull(products.deletedAt), isNull(stores.deletedAt))
+    )
     .orderBy(desc(products.updatedAt), desc(products.id))
     .limit(Math.min(Math.max(limit, 1), 500));
 }

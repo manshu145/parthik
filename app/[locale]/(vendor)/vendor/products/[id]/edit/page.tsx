@@ -1,11 +1,12 @@
 import type { Metadata } from 'next';
+import { notFound } from 'next/navigation';
 import { getTranslations, setRequestLocale } from 'next-intl/server';
-import { DashboardPage } from '@/components/layout/dashboard-page';
+import { AccessDenied } from '@/app/_components/access-denied';
+import { VendorProductForm } from '@/components/vendor/product-form';
+import { checkVendorPage } from '@/lib/auth/vendor-page';
+import { listVendorProductFormOptions, readVendorProductForEdit } from '@/modules/vendor-products';
 
-/**
- * Route is live, screen is pending. See components/layout/dashboard-page.tsx for
- * why a shared placeholder is the honest choice here.
- */
+export const dynamic = 'force-dynamic';
 
 export async function generateMetadata({
   params,
@@ -14,8 +15,6 @@ export async function generateMetadata({
 }): Promise<Metadata> {
   const { locale } = await params;
   const t = await getTranslations({ locale, namespace: 'vendorNav' });
-
-  // Every dashboard route is noindex (docs/ROUTES.md §6–§8).
   return { title: t('productEdit'), robots: { index: false, follow: false } };
 }
 
@@ -24,17 +23,36 @@ export default async function Page({
 }: {
   params: Promise<{ locale: string; id: string }>;
 }) {
-  const { locale } = await params;
+  const { locale, id } = await params;
   setRequestLocale(locale);
 
-  const t = await getTranslations('vendorNav');
-  const tDashboard = await getTranslations('dashboard');
+  const access = await checkVendorPage('product:manage');
+  if (access.status !== 'ok' || !access.vendorId) return <AccessDenied decision={access} />;
+
+  const [product, options, t] = await Promise.all([
+    readVendorProductForEdit(access.vendorId, id),
+    listVendorProductFormOptions(access.vendorId),
+    getTranslations('vendorNav'),
+  ]);
+
+  if (!product) notFound();
 
   return (
-    <DashboardPage
-      title={t('productEdit')}
-      pendingLabel={tDashboard('pendingLabel')}
-      pendingDescription={tDashboard('pendingDescription')}
-    />
+    <div className="mx-auto flex max-w-5xl flex-col gap-4" data-testid="vendor-product-edit">
+      <div>
+        <h1 className="text-xl font-semibold">{t('productEdit')}</h1>
+        <p className="text-muted-foreground mt-1 text-sm">
+          {locale === 'hi'
+            ? `${product.name} की catalog, pricing और stock जानकारी edit करें। Concurrent बदलाव होने पर stale save reject होगा।`
+            : `Edit catalog, pricing and stock for ${product.name}. Stale saves are rejected if another update happened first.`}
+        </p>
+      </div>
+      <VendorProductForm
+        locale={locale}
+        stores={options.stores}
+        categories={options.categories}
+        initial={product}
+      />
+    </div>
   );
 }

@@ -1,7 +1,8 @@
 import { and, count, eq, gte, isNull, sql } from 'drizzle-orm';
 import {
   loginAttempts,
-  rolePermissions as _rolePermissions,
+  permissions as permissionRows,
+  rolePermissions,
   roles,
   sessions,
   userRoles,
@@ -23,7 +24,7 @@ import type {
   UserRecord,
   UserStatus,
 } from './identity.repository.types';
-import { isRoleKey, type RoleKey } from './permissions';
+import { isPermissionKey, isRoleKey, type PermissionKey, type RoleKey } from './permissions';
 
 /**
  * Drizzle identity repository — the only place identity tables are touched.
@@ -149,22 +150,44 @@ export class DrizzleIdentityRepository implements IdentityRepository {
   async listRoleGrants(userId: string): Promise<RoleGrant[]> {
     const rows = await this.db
       .select({
+        grantId: userRoles.id,
         roleKey: roles.key,
         scopeType: userRoles.scopeType,
         scopeId: userRoles.scopeId,
+        permissionKey: permissionRows.key,
       })
       .from(userRoles)
       .innerJoin(roles, eq(roles.id, userRoles.roleId))
+      .leftJoin(rolePermissions, eq(rolePermissions.roleId, roles.id))
+      .leftJoin(permissionRows, eq(permissionRows.id, rolePermissions.permissionId))
       // Revocation is applied in the query, so a revoked grant cannot be returned.
       .where(and(eq(userRoles.userId, userId), isNull(userRoles.revokedAt)));
 
-    return rows
-      .filter((row): row is typeof row & { roleKey: RoleKey } => isRoleKey(row.roleKey))
-      .map((row) => ({
-        roleKey: row.roleKey,
-        scopeType: row.scopeType as RoleScopeType,
-        scopeId: row.scopeId,
-      }));
+    const grants = new Map<
+      string,
+      RoleGrant & { roleKey: RoleKey; permissions: PermissionKey[] }
+    >();
+
+    for (const row of rows) {
+      if (!isRoleKey(row.roleKey)) continue;
+
+      let grant = grants.get(row.grantId);
+      if (!grant) {
+        grant = {
+          roleKey: row.roleKey,
+          scopeType: row.scopeType as RoleScopeType,
+          scopeId: row.scopeId,
+          permissions: [],
+        };
+        grants.set(row.grantId, grant);
+      }
+
+      if (row.permissionKey && isPermissionKey(row.permissionKey)) {
+        grant.permissions.push(row.permissionKey);
+      }
+    }
+
+    return [...grants.values()];
   }
 
   // -------------------------------------------------------------------------

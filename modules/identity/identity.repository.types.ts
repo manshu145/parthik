@@ -1,5 +1,5 @@
 import type { Locale } from '@/i18n/routing';
-import type { RoleKey } from './permissions';
+import type { PermissionKey, RoleKey } from './permissions';
 
 /**
  * Identity repository contract.
@@ -25,6 +25,14 @@ export interface RoleGrant {
   roleKey: RoleKey;
   scopeType: RoleScopeType;
   scopeId: string | null;
+  /**
+   * Concrete permissions loaded from role_permissions in the database.
+   *
+   * Optional only for the in-memory test backend, which falls back to the
+   * canonical static map. PostgreSQL-backed authorization treats this list as
+   * authoritative so admin role edits take effect immediately.
+   */
+  permissions?: PermissionKey[] | undefined;
 }
 
 export interface UserRecord {

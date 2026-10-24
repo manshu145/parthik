@@ -1,21 +1,19 @@
 import type { Metadata } from 'next';
 import { getTranslations, setRequestLocale } from 'next-intl/server';
-import { GuardedDashboardPage } from '@/app/_components/guarded-dashboard-page';
+import { AccessDenied } from '@/app/_components/access-denied';
+import { CmsPageEditor } from '@/components/admin/cms-management';
+import { checkPagePermission } from '@/lib/auth/page-guard';
+import { getAdminCmsPage } from '@/modules/admin-cms';
 
-/**
- * Route is live, screen is pending. See components/layout/dashboard-page.tsx for
- * why a shared placeholder is the honest choice here.
- */
+export const dynamic = 'force-dynamic';
 
 export async function generateMetadata({
   params,
 }: {
-  params: Promise<{ locale: string }>;
+  params: Promise<{ locale: string; id: string }>;
 }): Promise<Metadata> {
   const { locale } = await params;
   const t = await getTranslations({ locale, namespace: 'adminNav' });
-
-  // Every dashboard route is noindex (docs/ROUTES.md §6–§8).
   return { title: t('cmsPageDetail'), robots: { index: false, follow: false } };
 }
 
@@ -24,18 +22,23 @@ export default async function Page({
 }: {
   params: Promise<{ locale: string; id: string }>;
 }) {
-  const { locale } = await params;
+  const { locale, id } = await params;
   setRequestLocale(locale);
 
-  const t = await getTranslations('adminNav');
-  const tDashboard = await getTranslations('dashboard');
+  const access = await checkPagePermission('cms:manage');
+  if (access.status !== 'ok') return <AccessDenied decision={access} />;
+
+  const [page, t] = await Promise.all([getAdminCmsPage(id), getTranslations('adminNav')]);
 
   return (
-    <GuardedDashboardPage
-      title={t('cmsPageDetail')}
-      permission={'cms:manage'}
-      pendingLabel={tDashboard('pendingLabel')}
-      pendingDescription={tDashboard('pendingDescription')}
-    />
+    <div className="mx-auto flex max-w-7xl flex-col gap-4" data-testid="admin-cms-page-editor">
+      <div>
+        <h1 className="text-xl font-semibold">{t('cmsPageDetail')}</h1>
+        <p className="text-muted-foreground mt-1 text-sm">
+          /{page.slug} · {page.status} · version {page.version}
+        </p>
+      </div>
+      <CmsPageEditor page={page} />
+    </div>
   );
 }

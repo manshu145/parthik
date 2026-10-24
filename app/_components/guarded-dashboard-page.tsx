@@ -3,6 +3,8 @@ import { DashboardPage } from '@/components/layout/dashboard-page';
 import { checkPagePermission } from '@/lib/auth/page-guard';
 import type { PermissionKey } from '@/modules/identity';
 import { AccessDenied } from './access-denied';
+import { readAdminOperation } from '@/modules/admin-operations';
+import { OperationSnapshot } from '@/components/admin/operation-snapshot';
 
 /**
  * A dashboard page that authorizes itself.
@@ -37,6 +39,10 @@ export async function GuardedDashboardPage({
     return <AccessDenied decision={decision} />;
   }
 
+  const liveChildren = children ?? (
+    <OperationSnapshot permission={permission} snapshot={await readAdminOperation(permission)} />
+  );
+
   return (
     <DashboardPage
       title={title}
@@ -45,7 +51,7 @@ export async function GuardedDashboardPage({
       pendingLabel={pendingLabel}
       pendingDescription={pendingDescription}
     >
-      {children}
+      {liveChildren}
     </DashboardPage>
   );
 }

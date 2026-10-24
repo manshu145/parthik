@@ -40,7 +40,7 @@ export async function GET(request: Request) {
   const location = describeLocationBackend();
   const catalog = describeCatalogBackend();
   const search = describeSearchBackend();
-  const paymentsBackend = describePaymentBackend();
+  const paymentsBackend = await describePaymentBackend();
 
   return apiSuccess(
     {

@@ -206,15 +206,15 @@ export function calculatePricing(input: PricingInput): PricingResult {
     waivedByThreshold = fee.isFreeDelivery && fee.baseFeePaise > 0;
   }
 
-  // A FREE_DELIVERY coupon waives whatever remains.
-  const waivedByCoupon = Boolean(discount?.waivesDeliveryFee) && deliveryFeePaise > 0;
-  if (waivedByCoupon) deliveryFeePaise = ZERO_PAISE;
+  // An approved FREE_DELIVERY coupon or promotion waives whatever remains.
+  const waivedByDiscount = Boolean(discount?.waivesDeliveryFee) && deliveryFeePaise > 0;
+  if (waivedByDiscount) deliveryFeePaise = ZERO_PAISE;
 
   const isDeliveryFree = input.zone !== null && deliveryFeePaise === 0;
   const deliveryWaivedBy = !isDeliveryFree
     ? null
-    : waivedByCoupon
-      ? 'coupon'
+    : waivedByDiscount
+      ? (discount?.deliveryWaiverSource ?? 'coupon')
       : waivedByThreshold
         ? 'threshold'
         : // The zone simply charges nothing.

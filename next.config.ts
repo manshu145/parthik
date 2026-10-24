@@ -6,6 +6,9 @@ const withNextIntl = createNextIntlPlugin('./i18n/request.ts');
 const nextConfig: NextConfig = {
   reactStrictMode: true,
 
+  // Produces the minimal self-contained Node.js server used by Docker/VPS releases.
+  output: 'standalone',
+
   // Fail the production build on type errors. TASK 001 requires a green build
   // to be meaningful, so this must never be silently skipped.
   //
