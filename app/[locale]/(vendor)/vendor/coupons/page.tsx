@@ -7,11 +7,6 @@ import { listVendorCoupons } from '@/modules/vendor-operations';
 
 export const dynamic = 'force-dynamic';
 
-/**
- * Route is live, screen is pending. See components/layout/dashboard-page.tsx for
- * why a shared placeholder is the honest choice here.
- */
-
 export async function generateMetadata({
   params,
 }: {
