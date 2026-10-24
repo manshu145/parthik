@@ -8,9 +8,9 @@ This document separates repository code from live operational readiness. A route
 ## Branch and pull-request status
 
 - `main` is the repository default branch.
-- `develop` is the integration branch. It contains the customer core and transaction services, but still has some dashboard screens that are placeholders.
-- [PR #17 — production readiness](https://github.com/manshu145/parthik/pull/17) contains the larger operational dashboard/API work for admin, vendor and driver areas. It is open and must pass all CI jobs before it is merged.
-- Keep these branches distinct when reporting progress. A feature that exists only on PR #17 is not yet included in `develop`.
+- `develop` is the integration branch and includes the customer core, transaction services and the dashboard/API work from [PR #17](https://github.com/manshu145/parthik/pull/17), merged on 24 October 2026 (merge commit `14b3f7d5`).
+- The post-merge typecheck, lint, formatter, unit tests, production build, Cloudflare build, security/dependency audit and PostgreSQL integration suite passed on the reviewed CI run. The desktop/mobile Playwright suite exposed an invalid order-status enum in the admin open-orders KPI; that regression is being fixed with a type-safe status policy and must pass the new CI run before release.
+- Code merged into `develop` is not yet a production deployment. The public domain still serves the legacy storefront and a verified, compatible host cutover has not been completed.
 
 ## Implemented code areas
 

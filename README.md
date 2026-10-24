@@ -12,9 +12,9 @@ Hyperlocal commerce and delivery platform — customer PWA, vendor dashboard, dr
 | Database schema and migrations                                 | Schema, bootstrap SQL and committed migrations exist. The CI PostgreSQL job verifies migrations, seeding and critical SQL against PostgreSQL 16.                                                                                             |
 | Authentication and RBAC                                        | Firebase phone-auth/session code and permission engine exist. Real OTP sign-in requires a configured Firebase project, billing, keys and security settings.                                                                                  |
 | Checkout, orders and payments                                  | Service/API code exists. CI covers cart persistence, checkout quote, order placement and payment-webhook paths. Live Razorpay credentials and webhook verification remain deployment tasks.                                                  |
-| Vendor, driver and admin dashboards                            | The `develop` branch still has gaps/placeholder screens. [PR #17](https://github.com/manshu145/parthik/pull/17) contains a substantial operational-screen implementation, but is not merged yet.                                             |
+| Vendor, driver and admin dashboards                            | PR #17 is merged into `develop`; the main dashboard routes now use DB-backed operational screens. Production-domain cutover and authenticated live smoke tests remain unverified.                                                                  |
 | Notifications, CMS and marketing                               | Core code exists in the feature work; actual FCM configuration/content and launch policy still need verification. Email and non-OTP order SMS remain blocked decisions.                                                                      |
-| Live website                                                   | `https://parthik.com` serves the app from the VPS. A working page is not proof of production commerce readiness: deployed database, production environment and external providers must be verified before accepting real orders.             |
+| Live website                                                   | As of 24 October 2026, `https://parthik.com` still serves the legacy storefront; the merged `develop` commit has not been confirmed on that host. Do not accept real orders until the intended deployment is cut over and all launch gates pass. |
 | Deployment approach                                            | Architecture docs target Cloudflare Workers/OpenNext; the feature PR also adds VPS Docker/Caddy deployment files, while the current VPS uses Nginx/systemd. Standardize and document the release target before the final production cutover. |
 | Legacy data migration                                          | Deliberately deferred by D-31; no legacy business data should be migrated or overwritten until the old system is backed up and a restore is rehearsed.                                                                                       |
 
@@ -105,7 +105,7 @@ Then check:
 | `bash scripts/verify-runtime.sh` | Boot the built app and smoke-test routes, i18n, headers, health |
 | `bash scripts/check-secrets.sh`  | Fail if credentials were committed                              |
 
-`pnpm db:generate` / `db:migrate` exist but **no migrations have been generated yet** — that step requires explicit authorization.
+`pnpm db:generate` / `db:migrate` are available. Committed PostgreSQL migrations and the bootstrap SQL are verified by CI against PostgreSQL 16; production migration/backup/restore still need to be verified on the chosen host.
 
 ## Project structure
 

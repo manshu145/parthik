@@ -1,6 +1,7 @@
-import { and, eq, isNull, lte, sql } from 'drizzle-orm';
+import { and, eq, isNull, lte, notInArray, sql } from 'drizzle-orm';
 import { drivers, inventory, orders, products, vendors } from '@/db/schema';
 import { getDb } from '@/lib/db/client';
+import { CLOSED_ORDER_STATUSES } from './order-status-policy';
 
 export interface AdminDashboardSnapshot {
   totalOrders: number;
@@ -44,7 +45,7 @@ export async function readAdminDashboard(): Promise<AdminDashboardSnapshot> {
     db
       .select({ count: countExpr() })
       .from(orders)
-      .where(sql`${orders.status} not in ('DELIVERED', 'CANCELLED', 'FAILED')`),
+      .where(notInArray(orders.status, [...CLOSED_ORDER_STATUSES])),
     db.select({ count: countExpr() }).from(orders).where(eq(orders.status, 'DELIVERED')),
     db
       .select({ total: sql<number>`coalesce(sum(${orders.totalAmountPaise}), 0)::int` })
