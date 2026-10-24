@@ -13,7 +13,7 @@ import {
   users,
 } from '@/db/schema';
 import { eq } from 'drizzle-orm';
-import type { PermissionKey } from '@/modules/identity';
+import type { PermissionKey, RoleKey } from '@/modules/identity';
 
 export interface OperationSnapshot {
   summary: Array<{ label: string; value: number }>;
@@ -24,7 +24,8 @@ export async function updateAdminOperation(
   permission: PermissionKey,
   id: string,
   action: string,
-  actorUserId: string
+  actorUserId: string,
+  actorRole: RoleKey
 ) {
   if (!isAdminOperationActionAllowed(permission, action)) {
     throw new ValidationError('This action is not allowed for the selected admin module.', {
@@ -100,7 +101,7 @@ export async function updateAdminOperation(
     }
     await tx.insert(auditLogs).values({
       actorUserId,
-      actorRole: 'SUPER_ADMIN',
+      actorRole,
       action: 'UPDATE',
       entityType,
       entityId: id,
