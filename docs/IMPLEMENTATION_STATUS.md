@@ -9,7 +9,7 @@ This document separates repository code from live operational readiness. A route
 
 - `main` is the repository default branch.
 - `develop` is the integration branch and includes the customer core, transaction services and the dashboard/API work from [PR #17](https://github.com/manshu145/parthik/pull/17), merged on 24 October 2026 (merge commit `14b3f7d5`).
-- The post-merge typecheck, lint, formatter, unit tests, production build, Cloudflare build, security/dependency audit and PostgreSQL integration suite passed on the reviewed CI run. The desktop/mobile Playwright suite exposed an invalid order-status enum in the admin open-orders KPI; that regression is being fixed with a type-safe status policy and must pass the new CI run before release.
+- The post-merge typecheck, lint, formatter, unit tests, production build, Cloudflare build, security/dependency audit and PostgreSQL integration suite passed on the reviewed CI run. Playwright then exposed an invalid order-status enum in the admin open-orders KPI. Commit `cf3f08bf` replaces the invalid value with a type-safe closed-status policy and adds regression tests; a fresh CI run must pass before release.
 - Code merged into `develop` is not yet a production deployment. The public domain still serves the legacy storefront and a verified, compatible host cutover has not been completed.
 
 ## Implemented code areas
@@ -20,7 +20,7 @@ The repository contains code for:
 - PostgreSQL schema/bootstrap and committed migrations.
 - Firebase phone-token verification, application sessions and RBAC permissions.
 - Checkout quoting, order creation/state transitions, cancellation policy engine, Razorpay adapter/webhooks, and COD cash-ledger services.
-- Vendor product/inventory/order features, driver delivery/OTP/cash screens, and admin operational screens across orders, people, catalog, delivery, payments, cash, CMS, support, settings and permissions (some of this is in PR #17, not yet in `develop`).
+- Vendor product/inventory/order features, driver delivery/OTP/cash screens, and admin operational screens across orders, people, catalog, delivery, payments, cash, CMS, support, settings and permissions are now present in `develop`; live provider wiring and host deployment remain separate launch gates.
 - SEO, notification, analytics/health and support building blocks.
 
 ## Production launch gates

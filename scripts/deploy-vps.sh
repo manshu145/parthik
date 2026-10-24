@@ -11,7 +11,7 @@ if [[ ! -f "$COMPOSE_FILE" ]]; then
 fi
 
 if [[ ! -f "$ENV_FILE" ]]; then
-  echo "Missing $ENV_FILE. Copy .env.production.example and fill production values." >&2
+  echo "Missing $ENV_FILE. Copy $APP_DIR/deploy/production.env.template to $ENV_FILE, then fill and verify production values." >&2
   exit 1
 fi
 
