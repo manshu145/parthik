@@ -46,9 +46,7 @@ export function ProductImport({
   const [categoryId, setCategoryId] = useState(categories[0]?.id ?? '');
   const [csv, setCsv] = useState('name,sku,unit,price,mrp,stock\n');
   const [busy, setBusy] = useState(false);
-  const [result, setResult] = useState<{ kind: 'success' | 'error'; text: string } | null>(
-    null
-  );
+  const [result, setResult] = useState<{ kind: 'success' | 'error'; text: string } | null>(null);
   const isHindi = locale === 'hi';
   const copy = isHindi
     ? {
@@ -92,7 +90,10 @@ export function ProductImport({
     setResult(null);
 
     try {
-      if (!stores.some((item) => item.id === storeId) || !categories.some((item) => item.id === categoryId)) {
+      if (
+        !stores.some((item) => item.id === storeId) ||
+        !categories.some((item) => item.id === categoryId)
+      ) {
         setResult({ kind: 'error', text: copy.noStores });
         return;
       }
@@ -110,7 +111,9 @@ export function ProductImport({
       }
 
       const headers = headerRow.map((header) => header.trim().toLowerCase());
-      const hasDuplicateHeaders = headers.some((header, index) => headers.indexOf(header) !== index);
+      const hasDuplicateHeaders = headers.some(
+        (header, index) => headers.indexOf(header) !== index
+      );
       const hasUnknownHeaders = headers.some((header) => !ALLOWED_HEADERS.has(header));
       const hasMissingHeaders = REQUIRED_HEADERS.some((header) => !headers.includes(header));
 
@@ -135,7 +138,9 @@ export function ProductImport({
       for (const [index, values] of dataRows.entries()) {
         const rowNumber = index + 2;
         if (values.length !== headers.length) {
-          issues.push(`Row ${rowNumber}: expected ${headers.length} columns but found ${values.length}.`);
+          issues.push(
+            `Row ${rowNumber}: expected ${headers.length} columns but found ${values.length}.`
+          );
           continue;
         }
 
@@ -152,9 +157,11 @@ export function ProductImport({
 
         const rowIssues: string[] = [];
         if (name.length < 2 || name.length > 160) rowIssues.push('name must be 2–160 characters');
-        if (!sku || sku.length > 80) rowIssues.push('sku is required and must be at most 80 characters');
+        if (!sku || sku.length > 80)
+          rowIssues.push('sku is required and must be at most 80 characters');
         if (seenSkus.has(sku.toLocaleLowerCase())) rowIssues.push('sku is duplicated in this CSV');
-        if (pricePaise === null) rowIssues.push('price must be a valid amount with at most 2 decimals');
+        if (pricePaise === null)
+          rowIssues.push('price must be a valid amount with at most 2 decimals');
         if (mrpPaise === null) rowIssues.push('mrp must be a valid amount with at most 2 decimals');
         if (pricePaise !== null && mrpPaise !== null && pricePaise > mrpPaise) {
           rowIssues.push('price cannot be higher than mrp');
@@ -280,7 +287,7 @@ export function ProductImport({
         />
       </label>
 
-      <div className="space-y-1 text-muted-foreground text-xs">
+      <div className="text-muted-foreground space-y-1 text-xs">
         <p>{copy.required}</p>
         <p>{copy.limit}</p>
         <p>name,sku,unit,price,mrp,stock</p>
@@ -288,20 +295,14 @@ export function ProductImport({
 
       <Button
         onClick={() => void submit()}
-        disabled={
-          busy ||
-          stores.length === 0 ||
-          categories.length === 0 ||
-          !storeId ||
-          !categoryId
-        }
+        disabled={busy || stores.length === 0 || categories.length === 0 || !storeId || !categoryId}
       >
         {busy ? copy.importing : copy.import}
       </Button>
 
       {result ? (
         <p
-          className={`whitespace-pre-wrap text-sm ${result.kind === 'error' ? 'text-danger' : 'text-foreground'}`}
+          className={`text-sm whitespace-pre-wrap ${result.kind === 'error' ? 'text-danger' : 'text-foreground'}`}
           role={result.kind === 'error' ? 'alert' : 'status'}
         >
           {result.text}
