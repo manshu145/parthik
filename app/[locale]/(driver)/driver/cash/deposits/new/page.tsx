@@ -3,11 +3,6 @@ import { getTranslations, setRequestLocale } from 'next-intl/server';
 import { DriverCashPanel } from '@/components/driver/cash-panel';
 import { requireCurrentActor } from '@/lib/auth/current-actor';
 
-/**
- * Route is live, screen is pending. See components/layout/dashboard-page.tsx for
- * why a shared placeholder is the honest choice here.
- */
-
 export async function generateMetadata({
   params,
 }: {
