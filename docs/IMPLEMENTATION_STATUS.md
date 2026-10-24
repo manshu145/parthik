@@ -57,4 +57,3 @@ Do not treat the application as ready to accept real orders until each applicabl
 | D-34 non-OTP SMS                 | No order-status SMS; Firebase OTP does not supply general transactional SMS. |
 | D-31 legacy data                 | Deliberately deferred; not part of the current cutover.                      |
 | D-15 automated settlements       | V1 calculates payout records but vendor settlement remains manual.           |
-
