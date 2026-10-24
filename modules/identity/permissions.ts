@@ -77,6 +77,7 @@ export const PERMISSION_KEYS = [
   'ticket:view',
   'ticket:reply',
   'ticket:manage',
+  'notification:view',
   'notification:manage',
 
   // Reporting and platform
@@ -165,6 +166,7 @@ export const PERMISSION_DESCRIPTIONS: Readonly<Record<PermissionKey, string>> = 
   'ticket:view': 'View a support ticket',
   'ticket:reply': 'Reply to a support ticket',
   'ticket:manage': 'Assign and change ticket status',
+  'notification:view': 'View in-app notifications',
   'notification:manage': 'Send notifications',
 
   'dashboard:view': 'View the admin dashboard',
@@ -224,6 +226,7 @@ export const ROLE_PERMISSION_MAP: Readonly<
     'inventory:view',
     'inventory:manage',
     'analytics:view',
+    'notification:view',
   ],
 
   // No bank details and no staff management — those are the owner's alone.
@@ -236,6 +239,7 @@ export const ROLE_PERMISSION_MAP: Readonly<
     'product:manage',
     'inventory:view',
     'inventory:manage',
+    'notification:view',
   ],
 
   ADMIN_SUPPORT: [
@@ -344,6 +348,7 @@ export const ROLE_PERMISSION_MAP: Readonly<
     'ticket:view',
     'ticket:reply',
     'ticket:manage',
+    'notification:view',
     'notification:manage',
     'analytics:view',
     'report:view',
