@@ -1,7 +1,8 @@
 import { z } from 'zod';
-import { requireCurrentPermission } from '@/lib/auth/current-actor';
+import { requireSurface } from '@/lib/auth/current-actor';
+import { AuthorizationError } from '@/lib/errors';
 import { apiError, apiSuccess, requestIdFrom } from '@/lib/http/api-response';
-import { isPermissionKey } from '@/modules/identity';
+import { isPermissionKey, permissionsForRole, requirePermission } from '@/modules/identity';
 import { updateAdminOperation } from '@/modules/admin-operations';
 
 export async function PATCH(
@@ -12,11 +13,30 @@ export async function PATCH(
   try {
     const { resource, id } = await params;
     if (!isPermissionKey(resource)) throw new Error('Unknown admin resource.');
-    const actor = await requireCurrentPermission(resource);
+    const actor = await requireSurface('admin');
+    requirePermission(actor, resource);
+
+    // Record the real global admin role that grants this permission. A permission
+    // in a vendor/store-scoped grant must not be treated as an admin operation.
+    const actingGrant = actor.roles.find(
+      (grant) =>
+        grant.scopeType === 'GLOBAL' &&
+        (grant.roleKey === 'SUPER_ADMIN' ||
+          (grant.permissions
+            ? grant.permissions.includes(resource)
+            : permissionsForRole(grant.roleKey).has(resource)))
+    );
+    if (!actingGrant) {
+      throw new AuthorizationError(
+        'FORBIDDEN',
+        'An administrative role with this permission is required.'
+      );
+    }
+
     const parsed = z
       .object({ action: z.enum(['enable', 'disable', 'approve', 'reject']) })
       .parse(await request.json());
-    await updateAdminOperation(resource, id, parsed.action, actor.userId);
+    await updateAdminOperation(resource, id, parsed.data.action, actor.userId, actingGrant.roleKey);
     return apiSuccess({ id, action: parsed.action }, { meta: { requestId } });
   } catch (error) {
     return apiError(error, { requestId });
