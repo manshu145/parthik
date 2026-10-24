@@ -351,9 +351,11 @@ test.describe('search typeahead', () => {
 });
 
 test.describe('search diagnostics', () => {
-  test('reports the in-memory search backend in development', async ({ request }) => {
+  test('reports the configured search backend in development', async ({ request }) => {
     const body = await (await request.get('/api/v1/diagnostics/providers')).json();
 
-    expect(body.data.search.backend).toBe('memory');
+    const databaseConfigured = Boolean(process.env.DATABASE_URL);
+    expect(body.data.search.backend).toBe(databaseConfigured ? 'postgres' : 'memory');
+    expect(body.data.search.databaseConfigured).toBe(databaseConfigured);
   });
 });

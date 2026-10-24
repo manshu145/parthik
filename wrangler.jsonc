@@ -62,10 +62,12 @@
     "enabled": true,
   },
 
-  // No secrets here. Secrets are set with `wrangler secret put` (or the
-  // dashboard) and are never committed — docs/SECURITY.md §9.1.
+  // Runtime defaults fail closed. Use a local .dev.vars file with APP_ENV=development
+  // for manual Wrangler development; never deploy a production Worker as development,
+  // which would permit development-only diagnostics and non-production fallbacks.
+  // Secrets are set with `wrangler secret put` (or the dashboard), never committed.
   "vars": {
-    "APP_ENV": "development",
+    "APP_ENV": "production",
   },
 
   // ---------------------------------------------------------------------------

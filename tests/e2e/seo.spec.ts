@@ -45,11 +45,14 @@ test.describe('marketing and legal pages', () => {
     });
   }
 
-  test('states that content is pending rather than inventing it', async ({ page }) => {
+  test('keeps unpublished legal policy content pending rather than inventing it', async ({ page }) => {
     // No CMS content is published, and legal text must never be fabricated.
     await page.goto('/privacy');
 
     await expect(page.getByTestId('cms-pending')).toBeVisible();
+    await expect(page.getByTestId('marketing-default-content')).toHaveCount(0);
+    const robots = await page.locator('meta[name="robots"]').first().getAttribute('content');
+    expect(robots).toContain('noindex');
   });
 
   test('keeps an unpublished page out of the index', async ({ page }) => {

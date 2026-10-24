@@ -456,11 +456,15 @@ test.describe('catalog SEO', () => {
 });
 
 test.describe('catalog diagnostics', () => {
-  test('reports the in-memory catalog backend in development', async ({ request }) => {
+  test('reports the configured catalog backend in development', async ({ request }) => {
     const response = await request.get('/api/v1/diagnostics/providers');
     const body = await response.json();
 
-    expect(body.data.catalog.backend).toBe('memory');
-    expect(body.data.catalog.productSlugs).toContain('demo-atta-5kg');
+    const databaseConfigured = Boolean(process.env.DATABASE_URL);
+    expect(body.data.catalog.backend).toBe(databaseConfigured ? 'postgres' : 'memory');
+    expect(body.data.catalog.databaseConfigured).toBe(databaseConfigured);
+    if (!databaseConfigured) {
+      expect(body.data.catalog.productSlugs).toContain('demo-atta-5kg');
+    }
   });
 });

@@ -53,6 +53,15 @@ async function loadPage(slug: string, locale: Locale): Promise<CmsPage | null> {
   }
 }
 
+/** Legal policies need explicitly published CMS content; never show a generic draft as binding terms. */
+const LEGAL_POLICY_SLUGS = new Set<MarketingSlug>([
+  'privacy',
+  'terms',
+  'refund-policy',
+  'shipping-policy',
+  'cancellation-policy',
+]);
+
 /** Builds the metadata for one marketing page. Called by each route's `generateMetadata`. */
 export async function marketingMetadata(
   slug: MarketingSlug,
@@ -63,8 +72,10 @@ export async function marketingMetadata(
   const page = await loadPage(slug, locale);
   const fallbackTitle = t(`titles.${slug}` as 'titles.about');
 
-  // Built-in production copy keeps public/legal routes useful before an operator
-  // publishes a CMS override. CMS content still wins as soon as it exists.
+  // Unpublished legal/policy text must never be indexed as if it were approved policy.
+  if (!page && LEGAL_POLICY_SLUGS.has(slug)) return privatePageMetadata(fallbackTitle);
+
+  // Built-in copy is suitable for general marketing pages before a CMS override exists.
   if (!page) {
     return publicPageMetadata({
       title: fallbackTitle,
@@ -129,6 +140,17 @@ export async function MarketingPage({
 
           <CmsContent content={page.content} />
         </>
+      ) : LEGAL_POLICY_SLUGS.has(slug) ? (
+        <div
+          className="border-border bg-muted rounded-xl border p-5"
+          data-testid="cms-pending"
+          role="status"
+        >
+          <h2 className="font-semibold">{t('pendingTitle')}</h2>
+          <p className="text-muted-foreground mt-2 text-sm leading-relaxed">
+            {t('pendingDescription')}
+          </p>
+        </div>
       ) : (
         <DefaultMarketingContent slug={slug} locale={localeParam} />
       )}

@@ -87,6 +87,7 @@ export default async function CartPage({ params }: { params: Promise<{ locale: s
   const minOrderIssue = view.issues.find((issue) => issue.code === 'MIN_ORDER_NOT_MET');
   const locationIssue = view.issues.find((issue) => issue.code === 'LOCATION_REQUIRED');
   const serviceIssue = view.issues.find((issue) => issue.code === 'NOT_SERVICEABLE');
+  const checkoutBlocked = totals.isQuoteIncomplete || Boolean(minOrderIssue) || Boolean(serviceIssue);
 
   return (
     <PageShell title={tPage('heading')} description={t('itemCount', { count: totals.itemCount })}>
@@ -260,7 +261,7 @@ export default async function CartPage({ params }: { params: Promise<{ locale: s
             </p>
           )}
 
-          {totals.isQuoteIncomplete ? (
+          {checkoutBlocked ? (
             <Button block disabled className="mt-4" data-testid="cart-checkout">
               {t('checkout')}
             </Button>
