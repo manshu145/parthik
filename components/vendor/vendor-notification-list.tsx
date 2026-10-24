@@ -51,7 +51,7 @@ export function VendorNotificationList({
 
   if (rows.length === 0) {
     return (
-      <div className="rounded-xl border border-dashed p-6 text-sm text-muted-foreground">
+      <div className="text-muted-foreground rounded-xl border border-dashed p-6 text-sm">
         {locale === 'hi' ? 'अभी कोई notification नहीं है।' : 'No notifications yet.'}
       </div>
     );
@@ -75,7 +75,7 @@ export function VendorNotificationList({
             <div className="min-w-0">
               <div className="flex flex-wrap items-center gap-2">
                 <h2 className="font-medium">{row.title ?? row.channel}</h2>
-                <span className="rounded-full border px-2 py-0.5 text-xs text-muted-foreground">
+                <span className="text-muted-foreground rounded-full border px-2 py-0.5 text-xs">
                   {row.readAt
                     ? locale === 'hi'
                       ? 'पढ़ा गया'
@@ -85,8 +85,8 @@ export function VendorNotificationList({
                       : 'Unread'}
                 </span>
               </div>
-              <p className="mt-2 whitespace-pre-wrap text-sm">{row.body}</p>
-              <p className="mt-2 text-xs text-muted-foreground">
+              <p className="mt-2 text-sm whitespace-pre-wrap">{row.body}</p>
+              <p className="text-muted-foreground mt-2 text-xs">
                 {row.channel} · {row.status} ·{' '}
                 {new Intl.DateTimeFormat(dateLocale, {
                   dateStyle: 'medium',
