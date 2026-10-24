@@ -195,6 +195,25 @@ jobs:
     timeout-minutes: 25
     needs: quality
 
+    # Dashboard routes use real repositories, so the E2E job needs its own
+    # disposable database instead of accidentally testing against missing config.
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: localonly
+          POSTGRES_DB: parthik_e2e
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d parthik_e2e"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 12
+    env:
+      DATABASE_URL: postgresql://postgres:localonly@localhost:5432/parthik_e2e
+
     steps:
       - name: Checkout
         uses: actions/checkout@v5
@@ -210,6 +229,11 @@ jobs:
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
+
+      - name: Apply schema and seed E2E personas
+        run: pnpm db:migrate && pnpm seed && pnpm seed:demo
+        env:
+          APP_ENV: development
 
       - name: Install Playwright browsers
         run: pnpm exec playwright install --with-deps chromium
