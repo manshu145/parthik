@@ -31,8 +31,9 @@ export default async function Page({ params }: { params: Promise<{ locale: strin
       <div>
         <h1 className="text-xl font-semibold">{t('paymentSettings')}</h1>
         <p className="text-muted-foreground mt-1 text-sm">
-          Configure Maps, Razorpay, Firebase and analytics integration values. Secret fields are
-          encrypted at rest and their saved values are never returned to this page.
+          Encrypted provider-settings registry for Maps, Razorpay, Firebase and analytics. Runtime
+          adapters still read deployment environment variables, so saving registry values does not
+          switch live integrations. Use the deployment secret manager and redeploy to apply keys.
         </p>
       </div>
 
@@ -43,7 +44,7 @@ export default async function Page({ params }: { params: Promise<{ locale: strin
             Use restricted production keys from the provider console, not unrestricted test keys.
           </li>
           <li>Keep webhook secrets and service-account private keys server-side.</li>
-          <li>Some browser/build-time values require a new deployment after saving.</li>
+          <li>All runtime credentials must be applied through the deployment secret manager and redeployed; registry entries alone are not active.</li>
           <li>
             Verify the provider health page and a staged transaction before enabling real orders.
           </li>
