@@ -1,4 +1,5 @@
-export type CsvParseResult = { success: true; rows: string[][] } | { success: false; error: string };
+export type CsvParseResult =
+  { success: true; rows: string[][] } | { success: false; error: string };
 
 /**
  * Parse ordinary CSV records, including commas and line breaks inside quoted fields,
