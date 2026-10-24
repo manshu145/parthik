@@ -79,7 +79,7 @@ const vendorScoped = (roleKey: RoleKey, scopeId: string): RoleGrant => ({
 });
 
 describe('registry integrity', () => {
-  it('exposes 59 unique permission keys shaped resource:action', () => {
+  it('exposes 60 unique permission keys shaped resource:action', () => {
     expect(new Set(PERMISSION_KEYS).size).toBe(PERMISSION_KEYS.length);
     for (const key of PERMISSION_KEYS) {
       expect(key).toMatch(/^[a-z_]+:[a-z_]+$/);
@@ -139,6 +139,14 @@ describe('registry integrity', () => {
     // They act only on their OWN resources; ownership is checked in the service layer.
     expect(permissionsForRole('CUSTOMER').size).toBe(0);
     expect(permissionsForRole('DRIVER').size).toBe(0);
+  });
+
+  it('grants notification viewing only to vendor roles and platform administrators', () => {
+    expect(permissionsForRole('VENDOR_OWNER').has('notification:view')).toBe(true);
+    expect(permissionsForRole('VENDOR_STAFF').has('notification:view')).toBe(true);
+    expect(permissionsForRole('ADMIN').has('notification:view')).toBe(true);
+    expect(permissionsForRole('ADMIN_SUPPORT').has('notification:view')).toBe(false);
+    expect(permissionsForRole('CUSTOMER').has('notification:view')).toBe(false);
   });
 
   it('withholds RBAC, sensitive settings and cash adjustment from plain ADMIN', () => {
