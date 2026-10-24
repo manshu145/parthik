@@ -190,10 +190,14 @@ jobs:
           echo "No migration drift."
 
   e2e:
-    name: Playwright E2E (desktop + mobile)
+    name: Playwright E2E (${{ matrix.project }})
     runs-on: ubuntu-latest
     timeout-minutes: 25
     needs: quality
+    strategy:
+      fail-fast: false
+      matrix:
+        project: [chromium, mobile-chrome]
 
     # Dashboard routes use real repositories, so the E2E job needs its own
     # disposable database instead of accidentally testing against missing config.
@@ -252,12 +256,12 @@ jobs:
       # leaves every permission check running (tests/e2e/helpers/auth.ts). Real
       # SMS cannot be received in CI, which is why that path exists.
       - name: E2E
-        run: bash scripts/run-e2e.sh 3200
+        run: bash scripts/run-e2e.sh 3200 --project="${{ matrix.project }}"
 
       - name: Upload report on failure
         if: failure()
         uses: actions/upload-artifact@v4
         with:
-          name: playwright-report
+          name: playwright-report-${{ matrix.project }}
           path: playwright-report/
           retention-days: 7
