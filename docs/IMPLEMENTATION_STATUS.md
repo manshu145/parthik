@@ -50,6 +50,7 @@ Do not treat the application as ready to accept real orders until each applicabl
 
 | Decision                         | Effect                                                                       |
 | -------------------------------- | ---------------------------------------------------------------------------- |
+| D-14 GST/tax                     | Tax calculations, tax display and invoices stay disabled until confirmed.    |
 | D-19a cancellation/refund values | Order cancellation/refund permissions and amounts need agreed policy values. |
 | D-25 transactional email         | No transactional email, email OTP fallback or email-based account recovery.  |
 | D-32 vendor store model          | The vendor UI choice (one store vs multiple stores) is not final.            |
