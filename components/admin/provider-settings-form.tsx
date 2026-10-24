@@ -24,12 +24,12 @@ export function ProviderSettingsForm({ initial }: { initial: Field[] }) {
         body: JSON.stringify(values),
       });
       const payload = await response.json();
-      if (!response.ok)
+      if (!response.ok || !payload?.success)
         throw new Error(payload?.error?.message ?? 'Could not save provider settings.');
       setFields(payload.data.settings);
       setValues({});
       setMessage(
-        'Provider configuration saved. Server-side Maps and Razorpay changes apply to new requests; browser/build-time settings may require a deployment.'
+        'Saved to the encrypted provider-settings registry. Runtime provider adapters still read deployment environment variables, so this does not change live integrations yet. Apply approved credentials through the deployment secret manager and redeploy.'
       );
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : 'Could not save provider settings.');
@@ -45,7 +45,7 @@ export function ProviderSettingsForm({ initial }: { initial: Field[] }) {
             <span className="flex items-center justify-between gap-2 font-medium">
               {field.label}
               <span className={field.configured ? 'text-success text-xs' : 'text-warning text-xs'}>
-                {field.configured ? 'Configured' : 'Not configured'}
+                {field.configured ? 'Saved in registry' : 'Not saved in registry'}
               </span>
             </span>
             <Input
