@@ -44,7 +44,10 @@ export default async function Page({ params }: { params: Promise<{ locale: strin
             Use restricted production keys from the provider console, not unrestricted test keys.
           </li>
           <li>Keep webhook secrets and service-account private keys server-side.</li>
-          <li>All runtime credentials must be applied through the deployment secret manager and redeployed; registry entries alone are not active.</li>
+          <li>
+            All runtime credentials must be applied through the deployment secret manager and
+            redeployed; registry entries alone are not active.
+          </li>
           <li>
             Verify the provider health page and a staged transaction before enabling real orders.
           </li>
