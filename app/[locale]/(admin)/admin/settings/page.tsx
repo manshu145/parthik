@@ -77,7 +77,9 @@ export default async function Page({ params }: { params: Promise<{ locale: strin
       <Card>
         <CardContent className="p-4 text-sm">
           <p className="font-medium">
-            {isHindi ? 'Sensitive credentials की अलग अनुमति जरूरी है।' : 'Sensitive credentials require a separate permission.'}
+            {isHindi
+              ? 'Sensitive credentials की अलग अनुमति जरूरी है।'
+              : 'Sensitive credentials require a separate permission.'}
           </p>
           <p className="text-muted-foreground mt-1">
             {isHindi
