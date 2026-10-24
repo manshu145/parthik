@@ -4,5 +4,6 @@ export {
   readVendorStoreSummary,
   listVendorCoupons,
   listVendorNotifications,
+  markVendorNotificationRead,
   updateVendorStore,
 } from './vendor-operations.repository';
