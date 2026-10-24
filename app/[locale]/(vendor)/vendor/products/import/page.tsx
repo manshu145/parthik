@@ -7,11 +7,6 @@ import { listVendorProductFormOptions } from '@/modules/vendor-products';
 
 export const dynamic = 'force-dynamic';
 
-/**
- * Route is live, screen is pending. See components/layout/dashboard-page.tsx for
- * why a shared placeholder is the honest choice here.
- */
-
 export async function generateMetadata({
   params,
 }: {
@@ -36,7 +31,7 @@ export default async function Page({ params }: { params: Promise<{ locale: strin
   return (
     <div className="mx-auto flex max-w-4xl flex-col gap-4">
       <h1 className="text-xl font-semibold">{t('productImport')}</h1>
-      <ProductImport stores={options.stores} categories={options.categories} />
+      <ProductImport stores={options.stores} categories={options.categories} locale={locale} />
     </div>
   );
 }
