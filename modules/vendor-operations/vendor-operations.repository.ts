@@ -166,7 +166,7 @@ export async function listVendorCoupons(vendorId: string) {
     .limit(100);
 }
 
-export async function listVendorNotifications(vendorId: string) {
+export async function listVendorNotifications(vendorId: string, userId: string) {
   const db = await getDb();
   return db
     .select({
@@ -180,9 +180,66 @@ export async function listVendorNotifications(vendorId: string) {
     })
     .from(notifications)
     .innerJoin(vendorUsers, eq(vendorUsers.userId, notifications.userId))
-    .where(and(eq(vendorUsers.vendorId, vendorId), isNull(vendorUsers.removedAt)))
+    .where(
+      and(
+        eq(vendorUsers.vendorId, vendorId),
+        eq(vendorUsers.userId, userId),
+        eq(notifications.userId, userId),
+        isNull(vendorUsers.removedAt)
+      )
+    )
     .orderBy(desc(notifications.createdAt))
     .limit(100);
+}
+
+/** Mark only the signed-in vendor user's own notification as read. */
+export async function markVendorNotificationRead(
+  vendorId: string,
+  userId: string,
+  notificationId: string
+) {
+  const db = await getDb();
+  const [notification] = await db
+    .select({ id: notifications.id, readAt: notifications.readAt })
+    .from(notifications)
+    .innerJoin(vendorUsers, eq(vendorUsers.userId, notifications.userId))
+    .where(
+      and(
+        eq(notifications.id, notificationId),
+        eq(notifications.userId, userId),
+        eq(vendorUsers.userId, userId),
+        eq(vendorUsers.vendorId, vendorId),
+        isNull(vendorUsers.removedAt)
+      )
+    )
+    .limit(1);
+
+  if (!notification) throw new NotFoundError('Notification could not be found.');
+  if (notification.readAt) return notification;
+
+  const [updated] = await db
+    .update(notifications)
+    .set({ readAt: new Date() })
+    .where(
+      and(
+        eq(notifications.id, notificationId),
+        eq(notifications.userId, userId),
+        isNull(notifications.readAt)
+      )
+    )
+    .returning({ id: notifications.id, readAt: notifications.readAt });
+
+  if (updated) return updated;
+
+  // Another request may have marked it read between the select and update.
+  const [current] = await db
+    .select({ id: notifications.id, readAt: notifications.readAt })
+    .from(notifications)
+    .where(and(eq(notifications.id, notificationId), eq(notifications.userId, userId)))
+    .limit(1);
+
+  if (!current) throw new NotFoundError('Notification could not be found.');
+  return current;
 }
 
 export async function updateVendorStore(
