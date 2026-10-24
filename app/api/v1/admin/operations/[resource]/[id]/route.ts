@@ -12,7 +12,8 @@ export async function PATCH(
   const requestId = requestIdFrom(request);
   try {
     const { resource, id } = await params;
-    if (!isPermissionKey(resource)) throw new ValidationError('Unknown admin operation permission.');
+    if (!isPermissionKey(resource))
+      throw new ValidationError('Unknown admin operation permission.');
     const actor = await requireSurface('admin');
     requirePermission(actor, resource);
 
@@ -37,7 +38,10 @@ export async function PATCH(
       .object({ action: z.enum(['enable', 'disable', 'approve', 'reject']) })
       .safeParse(await request.json().catch(() => null));
     if (!parsed.success) {
-      throw new ValidationError('Choose a valid admin operation.', parsed.error.flatten().fieldErrors);
+      throw new ValidationError(
+        'Choose a valid admin operation.',
+        parsed.error.flatten().fieldErrors
+      );
     }
 
     await updateAdminOperation(resource, id, parsed.data.action, actor.userId, actingGrant.roleKey);

@@ -14,10 +14,7 @@ const ACTIONS = {
   'admin_user:manage': ['enable', 'disable'],
 } as const satisfies Partial<Record<PermissionKey, readonly string[]>>;
 
-export function isAdminOperationActionAllowed(
-  permission: PermissionKey,
-  action: string
-): boolean {
+export function isAdminOperationActionAllowed(permission: PermissionKey, action: string): boolean {
   const allowed = (ACTIONS as Partial<Record<PermissionKey, readonly string[]>>)[permission];
   return allowed?.includes(action) ?? false;
 }
