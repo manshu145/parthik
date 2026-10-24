@@ -1,4 +1,6 @@
 import { sql } from 'drizzle-orm';
+import { ValidationError } from '@/lib/errors';
+import { isAdminOperationActionAllowed } from './admin-operation-policy';
 import { getDb } from '@/lib/db/client';
 import {
   auditLogs,
@@ -24,6 +26,12 @@ export async function updateAdminOperation(
   action: string,
   actorUserId: string
 ) {
+  if (!isAdminOperationActionAllowed(permission, action)) {
+    throw new ValidationError('This action is not allowed for the selected admin module.', {
+      action: ['Choose an action supported by this module.'],
+    });
+  }
+
   const db = await getDb();
   let entityType: string = permission;
   await db.transaction(async (tx) => {
